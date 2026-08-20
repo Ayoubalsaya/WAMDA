@@ -1,0 +1,65 @@
+"""يجمع كل النماذج تحت Base.metadata الواحدة — لازم لـ alembic autogenerate."""
+
+from app.models.base import Base
+from app.models.core import Currency, Location
+from app.models.accounts import Account, AccountNumberAssignment, AccountNumberCounter
+from app.models.partners import (
+    Beneficiary,
+    Client,
+    ClientCreditLimit,
+    Partner,
+    RemitOutDestination,
+)
+from app.models.journal import JournalEntry, JournalLine
+from app.models.swift import SwiftMovement
+from app.models.lots import CurrencyLot, LotConsumption
+from app.models.opening import OpeningBalance, OpeningReconciliation
+from app.models.system import (
+    AccountBalance,
+    AuditLog,
+    Counter,
+    EditRequest,
+    FoundingPeriod,
+    IdempotencyKey,
+    OutageWindow,
+    PartnerStatement,
+    PartnerStatementLine,
+    Period,
+    Session,
+    Setting,
+    User,
+)
+
+__all__ = [
+    "Base",
+    "Currency",
+    "Location",
+    "Account",
+    "AccountNumberAssignment",
+    "AccountNumberCounter",
+    "Beneficiary",
+    "Client",
+    "ClientCreditLimit",
+    "Partner",
+    "RemitOutDestination",
+    "JournalEntry",
+    "JournalLine",
+    "SwiftMovement",
+    "CurrencyLot",
+    "LotConsumption",
+    "OpeningBalance",
+    "OpeningReconciliation",
+    "AccountBalance",
+    "AuditLog",
+    "Counter",
+    "EditRequest",
+    "FoundingPeriod",
+    "IdempotencyKey",
+    "OutageWindow",
+    "PartnerStatement",
+    "PartnerStatementLine",
+    "Period",
+    "Session",
+    "Setting",
+    "User",
+]
