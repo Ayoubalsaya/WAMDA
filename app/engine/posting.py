@@ -178,6 +178,42 @@ def _log_override(db: Session, entry: JournalEntry, account: Account, action: st
     )
 
 
+def _client_currency_total_deficit(
+    db: Session,
+    *,
+    client_id: int,
+    currency_code: str,
+    touched_account_id: int,
+    touched_prospective_balance: Decimal,
+    deltas: dict[int, Decimal],
+    balances: dict[int, AccountBalance],
+) -> Decimal:
+    """§٢-٢ / توجيه صريح: حد الائتمان يُفحص على **مجموع عجز العميل بهذه
+    العملة عبر كل مواقعه معاً**، لا على الحساب الملموس وحده — وإلا أمكن
+    للعميل تكرار العجز حتى الحد الكامل في كل موقع على حدة فيتضاعف تعرّضه
+    الفعلي بعدد المواقع. للحسابات الأخرى التي يمسّها **نفس القيد**
+    تُستخدم القيمة المرتقبة (بعد هذا القيد)، لا المخزَّنة، حتى لا يُفلت
+    قيد يعدّل أكثر من موقع للعميل في نفس العملة دفعة واحدة.
+    """
+    total_deficit = max(Decimal("0"), -touched_prospective_balance)
+    sibling_ids = db.execute(
+        select(Account.id).where(
+            Account.client_id == client_id,
+            Account.currency_code == currency_code,
+            Account.id != touched_account_id,
+        )
+    ).scalars().all()
+    for acc_id in sibling_ids:
+        if acc_id in deltas:
+            # حساب آخر يمسّه هذا القيد نفسه — القيمة المرتقبة بعده لا المخزَّنة
+            balance = balances[acc_id].balance + deltas[acc_id]
+        else:
+            row = db.get(AccountBalance, acc_id)
+            balance = row.balance if row is not None else Decimal("0")
+        total_deficit += max(Decimal("0"), -balance)
+    return total_deficit
+
+
 def _enforce_balance_policy(
     db: Session,
     *,
@@ -186,23 +222,36 @@ def _enforce_balance_policy(
     prospective_balance: Decimal,
     allow_negative: bool,
     override_reason: Optional[str],
+    deltas: dict[int, Decimal],
+    balances: dict[int, AccountBalance],
 ) -> None:
     if account.client_id is not None:
         if prospective_balance >= 0:
             return
         client = db.get(Client, account.client_id)
         if not client.credit_allowed:
-            # §٥ قاعدة ٦: عميل بلا ائتمان → رفض تام، لا صيغة تجاوز إطلاقاً
+            # §٥ قاعدة ٦: عميل بلا ائتمان → رفض تام على مستوى هذا الموقع
+            # وحده (اختبار القبول ٣٠) — لا صيغة تجاوز إطلاقاً.
             raise CreditLimitExceededError(
-                f"العميل {client.code} بلا ائتمان مسموح — لا يمكن أن يصبح رصيده سالباً"
+                f"العميل {client.code} بلا ائتمان مسموح — لا يمكن أن يصبح رصيده سالباً في {account.code}"
             )
         limit_row = db.get(ClientCreditLimit, (client.id, account.currency_code))
         limit_amount = limit_row.limit_amount if limit_row else Decimal("0")
-        if -prospective_balance <= limit_amount:
+        total_deficit = _client_currency_total_deficit(
+            db,
+            client_id=client.id,
+            currency_code=account.currency_code,
+            touched_account_id=account.id,
+            touched_prospective_balance=prospective_balance,
+            deltas=deltas,
+            balances=balances,
+        )
+        if total_deficit <= limit_amount:
             return
         if not allow_negative:
             raise CreditLimitExceededError(
-                f"تجاوز حد ائتمان العميل {client.code} بعملة {account.currency_code}"
+                f"تجاوز حد ائتمان العميل {client.code} بعملة {account.currency_code} "
+                f"(إجمالي العجز عبر كل المواقع {total_deficit} > الحد {limit_amount})"
             )
         if not override_reason:
             raise OverrideReasonRequiredError("تجاوز حد الائتمان يتطلب سبباً إلزامياً")
@@ -274,6 +323,8 @@ def post_entry(
             prospective_balance=prospective,
             allow_negative=allow_negative,
             override_reason=override_reason,
+            deltas=deltas,
+            balances=balances,
         )
 
     entry.status = EntryStatus.POSTED

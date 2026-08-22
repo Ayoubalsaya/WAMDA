@@ -1,7 +1,7 @@
 """يجمع كل النماذج تحت Base.metadata الواحدة — لازم لـ alembic autogenerate."""
 
 from app.models.base import Base
-from app.models.core import Currency, Location
+from app.models.core import ClientCurrencyLocation, Currency, Location
 from app.models.accounts import Account, AccountNumberAssignment, AccountNumberCounter
 from app.models.partners import (
     Beneficiary,
@@ -32,6 +32,7 @@ from app.models.system import (
 
 __all__ = [
     "Base",
+    "ClientCurrencyLocation",
     "Currency",
     "Location",
     "Account",

@@ -9,12 +9,17 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Account, AccountNumberAssignment, Client, Currency, Location
+from app.models import Account, AccountNumberAssignment, Client, ClientCurrencyLocation, Currency, Location
 from app.models.enums import AccountType
 
 
 class AccountNotFoundError(Exception):
     pass
+
+
+class InvalidClientLocationError(Exception):
+    """§٢-٢ (تعديل معتمد): تركيبة عملة×موقع غير مسموح بها لحساب عميل —
+    الإنشاء الكسول بلا قيد كان يولّد حساباً لا وجود له في الواقع."""
 
 
 def get_account_by_code(db: Session, code: str) -> Account:
@@ -70,6 +75,12 @@ def get_or_create_client_account(
     existing = db.execute(select(Account).where(Account.code == code)).scalar_one_or_none()
     if existing is not None:
         return existing
+
+    whitelisted = db.get(ClientCurrencyLocation, (currency_code, location.id))
+    if whitelisted is None:
+        raise InvalidClientLocationError(
+            f"تركيبة {currency_code}·{location_code} غير مسموح بها لحسابات العملاء"
+        )
 
     parent = get_account_by_code(db, "2100")
     account = Account(

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Index, Integer, SmallInteger, Text, text
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, Integer, SmallInteger, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -33,3 +33,19 @@ class Location(Base):
     name_ar: Mapped[str] = mapped_column(Text, nullable=False)
     country: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ClientCurrencyLocation(Base):
+    """تعديل معتمد بعد مراجعة المرحلة ٢ — تركيبات عملة×موقع المسموح بها
+    لحسابات العملاء `2100-{code}-{ccy}-{loc}` وحدها. الإنشاء الكسول بلا
+    قيد كان يعني أن أول خطأ إدخال يولّد حساباً لا وجود له في الواقع، ولن
+    يُحذف أبداً (§٥ قاعدة ٢: القيود المُرحّلة لا تُعدَّل ولا تُحذف).
+
+    جدول بيانات لا CHECK ثابت — يطابق روح §٣-١ ("لا تُثبّت عدد العملات ولا
+    المواقع في الكود"): إضافة تركيبة جديدة لاحقاً صف بيانات، لا ترحيل مخطط.
+    """
+
+    __tablename__ = "client_currency_locations"
+
+    currency_code: Mapped[str] = mapped_column(Text, ForeignKey("currencies.code"), primary_key=True)
+    location_id: Mapped[int] = mapped_column(Integer, ForeignKey("locations.id"), primary_key=True)

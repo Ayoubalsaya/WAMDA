@@ -17,6 +17,7 @@ from app.models import (
     Account,
     AccountNumberAssignment,
     AccountNumberCounter,
+    ClientCurrencyLocation,
     Currency,
     FoundingPeriod,
     Location,
@@ -39,6 +40,14 @@ LOCATIONS = [
     dict(code="TURKEY", name_ar="تركيا", country="TR"),
     dict(code="CHINA", name_ar="الصين", country="CN"),
 ]
+
+# تعديل معتمد بعد مراجعة المرحلة ٢ (§٢-٢): تركيبات عملة×موقع المسموح بها
+# لحسابات العملاء 2100-{code}-{ccy}-{loc} وحدها — لا تُقيَّد حسابات الشركة.
+CLIENT_CURRENCY_LOCATIONS: dict[str, list[str]] = {
+    "USD": ["TRIPOLI", "TURKEY", "CHINA"],  # USD·TRIPOLI = "كاش ليبيا" في §٢-٢
+    "LYD": ["TRIPOLI", "BENGHAZI", "LIBYA_BANK"],
+    "CNY": ["CHINA"],
+}
 
 
 def _seed_currencies(db: Session) -> dict[str, Currency]:
@@ -63,6 +72,19 @@ def _seed_locations(db: Session) -> dict[str, Location]:
         db.flush()
         existing[data["code"]] = row
     return existing
+
+
+def _seed_client_currency_locations(
+    db: Session, currencies: dict[str, Currency], locations: dict[str, Location]
+) -> None:
+    existing = {(row.currency_code, row.location_id) for row in db.query(ClientCurrencyLocation).all()}
+    for ccy_code, location_codes in CLIENT_CURRENCY_LOCATIONS.items():
+        for loc_code in location_codes:
+            key = (ccy_code, locations[loc_code].id)
+            if key in existing:
+                continue
+            db.add(ClientCurrencyLocation(currency_code=ccy_code, location_id=locations[loc_code].id))
+    db.flush()
 
 
 def _get_or_create_account(
@@ -256,6 +278,7 @@ def run() -> None:
         currencies = _seed_currencies(db)
         locations = _seed_locations(db)
         _seed_chart_of_accounts(db, currencies, locations)
+        _seed_client_currency_locations(db, currencies, locations)
         _seed_founding_period(db)
         _seed_settings(db)
         db.commit()
