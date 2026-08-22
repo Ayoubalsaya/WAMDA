@@ -23,12 +23,17 @@ from app.models import (
     AuditLog,
     Client,
     ClientCreditLimit,
+    FoundingPeriod,
     JournalEntry,
     JournalLine,
+    OutageWindow,
+    Period,
+    User,
 )
 from app.models.enums import AccountForm, AccountType, EntryStatus, SessionSubjectType
 
 _CREDIT_NORMAL = (AccountType.LIABILITY, AccountType.EQUITY, AccountType.REVENUE)
+_ADMIN_ROLE = "ADMIN"
 
 
 class UnbalancedEntryError(Exception):
@@ -45,6 +50,14 @@ class CreditLimitExceededError(Exception):
 
 class OverrideReasonRequiredError(Exception):
     """التجاوز يتطلب سبباً إلزامياً مسجَّلاً (§٥ قاعدة ٨)."""
+
+
+class BackdatedEntryRequiresAdminError(Exception):
+    """§٥ قاعدة ٤/٥: بعد إقفال الفترة، القيود بأثر رجعي للمدير فقط."""
+
+
+class OutageWindowRequiredError(Exception):
+    """§٥ قاعدة ١٥ / §٦-٢: لا يُقبل قيد SYSTEM_OUTAGE خارج نافذة معلنة."""
 
 
 @dataclass
@@ -94,6 +107,47 @@ def validate_balance(lines: list[LineInput]) -> None:
         raise UnbalancedEntryError(f"القيد غير متوازن بالعملات: {unbalanced}")
 
 
+def _check_backdate_gate(
+    db: Session, *, entry_date: date, backdate_reason: Optional[str], created_by: int
+) -> None:
+    """§٥ قاعدة ٤/٥: الفترة التأسيسية إدخال حر بأي تاريخ. بعد إقفالها —
+    وإقفال أي فترة شهرية لاحقة — القيود بأثر رجعي للمدير فقط بسبب إلزامي.
+    الدور يُشتق من `users.role` عبر `created_by` — لا بوابة مصادقة هنا
+    (مؤجَّلة للمرحلة ٤)، المستدعي مسؤول عن تمرير `created_by` الصحيح.
+    """
+    founding = db.get(FoundingPeriod, 1)
+    if founding is None or founding.is_open:
+        return  # الفترة التأسيسية مفتوحة — إدخال حر بأي تاريخ
+
+    period = db.get(Period, (entry_date.year, entry_date.month))
+    if period is None or not period.is_closed:
+        return  # لا فترة شهرية مقفلة تغطي هذا التاريخ
+
+    user = db.get(User, created_by)
+    if user is None or user.role != _ADMIN_ROLE:
+        raise BackdatedEntryRequiresAdminError(
+            f"الفترة {entry_date.year}-{entry_date.month:02d} مقفلة — القيد بأثر رجعي للمدير فقط"
+        )
+    if not backdate_reason:
+        raise OverrideReasonRequiredError("القيد بأثر رجعي بعد الإقفال يتطلب سبباً إلزامياً")
+
+
+def _check_outage_gate(db: Session, *, outage_mode: bool, real_operation_time: Optional[datetime]) -> None:
+    """§٥ قاعدة ١٥ / §٦-٢: لا يُقبل قيد SYSTEM_OUTAGE خارج نافذة `outage_windows` معلنة."""
+    if not outage_mode:
+        return
+    if real_operation_time is None:
+        raise ValueError("قيد SYSTEM_OUTAGE يتطلب real_operation_time")
+    window = db.execute(
+        select(OutageWindow).where(
+            OutageWindow.opened_at <= real_operation_time,
+            (OutageWindow.closed_at.is_(None)) | (OutageWindow.closed_at >= real_operation_time),
+        )
+    ).scalars().first()
+    if window is None:
+        raise OutageWindowRequiredError("قيد SYSTEM_OUTAGE خارج أي نافذة طوارئ معلنة")
+
+
 def create_draft_entry(
     db: Session,
     *,
@@ -118,6 +172,9 @@ def create_draft_entry(
     chain_total: Optional[int] = None,
 ) -> EntryDraft:
     """ينشئ رأس قيد DRAFT ويخصّص entry_no بلا فجوة — §٥ قاعدة ٩."""
+    _check_backdate_gate(db, entry_date=entry_date, backdate_reason=backdate_reason, created_by=created_by)
+    _check_outage_gate(db, outage_mode=outage_mode, real_operation_time=real_operation_time)
+
     entry_no = numbering.next_entry_no(db, entry_date.year)
     entry = JournalEntry(
         entry_no=entry_no,
