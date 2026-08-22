@@ -37,11 +37,18 @@ def execute_two_step_chain(db: Session, *, entry_date: date, step1: StepFn, step
 
 
 def reverse_chain(db: Session, *, chain_ref: str, reason: str, created_by: int, now: datetime) -> list[JournalEntry]:
-    """§٢-٩: عكس أي خطوة يفرض عكس السلسلة كاملة — لا نصف سلسلة معكوسة أبداً."""
+    """§٢-٩: عكس أي خطوة يفرض عكس السلسلة كاملة — لا نصف سلسلة معكوسة أبداً.
+
+    الترتيب **تنازلي** (الخطوة الأخيرة أولاً): الخطوة ٢ استهلكت مُخرَج
+    الخطوة ١ (رصيد الدولار الذي أنتجته)، فعكس الخطوة ١ أولاً يحاول سحب
+    مبلغ لم يعد متاحاً بالكامل (استُهلك جزء منه في الخطوة ٢) فيرفضه فحص
+    الرصيد السالب زوراً. عكس الأحدث أولاً يُعيد كل رصيد بترتيب معاكس
+    تماماً لترتيب إنشائه — تماماً كفكّ مكدّس (stack).
+    """
     entries = db.execute(
         select(JournalEntry)
         .where(JournalEntry.chain_ref == chain_ref, JournalEntry.status == EntryStatus.POSTED)
-        .order_by(JournalEntry.chain_seq)
+        .order_by(JournalEntry.chain_seq.desc())
     ).scalars().all()
     if not entries:
         raise ValueError(f"لا قيود مُرحّلة بمرجع سلسلة {chain_ref} لعكسها")
