@@ -135,6 +135,7 @@ def _subdivide_by_currency(
             name_ar=f"{parent.name_ar} · {ccy.name_ar}",
             type_=parent.type,
             currency_code=ccy.code,
+            form=parent.form,  # حاسم لـ1900→1901/1902/1903: يورّث CLEARING
             parent_code=parent.code,
             is_system=True,
         )
