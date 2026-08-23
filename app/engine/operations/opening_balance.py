@@ -52,6 +52,10 @@ def execute(
             draft.add(account_id=account.id, currency_code=currency_code, credit=amount)
             draft.add(account_id=contra_account.id, currency_code=currency_code, debit=amount)
 
+        # §٢-١٠: OPERATION_TYPE.OPENING مُعفى بالكامل من حاجز الرصيد
+        # السالب/حد الائتمان في posting._enforce_balance_policy — رصيد
+        # افتتاحي يسجّل واقعاً تاريخياً سابقاً على النظام لا ائتماناً
+        # جديداً، و`approved_by` الإلزامي هنا هو التفويض نفسه.
         entry = posting.post_entry(db, draft, posted_by=created_by, now=now)
 
         db.add(

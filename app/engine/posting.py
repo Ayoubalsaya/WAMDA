@@ -30,7 +30,7 @@ from app.models import (
     Period,
     User,
 )
-from app.models.enums import AccountForm, AccountType, EntryStatus, SessionSubjectType
+from app.models.enums import AccountForm, AccountType, EntryStatus, OperationType, SessionSubjectType
 
 _CREDIT_NORMAL = (AccountType.LIABILITY, AccountType.EQUITY, AccountType.REVENUE)
 _ADMIN_ROLE = "ADMIN"
@@ -282,6 +282,15 @@ def _enforce_balance_policy(
     deltas: dict[int, Decimal],
     balances: dict[int, AccountBalance],
 ) -> None:
+    if entry.operation_type == OperationType.OPENING:
+        # §٢-١٠: رصيد افتتاحي يسجّل واقعاً تاريخياً سابقاً على النظام —
+        # ليس ائتماناً جديداً يُمنح الآن، و`approved_by` الإلزامي في
+        # الوثيقة هو التفويض نفسه. حاجز الائتمان/الرصيد السالب مصمَّم
+        # لمنع تمديد دَين جديد أثناء التشغيل الحي، فلا ينطبق هنا إطلاقاً
+        # — بخلاف حسابات المقاصة، لا استثناء جزئي هنا بل إعفاء كامل لأن
+        # فرع credit_allowed=false أدناه مقصود بلا أي صيغة تجاوز (§٥ قاعدة ٦).
+        return
+
     if account.client_id is not None:
         if prospective_balance >= 0:
             return
