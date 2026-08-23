@@ -42,6 +42,18 @@ def _cmd_recompute_balances(verify_only: bool) -> None:
         db.close()
 
 
+def _cmd_create_admin() -> None:
+    from app.cli.create_admin import run
+
+    run()
+
+
+def _cmd_reset_admin_password() -> None:
+    from app.cli.reset_admin_password import run
+
+    run()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -52,6 +64,8 @@ def main() -> None:
     recompute_parser.add_argument(
         "--verify", action="store_true", help="فحص فقط بلا كتابة — يفشل (exit 1) عند أي اختلاف"
     )
+    sub.add_parser("create-admin", help="إنشاء مدير جديد (تفاعلي) — لا حسابات افتراضية")
+    sub.add_parser("reset-admin-password", help="إعادة تعيين كلمة مرور مدير من السيرفر — طوارئ")
 
     args = parser.parse_args()
 
@@ -59,6 +73,10 @@ def main() -> None:
         _cmd_seed()
     elif args.command == "recompute-balances":
         _cmd_recompute_balances(verify_only=args.verify)
+    elif args.command == "create-admin":
+        _cmd_create_admin()
+    elif args.command == "reset-admin-password":
+        _cmd_reset_admin_password()
     else:  # pragma: no cover
         parser.print_help()
         sys.exit(1)

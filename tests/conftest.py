@@ -1,10 +1,15 @@
-"""تجهيزات pytest المشتركة — المرحلة ٣.
+"""تجهيزات pytest المشتركة — المرحلتان ٣ و٤.
 
-عزل كل اختبار بمعاملة قاعدة بيانات واحدة تُلغى (rollback) نهاية الاختبار.
-محرك القيود (`app.engine.*`) لا يستدعي `commit()` أبداً بتصميمه — المستدعي
-يتحكم به دائماً — فهذا يعطي عزلاً كاملاً حقيقياً (Postgres فعلي: triggers،
-FKs، `SELECT…FOR UPDATE`) بلا إعادة بناء مخطط بين الاختبارات وبلا حيلة
-savepoint إضافية، وبلا أي أثر يبقى في قاعدة التطوير.
+عزل كل اختبار بمعاملة قاعدة بيانات واحدة تُلغى (rollback) نهاية الاختبار،
+عبر نمط SQLAlchemy القياسي "الانضمام لمعاملة خارجية" بـSAVEPOINT: محرك
+القيود (`app.engine.*`) لا يستدعي `commit()` أبداً، لكن طبقة المصادقة
+(`app/routers/auth.py`) تستدعيه فعلياً كما تفعل أي واجهة HTTP حقيقية —
+`commit()` عادي على جلسة مربوطة باتصال بمعاملة خارجية بدأها الاختبار
+يُنهي *تلك المعاملة نفسها* لا savepoint وهمياً، فينكسر العزل بصمت بين
+طلبين متتاليين في نفس الاختبار. مستمع `after_transaction_end` يعيد فتح
+SAVEPOINT تلقائياً بعد كل commit/rollback داخلي، فيبقى كل شيء قابلاً
+للإلغاء الكامل حتى النهاية بصرف النظر عن عدد مرات commit() من الكود
+قيد الاختبار.
 
 اختبارات التزامن الحقيقية (threads/processes بجلسات/اتصالات منفصلة —
 اختبارات القبول ١٧ · ٤٣ · ٤٤ · ٤٥) لا يمكنها استخدام هذه العزلة (تحتاج
@@ -23,7 +28,7 @@ if hasattr(sys.stdout, "reconfigure"):
     # طرفية ويندوز الافتراضية cp1252 لا تعرض العربية — الإخراج UTF-8 دائماً
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, event, select
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -63,18 +68,30 @@ def _ensure_seeded(engine):
 @pytest.fixture()
 def db(engine):
     connection = engine.connect()
-    transaction = connection.begin()
+    outer_transaction = connection.begin()
     Session = sessionmaker(bind=connection)
     session = Session()
+
+    session.begin_nested()  # SAVEPOINT أول — الكود قيد الاختبار يعمل ضمنه
+
+    @event.listens_for(session, "after_transaction_end")
+    def _restart_savepoint(session_, transaction):
+        # commit()/rollback() داخل الكود قيد الاختبار (مثل app/routers/auth.py)
+        # ينهي الـ SAVEPOINT الحالي فقط — نعيد فتح واحد جديد فوراً كي تبقى
+        # المعاملة الخارجية (outer_transaction) هي الحدود الحقيقية الوحيدة.
+        if transaction.nested and not transaction._parent.nested:
+            session_.begin_nested()
+
     try:
         yield session
     finally:
+        event.remove(session, "after_transaction_end", _restart_savepoint)
         session.close()
         # اختبار قد يسبب خطأ SQL مباشر (تريجر يرفض UPDATE مثلاً) يُنهي
-        # المعاملة من طرف الخادم فعلياً قبل وصولنا هنا — transaction.rollback()
-        # حينها عملية محلية بلا أثر خادم، وSQLAlchemy يُحذّر بلا داعٍ.
-        if transaction.is_active:
-            transaction.rollback()
+        # المعاملة من طرف الخادم فعلياً قبل وصولنا هنا — rollback() حينها
+        # عملية محلية بلا أثر خادم، وSQLAlchemy يُحذّر بلا داعٍ.
+        if outer_transaction.is_active:
+            outer_transaction.rollback()
         connection.close()
 
 

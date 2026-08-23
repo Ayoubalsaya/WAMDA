@@ -1,0 +1,40 @@
+"""قفل الحساب بعد محاولات فاشلة — §٧-١: قفل ١٥ دقيقة بعد ٥ محاولات.
+
+لا `datetime.now` هنا — `now` يُحقن دائماً من المستدعي (نفس قاعدة المحرك).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timedelta
+
+from sqlalchemy.orm import Session
+
+from app.models import User
+
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_DURATION = timedelta(minutes=15)
+
+
+class AccountLockedError(Exception):
+    def __init__(self, locked_until: datetime):
+        self.locked_until = locked_until
+        super().__init__(f"الحساب مقفل حتى {locked_until.isoformat()}")
+
+
+def check_not_locked(user: User, now: datetime) -> None:
+    if user.locked_until is not None and user.locked_until > now:
+        raise AccountLockedError(user.locked_until)
+
+
+def record_failed_attempt(db: Session, user: User, now: datetime) -> None:
+    user.failed_attempts += 1
+    if user.failed_attempts >= MAX_FAILED_ATTEMPTS:
+        user.locked_until = now + LOCKOUT_DURATION
+        user.failed_attempts = 0
+    db.flush()
+
+
+def reset_failed_attempts(db: Session, user: User) -> None:
+    user.failed_attempts = 0
+    user.locked_until = None
+    db.flush()
