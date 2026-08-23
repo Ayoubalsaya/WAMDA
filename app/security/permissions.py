@@ -13,6 +13,10 @@
 "محاسب يطلب" لتعديل قيد مُرحّل يعني `edit_requests` (§٥ قاعدة ٣) — ليس
 صلاحية تنفيذ مباشرة، فهو مرفوض هنا عمداً؛ رفع الطلب نفسه إجراء منفصل
 غير مذكور في هذا الجدول (لا يحتاج صلاحية "مدير" لتقديمه).
+
+`MANAGE_USERS` سطر إضافي (مدير حصراً) غير مذكور حرفياً في جدول §٧-١٣ —
+مُشتق من §٧-١٤ (الإعدادات → المستخدمون) و§٩ (المدير الاحتياطي يُنشأ من
+داخل النظام لا عبر CLI بعد الإقلاع الأول، انظر `app/routers/users.py`).
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ class Action(str, enum.Enum):
     RECONCILIATION = "RECONCILIATION"
     OPENING_BALANCES = "OPENING_BALANCES"
     VIEW_OWN_STATEMENT = "VIEW_OWN_STATEMENT"
+    MANAGE_USERS = "MANAGE_USERS"  # §٧-١٤ الإعدادات → المستخدمون — مدير فقط، يشمل المدير الاحتياطي (§٩)
 
 
 ADMIN = "ADMIN"
@@ -44,6 +49,7 @@ PERMISSION_MATRIX: dict[Action, frozenset[str]] = {
     Action.RECONCILIATION: frozenset({ADMIN}),
     Action.OPENING_BALANCES: frozenset({ADMIN}),
     Action.VIEW_OWN_STATEMENT: frozenset({CLIENT_ROLE}),
+    Action.MANAGE_USERS: frozenset({ADMIN}),
 }
 
 

@@ -64,7 +64,7 @@ def main() -> None:
     recompute_parser.add_argument(
         "--verify", action="store_true", help="فحص فقط بلا كتابة — يفشل (exit 1) عند أي اختلاف"
     )
-    sub.add_parser("create-admin", help="إنشاء مدير جديد (تفاعلي) — لا حسابات افتراضية")
+    sub.add_parser("create-admin", help="إنشاء أول مدير (تفاعلي) — يرفض إن وُجد مدير بالفعل")
     sub.add_parser("reset-admin-password", help="إعادة تعيين كلمة مرور مدير من السيرفر — طوارئ")
 
     args = parser.parse_args()

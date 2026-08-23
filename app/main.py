@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Request, Response
 
-from app.routers import auth
+from app.routers import auth, users
 from app.security import csrf
 
 app = FastAPI(title="ومضة")
 
 app.include_router(auth.router)
+app.include_router(users.router)
 
 
 @app.middleware("http")

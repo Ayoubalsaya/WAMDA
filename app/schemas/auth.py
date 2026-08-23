@@ -46,3 +46,18 @@ class CurrentUserResponse(BaseModel):
     full_name: str
     role: str
     must_change_password: bool
+
+
+class CreateUserRequest(BaseModel):
+    username: str
+    full_name: str
+    role: str  # "ADMIN" | "ACCOUNTANT"
+    initial_password: str = Field(min_length=10)
+    security_question: Optional[str] = None
+    security_answer: Optional[str] = None
+
+
+class CreateUserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
