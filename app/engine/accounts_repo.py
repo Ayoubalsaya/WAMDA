@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models import Account, AccountNumberAssignment, Client, ClientCurrencyLocation, Currency, Location
@@ -69,9 +69,18 @@ def get_currency_subaccount(db: Session, parent_code: str, currency_code: str) -
 def get_or_create_client_account(
     db: Session, *, client: Client, currency_code: str, location_code: str
 ) -> Account:
-    """§٣ (تعديل معتمد): `2100-{client.code}-{ccy}-{loc}` — توليد حتمي، إنشاء كسول."""
+    """§٣ (تعديل معتمد): `2100-{client.code}-{ccy}-{loc}` — توليد حتمي، إنشاء كسول.
+
+    الإنشاء الكسول عرضة لسباق حقيقي: طلبان متزامنان لأول استخدام لنفس
+    التركيبة قد يريا كلاهما "غير موجود" معاً فيحاولان الإدراج معاً وينتهك
+    أحدهما قيد `UNIQUE(code)`. `pg_advisory_xact_lock` بمعرّف مُشتق من
+    الكود نفسه يُسلسل كل الطلبات لنفس التركيبة قبل الفحص، بنفس أسلوب
+    `idempotency.run` تماماً — يُطلَق تلقائياً عند نهاية معاملة المستدعي.
+    """
     location = get_location_by_code(db, location_code)
     code = f"2100-{client.code}-{currency_code}-{location_code}"
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"), {"key": code})
+
     existing = db.execute(select(Account).where(Account.code == code)).scalar_one_or_none()
     if existing is not None:
         return existing

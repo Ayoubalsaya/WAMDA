@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Callable
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.models import IdempotencyKey
@@ -42,7 +43,16 @@ class IdempotentResult:
 def run(
     db: Session, *, idempotency_key: str, request_payload: dict, create_fn: Callable[[], Any]
 ) -> IdempotentResult:
-    """`create_fn` يُنشئ ويُرحّل القيد ويُعيد كائناً له `.id` و`.entry_no`."""
+    """`create_fn` يُنشئ ويُرحّل القيد ويُعيد كائناً له `.id` و`.entry_no`.
+
+    §٦-٤ / اختبار القبول ٤٣: تحقّق-ثم-فعل (check-then-act) العادي عرضة
+    لسباق حقيقي — طلبان متزامنان بنفس المفتاح قد يريا كلاهما "غير موجود"
+    معاً وينشئان قيدين. `pg_advisory_xact_lock` يقفل بمعرّف مُشتق من
+    المفتاح نفسه *قبل* أي فحص، فيُسلسل كل الطلبات بنفس المفتاح تلقائياً؛
+    القفل يُطلَق تلقائياً عند نهاية معاملة المستدعي (commit أو rollback).
+    """
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"), {"key": idempotency_key})
+
     request_hash = _hash_payload(request_payload)
     existing = db.get(IdempotencyKey, idempotency_key)
     if existing is not None:

@@ -70,7 +70,11 @@ def db(engine):
         yield session
     finally:
         session.close()
-        transaction.rollback()
+        # اختبار قد يسبب خطأ SQL مباشر (تريجر يرفض UPDATE مثلاً) يُنهي
+        # المعاملة من طرف الخادم فعلياً قبل وصولنا هنا — transaction.rollback()
+        # حينها عملية محلية بلا أثر خادم، وSQLAlchemy يُحذّر بلا داعٍ.
+        if transaction.is_active:
+            transaction.rollback()
         connection.close()
 
 
