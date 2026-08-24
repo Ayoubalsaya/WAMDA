@@ -1,0 +1,180 @@
+@import './tokens.css';
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-ar);
+  background: var(--canvas);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+
+h1, h2, h3, p { margin: 0; }
+
+button, input, select, textarea { font-family: inherit; }
+
+/* أ-٥: كل رقم مالي — أرقام جدولية غربية، LTR داخل نص RTL */
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-feature-settings: 'tnum' 1;
+}
+
+.screen-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.card-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.field-label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-inline-start: 2px;
+}
+
+/* ── بطاقة ─────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-base);
+  padding: var(--space-5);
+}
+
+/* ── أزرار (ج-١) ───────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  height: 44px;
+  padding: 0 var(--space-5);
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn-lg { height: 52px; }
+.btn-sm { height: 34px; font-size: 13px; padding: 0 var(--space-4); }
+
+.btn-primary { background: var(--sky-500); color: #fff; box-shadow: var(--shadow-primary-btn); }
+.btn-primary:hover:not(:disabled) { background: var(--sky-600); }
+.btn-primary-dark { background: var(--sky-900); color: #fff; }
+.btn-secondary { background: #fff; color: var(--text-secondary); border-color: var(--border); }
+.btn-secondary:hover:not(:disabled) { background: var(--sky-50); }
+.btn-muted { background: var(--sky-50); color: var(--sky-700); border-color: var(--border); }
+.btn-danger { background: #fff; color: var(--money-out-text); border-color: var(--money-out-text); }
+.btn-text { background: transparent; color: var(--sky-700); height: auto; padding: 0; }
+
+/* ── حقول (هـ-١) ───────────────────────────────────────────────────── */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.field input, .field select {
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--sky-50);
+  padding: 0 var(--space-4);
+  font-size: 15px;
+  color: var(--text-primary);
+  width: 100%;
+}
+.field input:focus, .field select:focus {
+  outline: none;
+  border-color: var(--sky-500);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(66, 176, 213, .14);
+}
+.field-amount input {
+  height: 52px;
+  font-size: 20px;
+  font-weight: 700;
+}
+.field-rate .rate-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-inline-start: 2px;
+}
+
+/* ── جدول ──────────────────────────────────────────────────────────── */
+table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.data-table th {
+  text-align: start;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 12px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  padding: 0 var(--space-3);
+  height: var(--row-height);
+  border-bottom: 1px solid var(--divider);
+}
+.data-table tbody tr:nth-child(even) { background: var(--sky-50); }
+.data-table .col-amount { text-align: start; }
+
+/* ── شارات (ج) ─────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+.badge-lyd { color: var(--ccy-lyd-text); background: var(--ccy-lyd-bg); }
+.badge-usd { color: var(--ccy-usd-text); background: var(--ccy-usd-bg); }
+.badge-cny { color: var(--ccy-cny-text); background: var(--ccy-cny-bg); }
+.badge-chain { color: var(--sky-700); background: var(--sky-100); }
+.badge-status-posted { color: var(--money-in-text); background: var(--money-in-bg); }
+.badge-status-draft { color: var(--pending-text); background: var(--pending-bg); }
+.badge-status-reversed { color: var(--money-out-text); background: var(--money-out-bg); }
+
+/* ── تنبيهات ────────────────────────────────────────────────────────── */
+.alert {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  font-size: 13.5px;
+}
+.alert-info { background: var(--sky-100); color: var(--sky-800); }
+.alert-warning { background: var(--pending-bg); color: #92400E; }
+.alert-critical { background: var(--critical-bg); color: var(--critical-text); }
+
+.money-positive { color: var(--money-in-text); }
+.money-negative { color: var(--money-out-text); }
+
+/* حقل مشتق — لا يقبل التحرير أبداً (هـ-٤) */
+.derived-field {
+  background: var(--sky-50);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-secondary);
+  font-size: 13px;
+}

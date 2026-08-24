@@ -6,8 +6,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.models import Counter
@@ -20,25 +19,23 @@ _PREFIXES: dict[str, tuple[str, int]] = {
 
 
 def _locked_counter(db: Session, name: str, year: int) -> Counter:
+    """أول استخدام لهذا (name, year): `pg_advisory_xact_lock` يُسلسل كل
+    الطلبات المتزامنة لنفس المفتاح *قبل* أي فحص — بنفس أسلوب
+    `idempotency.run`/`accounts_repo.get_or_create_client_account` تماماً،
+    لا `begin_nested()` يدوي. (تصحيح معتمد بعد مراجعة المرحلة ٥: النمط
+    السابق بـ`with db.begin_nested()` كان يتصادم مع مستمع إعادة فتح
+    الـSAVEPOINT في عزل اختبارات pytest بعد أي `commit()` سابق من طبقة
+    HTTP — أول مسار حقيقي عبر الشبكة يُنشئ رقماً طازجاً كشف هذا.)
+    """
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"), {"key": f"counter:{name}:{year}"})
     counter = db.execute(
         select(Counter).where(Counter.name == name, Counter.year == year).with_for_update()
     ).scalar_one_or_none()
-    if counter is not None:
-        return counter
-
-    # أول استخدام لهذا (name, year) — يُنشأ ضمن savepoint كي لا يُسمِّم
-    # المعاملة المحيطة إن ربحت معاملة موازية سباق الإدراج.
-    try:
-        with db.begin_nested():
-            counter = Counter(name=name, year=year, last_value=0)
-            db.add(counter)
-            db.flush()
-    except IntegrityError:
-        pass
-
-    return db.execute(
-        select(Counter).where(Counter.name == name, Counter.year == year).with_for_update()
-    ).scalar_one()
+    if counter is None:
+        counter = Counter(name=name, year=year, last_value=0)
+        db.add(counter)
+        db.flush()
+    return counter
 
 
 def next_number(db: Session, name: str, year: int) -> str:

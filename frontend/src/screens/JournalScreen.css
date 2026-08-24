@@ -1,0 +1,138 @@
+.journal-screen { padding: var(--space-6); }
+
+.journal-columns {
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.journal-col { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.text-muted { color: var(--text-muted); }
+
+/* ── عمود العميل (يمين) ────────────────────────────────────────────── */
+.client-search-results {
+  margin-top: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.client-search-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.client-search-row:hover { background: var(--sky-50); }
+
+.client-selected-card { align-items: center; text-align: center; }
+.client-avatar {
+  width: 48px; height: 48px;
+  border-radius: var(--radius-sm);
+  background: var(--sky-100);
+  color: var(--sky-700);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 18px;
+  margin-bottom: var(--space-2);
+}
+.client-balances { width: 100%; margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.client-balance-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
+  padding: var(--space-2) 0; border-bottom: 1px solid var(--divider);
+}
+.location-label { font-size: 12px; color: var(--text-secondary); }
+.balance-amount { font-weight: 700; margin-inline-start: auto; }
+
+/* ── عمود العملية (وسط) ───────────────────────────────────────────── */
+.op-tabs { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); }
+.op-tab {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.op-tab.is-active { background: var(--sky-500); color: #fff; border-color: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
+
+.op-form-card { display: flex; flex-direction: column; gap: var(--space-4); }
+.op-row { display: flex; gap: var(--space-3); }
+.op-row .field { flex: 1; min-width: 0; }
+
+.result-card {
+  background: var(--sky-50);
+  border: 1px solid var(--sky-300);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.result-row { display: flex; justify-content: space-between; font-size: 13.5px; }
+.result-dashed { border-top: 1px dashed var(--sky-300); padding-top: var(--space-2); }
+.result-final { border-top: 1px solid var(--sky-300); padding-top: var(--space-2); font-weight: 700; font-size: 16px; }
+
+.op-shortcuts { display: flex; gap: var(--space-2); }
+.kbd-chip {
+  font-size: 11px; color: var(--text-muted);
+  background: var(--divider); border-radius: 999px; padding: 2px 8px;
+}
+
+/* ── عمود عمليات اليوم (يسار) ─────────────────────────────────────── */
+.today-ops-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.today-op-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.today-op-summary {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  padding: var(--space-3); background: transparent; border: none; cursor: pointer; text-align: start;
+}
+.today-op-type { font-weight: 600; font-size: 13.5px; }
+.today-op-actions { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); }
+.today-op-detail { padding: 0 var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: 4px; }
+.today-op-line { display: flex; justify-content: space-between; font-size: 12.5px; }
+
+/* ── معالج الخطوتين ────────────────────────────────────────────────── */
+.modal-veil {
+  position: fixed; inset: 0;
+  background: rgba(9, 41, 57, .38);
+  backdrop-filter: blur(2px);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.wizard-panel {
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  box-shadow: var(--shadow-elevated);
+  animation: wizard-in 350ms cubic-bezier(.22, 1, .36, 1);
+  transform-origin: left center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  position: relative;
+}
+@keyframes wizard-in {
+  from { opacity: 0; transform: scale(.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.wizard-close { position: absolute; top: var(--space-3); left: var(--space-3); }
+.wizard-progress { display: flex; gap: var(--space-1); }
+.wizard-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
+.wizard-seg.is-active { background: var(--sky-500); }
+
+@media (max-width: 1279px) {
+  .journal-columns { grid-template-columns: 1fr 1fr; }
+  .journal-col-left { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  .journal-columns { grid-template-columns: 1fr; }
+  .journal-col-left { grid-column: auto; }
+}

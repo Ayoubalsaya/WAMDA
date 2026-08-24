@@ -1,0 +1,67 @@
+.app-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.app-shell {
+  min-height: 100%;
+  display: flex;
+}
+
+.app-main {
+  flex: 1;
+  margin-inline-start: 104px;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.app-topbar {
+  height: 74px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-6);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-search {
+  flex: 1;
+  max-width: 420px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--sky-50);
+  padding: 0 var(--space-4);
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+.user-chip-avatar {
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  background: var(--sky-100);
+  color: var(--sky-700);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+}
+
+.app-content { flex: 1; overflow-y: auto; }
+
+/* د: انتقال الشاشة — تبدو كأنها خرجت من الزر المضغوط */
+.screen-enter {
+  transform-origin: right var(--origin-y, 50%);
+  animation: screen-in 420ms cubic-bezier(.22, 1, .36, 1);
+}
+@keyframes screen-in {
+  from { opacity: 0; transform: scale(.82) translateX(26px); filter: blur(3px); }
+  to { opacity: 1; transform: scale(1) translateX(0); filter: blur(0); }
+}

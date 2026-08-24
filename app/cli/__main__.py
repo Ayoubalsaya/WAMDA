@@ -54,6 +54,12 @@ def _cmd_reset_admin_password() -> None:
     run()
 
 
+def _cmd_purge_demo_data() -> None:
+    from app.cli.purge_demo_data import run
+
+    run()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -66,6 +72,10 @@ def main() -> None:
     )
     sub.add_parser("create-admin", help="إنشاء أول مدير (تفاعلي) — يرفض إن وُجد مدير بالفعل")
     sub.add_parser("reset-admin-password", help="إعادة تعيين كلمة مرور مدير من السيرفر — طوارئ")
+    sub.add_parser(
+        "purge-demo-data",
+        help="حذف عملاء/مستخدمي العرض والاختبار وقيودهم (تفاعلي، يطلب تأكيداً) — قبل إدخال بيانات حقيقية",
+    )
 
     args = parser.parse_args()
 
@@ -77,6 +87,8 @@ def main() -> None:
         _cmd_create_admin()
     elif args.command == "reset-admin-password":
         _cmd_reset_admin_password()
+    elif args.command == "purge-demo-data":
+        _cmd_purge_demo_data()
     else:  # pragma: no cover
         parser.print_help()
         sys.exit(1)

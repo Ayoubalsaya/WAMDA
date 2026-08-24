@@ -1,0 +1,68 @@
+/* نظام التصميم — §أ من مواصفة التصميم v3.0. متغيرات فقط، لا قواعد عرض هنا. */
+:root {
+  /* أ-١ سلّم اللون الأساسي */
+  --sky-50: #F2FAFD;
+  --sky-100: #DCF2F9;
+  --sky-200: #BEE6F4;
+  --sky-300: #90D3E9;
+  --sky-400: #68C1DF;
+  --sky-500: #42B0D5;
+  --sky-600: #259AC1;
+  --sky-700: #1A7B9E;
+  --sky-800: #145E7B;
+  --sky-900: #10455B;
+  --sky-950: #092939;
+  --identity-gradient: linear-gradient(140deg, #42B0D5 0%, #1A7B9E 55%, #10455B 100%);
+
+  /* أ-٢ محايدة */
+  --canvas: #EFF7FB;
+  --surface: #FFFFFF;
+  --border: #DDEAF0;
+  --divider: #EDF5F9;
+  --text-primary: #0F172A;
+  --text-secondary: #475569;
+  --text-muted: #94A3B8;
+  --outer-gradient: linear-gradient(160deg, #D6EDF6, #EFF8FC);
+
+  /* أ-٣ حالة مالية — محجوزة حصراً، لا تُستخدم للزينة */
+  --money-in-text: #0F9D74;
+  --money-in-bg: #E7F8F1;
+  --money-out-text: #DC2626;
+  --money-out-bg: #FDECEC;
+  --exchange-text: #D97706;
+  --exchange-bg: #FEF3E2;
+  --commission-text: #7C3AED;
+  --commission-bg: #F3EEFE;
+  --pending-text: #D97706;
+  --pending-bg: #FFFBEB;
+  --critical-text: #991B1B;
+  --critical-bg: #FEF2F2;
+
+  /* أ-٤ شارات العملات — غير دلالية */
+  --ccy-lyd-text: #4338CA;
+  --ccy-lyd-bg: #EEF0FE;
+  --ccy-usd-text: #334155;
+  --ccy-usd-bg: #F1F5F9;
+  --ccy-cny-text: #A21CAF;
+  --ccy-cny-bg: #FDF4FF;
+
+  /* أ-٥ طباعة */
+  --font-ar: 'IBM Plex Sans Arabic', 'Cairo', 'Tajawal', sans-serif;
+
+  /* أ-٦ أشكال وظلال */
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+  --radius-wrap: 30px;
+  --shadow-base: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px rgba(26, 123, 158, .07);
+  --shadow-elevated: 0 30px 70px rgba(16, 69, 91, .16);
+  --shadow-primary-btn: 0 8px 20px rgba(66, 176, 213, .32);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 18px;
+  --space-6: 26px;
+  --row-height: 44px;
+}

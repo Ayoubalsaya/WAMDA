@@ -2,15 +2,31 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI, Request, Response
+from pathlib import Path
 
-from app.routers import auth, users
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from app.routers import auth, operations, reference, users
 from app.security import csrf
 
 app = FastAPI(title="ومضة")
 
 app.include_router(auth.router)
 app.include_router(users.router)
+app.include_router(operations.router)
+app.include_router(reference.router)
+
+_FRONTEND_DIST = Path(__file__).parent / "static" / "app"
+if _FRONTEND_DIST.is_dir():
+    app.mount("/static/app", StaticFiles(directory=_FRONTEND_DIST), name="frontend-assets")
+
+    @app.get("/", include_in_schema=False)
+    def spa_index() -> FileResponse:
+        """واجهة React المبنية (`frontend/` → `npm run build`) — صفحة واحدة
+        بلا توجيه عناوين من جهة العميل، فلا حاجة لمسار شامل (catch-all)."""
+        return FileResponse(_FRONTEND_DIST / "index.html")
 
 
 @app.middleware("http")

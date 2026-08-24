@@ -1,0 +1,116 @@
+import { useState } from 'react'
+import { ApiError } from '../api/client'
+import type { LoginResponse } from '../api/types'
+import './LoginScreen.css'
+
+interface LoginScreenProps {
+  login: (username: string, password: string, totpCode?: string, totpSecretSetup?: string) => Promise<LoginResponse>
+}
+
+type Step = 'credentials' | 'totp_required' | 'totp_setup_required'
+
+export function LoginScreen({ login }: LoginScreenProps) {
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [totpCode, setTotpCode] = useState('')
+  const [candidateSecret, setCandidateSecret] = useState<string | null>(null)
+  const [provisioningUri, setProvisioningUri] = useState<string | null>(null)
+  const [step, setStep] = useState<Step>('credentials')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submitCredentials(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await login(username, password)
+      if (res.status === 'totp_required') setStep('totp_required')
+      else if (res.status === 'totp_setup_required') {
+        setCandidateSecret(res.totp_secret ?? null)
+        setProvisioningUri(res.provisioning_uri ?? null)
+        setStep('totp_setup_required')
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitTotp(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setBusy(true)
+    try {
+      if (step === 'totp_setup_required') {
+        await login(username, password, totpCode, candidateSecret ?? undefined)
+      } else {
+        await login(username, password, totpCode)
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'رمز التحقق غير صحيح')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="login-screen">
+      <div className="login-brand">
+        <div className="login-logo-mark" aria-hidden="true" />
+        <h1 className="login-brand-name">ومضة</h1>
+        <p className="login-brand-en">WAMDA FINANCIAL SYSTEM</p>
+        <p className="login-brand-tagline">نظام إدارة تحويلات وصرافة — ليبيا · تركيا · الصين</p>
+      </div>
+
+      <div className="login-form-side">
+        {step === 'credentials' && (
+          <form className="login-form" onSubmit={submitCredentials}>
+            <h2 className="screen-title">تسجيل الدخول</h2>
+            <div className="field">
+              <label className="field-label" htmlFor="username">اسم المستخدم</label>
+              <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
+            </div>
+            <div className="field">
+              <label className="field-label" htmlFor="password">كلمة المرور</label>
+              <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </div>
+            {error && <div className="alert alert-critical">{error}</div>}
+            <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
+              دخول
+            </button>
+            <a className="btn-text login-forgot" href="#">نسيت كلمة المرور</a>
+          </form>
+        )}
+
+        {(step === 'totp_required' || step === 'totp_setup_required') && (
+          <form className="login-form" onSubmit={submitTotp}>
+            <h2 className="screen-title">رمز التحقق</h2>
+            {step === 'totp_setup_required' && (
+              <div className="alert alert-info">
+                هذا أول تسجيل دخول — امسح رمز QR في تطبيق المصادقة ثم أدخل الرمز الظاهر فيه.
+                {provisioningUri && (
+                  <div className="derived-field" style={{ marginTop: 8, wordBreak: 'break-all' }}>
+                    {provisioningUri}
+                  </div>
+                )}
+              </div>
+            )}
+            <div className="field">
+              <label className="field-label" htmlFor="totp">رمز من ٦ أرقام</label>
+              <input
+                id="totp" className="num" inputMode="numeric" maxLength={6} value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value)} required autoFocus
+              />
+            </div>
+            {error && <div className="alert alert-critical">{error}</div>}
+            <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
+              تأكيد
+            </button>
+          </form>
+        )}
+      </div>
+    </div>
+  )
+}
