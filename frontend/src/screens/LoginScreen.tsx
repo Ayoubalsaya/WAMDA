@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { QRCodeSVG } from 'qrcode.react'
 import { ApiError } from '../api/client'
 import type { LoginResponse } from '../api/types'
+import { LogoMark } from '../components/LogoMark'
 import './LoginScreen.css'
 
 interface LoginScreenProps {
@@ -18,6 +20,9 @@ export function LoginScreen({ login }: LoginScreenProps) {
   const [step, setStep] = useState<Step>('credentials')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const totpValid = /^\d{6}$/.test(totpCode)
 
   async function submitCredentials(e: React.FormEvent) {
     e.preventDefault()
@@ -40,6 +45,7 @@ export function LoginScreen({ login }: LoginScreenProps) {
 
   async function submitTotp(e: React.FormEvent) {
     e.preventDefault()
+    if (!totpValid) return // لا محاولة فعلية قبل اكتمال ٦ أرقام — لا رسالة خطأ زائفة
     setError(null)
     setBusy(true)
     try {
@@ -55,10 +61,17 @@ export function LoginScreen({ login }: LoginScreenProps) {
     }
   }
 
+  async function copySecret() {
+    if (!candidateSecret) return
+    await navigator.clipboard.writeText(candidateSecret)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   return (
     <div className="login-screen">
       <div className="login-brand">
-        <div className="login-logo-mark" aria-hidden="true" />
+        <div className="login-logo-mark" aria-hidden="true"><LogoMark /></div>
         <h1 className="login-brand-name">ومضة</h1>
         <p className="login-brand-en">WAMDA FINANCIAL SYSTEM</p>
         <p className="login-brand-tagline">نظام إدارة تحويلات وصرافة — ليبيا · تركيا · الصين</p>
@@ -88,11 +101,22 @@ export function LoginScreen({ login }: LoginScreenProps) {
           <form className="login-form" onSubmit={submitTotp}>
             <h2 className="screen-title">رمز التحقق</h2>
             {step === 'totp_setup_required' && (
-              <div className="alert alert-info">
-                هذا أول تسجيل دخول — امسح رمز QR في تطبيق المصادقة ثم أدخل الرمز الظاهر فيه.
+              <div className="alert alert-info totp-setup-block">
+                <p>هذا أول تسجيل دخول — امسح رمز QR بتطبيق المصادقة (Google Authenticator ونحوه).</p>
                 {provisioningUri && (
-                  <div className="derived-field" style={{ marginTop: 8, wordBreak: 'break-all' }}>
-                    {provisioningUri}
+                  <div className="qr-wrap">
+                    <QRCodeSVG value={provisioningUri} size={176} marginSize={2} level="M" />
+                  </div>
+                )}
+                {candidateSecret && (
+                  <div className="totp-secret-fallback">
+                    <span className="field-label">تعذّر المسح؟ أدخل السرّ يدوياً:</span>
+                    <div className="totp-secret-row">
+                      <code className="num totp-secret-code">{candidateSecret}</code>
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copySecret()}>
+                        {copied ? 'نُسخ ✓' : 'نسخ السرّ'}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -101,11 +125,12 @@ export function LoginScreen({ login }: LoginScreenProps) {
               <label className="field-label" htmlFor="totp">رمز من ٦ أرقام</label>
               <input
                 id="totp" className="num" inputMode="numeric" maxLength={6} value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value)} required autoFocus
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required autoFocus
               />
             </div>
             {error && <div className="alert alert-critical">{error}</div>}
-            <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-primary btn-lg" disabled={busy || !totpValid} style={{ width: '100%' }}>
               تأكيد
             </button>
           </form>
