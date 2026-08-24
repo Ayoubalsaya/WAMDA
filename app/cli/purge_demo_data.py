@@ -5,7 +5,7 @@
 الحسابات النظامية/client_currency_locations/founding_period):
   · عملاء بكود `DEMO-%` أو `T-%` (الأخير اصطلاح `tests/factories.py`)
   · شركاء بكود `T-P-%` وحسابات مراسل/بنك تجريبية `T-ACC-%`/`T-BANK-%`
-  · مستخدمون: `demo_admin` أو `test_%` أو `test-admin-%`
+  · مستخدمون: `demo_admin` أو `test_%` أو `test-admin-%` أو `qa_%`
   · كل قيد يمسّ أياً مما سبق (كعميل/شريك/منشئ) + كل الجداول التابعة
     (أسطر القيد · دفعات الرمبي واستهلاكها · حركات السويفت · الأرصدة
     الافتتاحية · لقطات REMIT_OUT · مفاتيح التفرّد · الجلسات)
@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.engine import recompute
 
+
 def _demo_account_codes(alias: str = "") -> str:
     col = f"{alias}.code" if alias else "code"
     return f"({col} LIKE 'T-ACC-%' OR {col} LIKE 'T-BANK-%')"
@@ -39,7 +40,10 @@ def _demo_account_codes(alias: str = "") -> str:
 _DEMO_CLIENT_CODES = "(code LIKE 'DEMO-%' OR code LIKE 'T-%')"
 _DEMO_PARTNER_CODES = "(code LIKE 'T-P-%')"
 _DEMO_ACCOUNT_CODES = _demo_account_codes()
-_DEMO_USERNAMES = r"(username = 'demo_admin' OR username LIKE 'test\_%' ESCAPE '\' OR username LIKE 'test-admin-%')"
+_DEMO_USERNAMES = (
+    r"(username = 'demo_admin' OR username LIKE 'test\_%' ESCAPE '\' "
+    r"OR username LIKE 'test-admin-%' OR username LIKE 'qa\_%' ESCAPE '\')"
+)
 
 
 def _counts(db: Session) -> dict[str, int]:

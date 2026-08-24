@@ -144,6 +144,22 @@ def test_purge_demo_data_removes_only_matching_rows_and_posted_entries():
             db5.close()
 
 
+def test_purge_demo_data_matches_qa_prefixed_usernames(db):
+    """`qa_%` (حسابات اختبار يدوي مثل qa_totp_test) تُطابَق الآن — بمعاملة
+    معزولة تُلغى (`db` fixture)، لا حذف حقيقي هنا، فحص المطابقة فقط."""
+    from app.cli import purge_demo_data
+    from app.models import User
+
+    before = purge_demo_data._counts(db)["users"]
+    db.add(User(
+        username=f"qa_{uid()}", full_name="اختبار عرض يدوي", password_hash="x",
+        role="ACCOUNTANT", is_active=True, must_change_password=False,
+    ))
+    db.flush()
+    after = purge_demo_data._counts(db)["users"]
+    assert after == before + 1
+
+
 def test_purge_demo_data_noop_prints_message_when_nothing_matches(capsys):
     from app.cli import purge_demo_data
 
