@@ -103,3 +103,65 @@ export interface ExchangeChainResponse {
   step1: EntryResponse
   step2: EntryResponse
 }
+
+export interface CreditLimitOut {
+  currency_code: string
+  limit_amount: string
+}
+
+export interface ClientListRow {
+  id: number
+  code: string
+  name_ar: string
+  phone: string | null
+  credit_allowed: boolean
+  is_active: boolean
+  balances: ClientBalance[]
+  credit_limits: CreditLimitOut[]
+  last_activity: string | null
+}
+
+export interface ClientDetail {
+  id: number
+  code: string
+  name_ar: string
+  name_en: string | null
+  phone: string | null
+  id_number: string | null
+  credit_allowed: boolean
+  is_active: boolean
+  created_at: string
+  balances: ClientBalance[]
+  credit_limits: CreditLimitOut[]
+}
+
+export interface StatementRow {
+  entry_id: number
+  entry_no: string
+  entry_date: string
+  operation_type: string
+  description: string | null
+  debit: string
+  credit: string
+  running_balance: string
+}
+
+export interface StatementResponse {
+  account_code: string
+  currency_code: string
+  location_code: string
+  opening_balance: string
+  closing_balance: string
+  rows: StatementRow[]
+}
+
+export interface BeneficiaryFull {
+  id: number
+  name: string
+  account_number: string
+  bank_name: string | null
+  currency_code: string
+  purpose: string | null
+  notes: string | null
+  is_active: boolean
+}

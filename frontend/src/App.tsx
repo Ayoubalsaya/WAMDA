@@ -3,6 +3,7 @@ import { Bell } from 'lucide-react'
 import { useAuth } from './hooks/useAuth'
 import { LoginScreen } from './screens/LoginScreen'
 import { JournalScreen } from './screens/JournalScreen'
+import { ClientsScreen } from './screens/ClientsScreen'
 import { Sidebar, type ScreenId } from './components/Sidebar'
 import { NewOperationPanel } from './components/NewOperationPanel'
 import './App.css'
@@ -75,6 +76,8 @@ export default function App() {
         >
           {active === 'journal' ? (
             <JournalScreen requestedOpType={requestedOpType} onRequestedOpTypeConsumed={() => setRequestedOpType(null)} />
+          ) : active === 'clients' ? (
+            <ClientsScreen currentUserRole={user.role} />
           ) : (
             <Placeholder id={active} />
           )}

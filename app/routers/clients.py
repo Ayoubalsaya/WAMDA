@@ -1,0 +1,390 @@
+"""شاشات العملاء (§٧-٥): قائمة · صفحة عميل · كشف حساب برصيد متحرك ·
+إدارة المستفيدين · إنشاء/تعديل عميل وحدود ائتمانه.
+
+لا منطق محاسبي هنا — كتابة القيود حصراً عبر `app/routers/operations.py`.
+هذا الملف بيانات وصفية (عميل · مستفيد · حد ائتمان) وقراءة مُشتقّة من
+`journal_lines`/`account_balances` الموجودة أصلاً.
+"""
+
+from __future__ import annotations
+
+from datetime import date
+from decimal import Decimal
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session as OrmSession
+
+from app.database import get_db
+from app.engine.clock import system_clock
+from app.models import (
+    Account,
+    AccountBalance,
+    Beneficiary,
+    Client,
+    ClientCreditLimit,
+    Currency,
+    JournalEntry,
+    JournalLine,
+    Location,
+    User,
+)
+from app.models.enums import EntryStatus, SessionSubjectType
+from app.schemas.clients import (
+    BeneficiaryDetail,
+    ClientBalanceRow,
+    ClientDetail,
+    ClientListRow,
+    CreateBeneficiaryRequest,
+    CreateClientRequest,
+    CreditLimitOut,
+    SetBeneficiaryActiveRequest,
+    SetCreditAllowedRequest,
+    SetCreditLimitRequest,
+    StatementResponse,
+    StatementRow,
+    UpdateClientRequest,
+)
+from app.security import audit
+from app.security.deps import require_role, verify_csrf
+from app.security.permissions import Action
+
+router = APIRouter(tags=["clients"])
+
+
+def _get_client_or_404(db: OrmSession, client_id: int) -> Client:
+    client = db.get(Client, client_id)
+    if client is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
+    return client
+
+
+def _client_balances(db: OrmSession, client_id: int) -> list[ClientBalanceRow]:
+    locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
+    rows = db.execute(
+        select(Account, AccountBalance)
+        .join(AccountBalance, AccountBalance.account_id == Account.id)
+        .where(Account.client_id == client_id)
+        .order_by(Account.currency_code, Account.code)
+    ).all()
+    return [
+        ClientBalanceRow(
+            currency_code=acc.currency_code, account_code=acc.code,
+            location_code=locations.get(acc.location_id) if acc.location_id else None, balance=bal.balance,
+        )
+        for acc, bal in rows
+    ]
+
+
+def _client_credit_limits(db: OrmSession, client_id: int) -> list[CreditLimitOut]:
+    rows = db.execute(
+        select(ClientCreditLimit).where(ClientCreditLimit.client_id == client_id).order_by(ClientCreditLimit.currency_code)
+    ).scalars().all()
+    return [CreditLimitOut(currency_code=r.currency_code, limit_amount=r.limit_amount) for r in rows]
+
+
+@router.get("/clients", response_model=list[ClientListRow], dependencies=[Depends(require_role(Action.POST_ENTRY))])
+def list_clients(
+    q: Optional[str] = Query(default=None), limit: int = Query(default=50, le=200), db: OrmSession = Depends(get_db)
+) -> list[ClientListRow]:
+    stmt = select(Client).where(Client.is_active.is_(True))
+    if q:
+        pattern = f"%{q}%"
+        stmt = stmt.where((Client.name_ar.ilike(pattern)) | (Client.code.ilike(pattern)) | (Client.phone.ilike(pattern)))
+    clients = db.execute(stmt.order_by(Client.name_ar).limit(limit)).scalars().all()
+    if not clients:
+        return []
+    client_ids = [c.id for c in clients]
+
+    last_activity_rows = db.execute(
+        select(JournalEntry.client_id, func.max(JournalEntry.entry_date))
+        .where(JournalEntry.client_id.in_(client_ids))
+        .group_by(JournalEntry.client_id)
+    ).all()
+    last_activity = dict(last_activity_rows)
+
+    limits_rows = db.execute(
+        select(ClientCreditLimit).where(ClientCreditLimit.client_id.in_(client_ids))
+    ).scalars().all()
+    limits_by_client: dict[int, list[CreditLimitOut]] = {}
+    for r in limits_rows:
+        limits_by_client.setdefault(r.client_id, []).append(CreditLimitOut(currency_code=r.currency_code, limit_amount=r.limit_amount))
+
+    balance_rows = db.execute(
+        select(Account.client_id, Account.currency_code, func.sum(AccountBalance.balance))
+        .join(AccountBalance, AccountBalance.account_id == Account.id)
+        .where(Account.client_id.in_(client_ids))
+        .group_by(Account.client_id, Account.currency_code)
+    ).all()
+    balances_by_client: dict[int, list[ClientBalanceRow]] = {}
+    for client_id, ccy, total in balance_rows:
+        balances_by_client.setdefault(client_id, []).append(
+            ClientBalanceRow(currency_code=ccy, account_code="*", location_code=None, balance=total)
+        )
+
+    return [
+        ClientListRow(
+            id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed,
+            is_active=c.is_active, balances=balances_by_client.get(c.id, []),
+            credit_limits=limits_by_client.get(c.id, []), last_activity=last_activity.get(c.id),
+        )
+        for c in clients
+    ]
+
+
+@router.get("/clients/{client_id}", response_model=ClientDetail, dependencies=[Depends(require_role(Action.POST_ENTRY))])
+def get_client(client_id: int, db: OrmSession = Depends(get_db)) -> ClientDetail:
+    client = _get_client_or_404(db, client_id)
+    return ClientDetail(
+        id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
+        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        created_at=client.created_at, balances=_client_balances(db, client_id),
+        credit_limits=_client_credit_limits(db, client_id),
+    )
+
+
+@router.post(
+    "/clients", response_model=ClientDetail, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+def create_client(
+    payload: CreateClientRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.POST_ENTRY)),
+) -> ClientDetail:
+    if db.execute(select(Client).where(Client.code == payload.code)).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"كود العميل {payload.code} مُستخدَم بالفعل")
+    client = Client(
+        code=payload.code, name_ar=payload.name_ar, name_en=payload.name_en, phone=payload.phone,
+        id_number=payload.id_number, search_name=payload.name_ar, credit_allowed=False, created_by=current_user.id,
+    )
+    db.add(client)
+    db.flush()
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREATED",
+        entity="clients", entity_id=client.id, after={"code": client.code, "name_ar": client.name_ar},
+    )
+    db.commit()
+    return ClientDetail(
+        id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
+        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        created_at=client.created_at, balances=[], credit_limits=[],
+    )
+
+
+@router.patch(
+    "/clients/{client_id}", response_model=ClientDetail,
+    dependencies=[Depends(verify_csrf), Depends(require_role(Action.POST_ENTRY))],
+)
+def update_client(client_id: int, payload: UpdateClientRequest, db: OrmSession = Depends(get_db)) -> ClientDetail:
+    client = _get_client_or_404(db, client_id)
+    if payload.name_ar is not None:
+        client.name_ar = payload.name_ar
+        client.search_name = payload.name_ar  # المشغّل (§٣-٩) يعيد تطبيعه فعلياً عند UPDATE OF name_ar
+    if payload.name_en is not None:
+        client.name_en = payload.name_en
+    if payload.phone is not None:
+        client.phone = payload.phone
+    if payload.id_number is not None:
+        client.id_number = payload.id_number
+    db.commit()
+    return ClientDetail(
+        id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
+        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        created_at=client.created_at, balances=_client_balances(db, client_id),
+        credit_limits=_client_credit_limits(db, client_id),
+    )
+
+
+@router.patch(
+    "/clients/{client_id}/credit-allowed", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def set_credit_allowed(
+    client_id: int, payload: SetCreditAllowedRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.OVERRIDE_CREDIT_OR_BALANCE)),
+) -> None:
+    """§٧-١٣: منح/سحب الثقة الائتمانية قرار مدير فقط — نفس بند تجاوز الائتمان."""
+    client = _get_client_or_404(db, client_id)
+    before = client.credit_allowed
+    client.credit_allowed = payload.credit_allowed
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREDIT_ALLOWED_CHANGED",
+        entity="clients", entity_id=client.id, before={"credit_allowed": before}, after={"credit_allowed": payload.credit_allowed},
+    )
+    db.commit()
+
+
+@router.put(
+    "/clients/{client_id}/credit-limits/{currency_code}", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def set_credit_limit(
+    client_id: int, currency_code: str, payload: SetCreditLimitRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.OVERRIDE_CREDIT_OR_BALANCE)),
+) -> None:
+    client = _get_client_or_404(db, client_id)
+    if db.get(Currency, currency_code) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {currency_code}")
+    row = db.get(ClientCreditLimit, (client_id, currency_code))
+    before = row.limit_amount if row else None
+    if row is None:
+        row = ClientCreditLimit(client_id=client_id, currency_code=currency_code, limit_amount=payload.limit_amount)
+        db.add(row)
+    else:
+        row.limit_amount = payload.limit_amount
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREDIT_LIMIT_SET",
+        entity="clients", entity_id=client.id,
+        before={"currency_code": currency_code, "limit_amount": str(before) if before is not None else None},
+        after={"currency_code": currency_code, "limit_amount": str(payload.limit_amount)},
+    )
+    db.commit()
+
+
+@router.get(
+    "/clients/{client_id}/statement", response_model=StatementResponse,
+    dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
+def client_statement(
+    client_id: int, currency: str = Query(...), location: str = Query(...),
+    date_from: Optional[date] = Query(default=None, alias="from"),
+    date_to: Optional[date] = Query(default=None, alias="to"),
+    db: OrmSession = Depends(get_db),
+) -> StatementResponse:
+    """كشف حساب برصيد متحرك — حساب واحد محدَّد (عملة×موقع)، لا مزج بين
+    مواقع مختلفة في نفس الرصيد المتحرك (القاعدة الفاصلة §٢-٢)."""
+    client = _get_client_or_404(db, client_id)
+    location_row = db.execute(select(Location).where(Location.code == location)).scalar_one_or_none()
+    if location_row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا موقع بالكود {location}")
+    account = db.execute(
+        select(Account).where(
+            Account.client_id == client_id, Account.currency_code == currency, Account.location_id == location_row.id
+        )
+    ).scalar_one_or_none()
+    if account is None:
+        return StatementResponse(
+            account_code="", currency_code=currency, location_code=location,
+            opening_balance=Decimal("0"), closing_balance=Decimal("0"), rows=[],
+        )
+
+    if date_from is not None:
+        opening_query = (
+            select(func.coalesce(func.sum(JournalLine.credit - JournalLine.debit), 0))
+            .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
+            .where(
+                JournalLine.account_id == account.id,
+                JournalEntry.status.in_((EntryStatus.POSTED, EntryStatus.REVERSED)),
+                JournalEntry.entry_date < date_from,
+            )
+        )
+        opening_balance = db.execute(opening_query).scalar_one()
+    else:
+        opening_balance = Decimal("0")
+
+    rows_query = (
+        select(JournalEntry, JournalLine)
+        .join(JournalLine, JournalLine.entry_id == JournalEntry.id)
+        .where(
+            JournalLine.account_id == account.id,
+            JournalEntry.status.in_((EntryStatus.POSTED, EntryStatus.REVERSED)),
+        )
+        .order_by(JournalEntry.entry_date, JournalEntry.id)
+    )
+    if date_from is not None:
+        rows_query = rows_query.where(JournalEntry.entry_date >= date_from)
+    if date_to is not None:
+        rows_query = rows_query.where(JournalEntry.entry_date <= date_to)
+
+    running = opening_balance
+    statement_rows: list[StatementRow] = []
+    for entry, line in db.execute(rows_query).all():
+        running = running + line.credit - line.debit
+        statement_rows.append(
+            StatementRow(
+                entry_id=entry.id, entry_no=entry.entry_no, entry_date=entry.entry_date,
+                operation_type=entry.operation_type.value, description=entry.description,
+                debit=line.debit, credit=line.credit, running_balance=running,
+            )
+        )
+
+    return StatementResponse(
+        account_code=account.code, currency_code=currency, location_code=location,
+        opening_balance=opening_balance, closing_balance=running, rows=statement_rows,
+    )
+
+
+@router.get(
+    "/clients/{client_id}/beneficiaries-full", response_model=list[BeneficiaryDetail],
+    dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
+def list_beneficiaries_full(client_id: int, db: OrmSession = Depends(get_db)) -> list[BeneficiaryDetail]:
+    """نسخة كاملة (تشمل المُعطَّلين) لشاشة إدارة المستفيدين — بخلاف
+    `GET /clients/{id}/beneficiaries` في reference.py (نشطون فقط، لاختيار
+    المستفيد في REMIT_OUT)."""
+    _get_client_or_404(db, client_id)
+    rows = db.execute(
+        select(Beneficiary).where(Beneficiary.client_id == client_id).order_by(Beneficiary.name)
+    ).scalars().all()
+    return [
+        BeneficiaryDetail(
+            id=b.id, name=b.name, account_number=b.account_number, bank_name=b.bank_name,
+            currency_code=b.currency_code, purpose=b.purpose, notes=b.notes, is_active=b.is_active,
+        )
+        for b in rows
+    ]
+
+
+@router.post(
+    "/clients/{client_id}/beneficiaries", response_model=BeneficiaryDetail, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+def create_beneficiary(
+    client_id: int, payload: CreateBeneficiaryRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.POST_ENTRY)),
+) -> BeneficiaryDetail:
+    client = _get_client_or_404(db, client_id)
+    if db.get(Currency, payload.currency_code) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {payload.currency_code}")
+    beneficiary = Beneficiary(
+        client_id=client.id, name=payload.name, account_number=payload.account_number,
+        bank_name=payload.bank_name, currency_code=payload.currency_code, purpose=payload.purpose,
+        notes=payload.notes, is_active=True,
+    )
+    db.add(beneficiary)
+    db.flush()
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="BENEFICIARY_CREATED",
+        entity="beneficiaries", entity_id=beneficiary.id,
+        after={"client_id": client.id, "name": beneficiary.name, "account_number": beneficiary.account_number},
+    )
+    db.commit()
+    return BeneficiaryDetail(
+        id=beneficiary.id, name=beneficiary.name, account_number=beneficiary.account_number,
+        bank_name=beneficiary.bank_name, currency_code=beneficiary.currency_code, purpose=beneficiary.purpose,
+        notes=beneficiary.notes, is_active=beneficiary.is_active,
+    )
+
+
+@router.patch(
+    "/beneficiaries/{beneficiary_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def set_beneficiary_active(
+    beneficiary_id: int, payload: SetBeneficiaryActiveRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.POST_ENTRY)),
+) -> None:
+    """تعطيل/إعادة تفعيل فقط — لا حذف نهائي أبداً (§٣-٣)."""
+    beneficiary = db.get(Beneficiary, beneficiary_id)
+    if beneficiary is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا مستفيد بالمعرّف {beneficiary_id}")
+    before = beneficiary.is_active
+    beneficiary.is_active = payload.is_active
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id,
+        action="BENEFICIARY_DISABLED" if not payload.is_active else "BENEFICIARY_ENABLED",
+        entity="beneficiaries", entity_id=beneficiary.id,
+        before={"is_active": before}, after={"is_active": payload.is_active},
+    )
+    db.commit()

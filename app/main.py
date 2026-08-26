@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, operations, reference, users
+from app.routers import auth, clients, operations, reference, users
 from app.security import csrf
 
 app = FastAPI(title="ومضة")
@@ -17,6 +17,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(operations.router)
 app.include_router(reference.router)
+app.include_router(clients.router)
 
 _FRONTEND_DIST = Path(__file__).parent / "static" / "app"
 if _FRONTEND_DIST.is_dir():

@@ -46,6 +46,8 @@ export const api = {
   get: <T>(path: string) => request<T>('GET', path),
   post: <T>(path: string, body?: unknown, idempotencyKey?: string) =>
     request<T>('POST', path, body, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined),
+  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
+  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
 }
 
 // §هـ: مفتاح التفرّد يُولَّد في المتصفح عند بدء ملء النموذج — لا عند
