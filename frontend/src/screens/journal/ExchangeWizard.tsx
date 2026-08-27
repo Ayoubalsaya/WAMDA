@@ -195,17 +195,23 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 <input value={step2Reason} onChange={(e) => setStep2Reason(e.target.value)} /></div>
             )}
             {error && <div className="alert alert-critical">{error}</div>}
-            {result && (
-              <div className="alert alert-info">
-                تم الحفظ — {result.chain_ref} ({result.step1.entry_no} · {result.step2.entry_no})
+            {result ? (
+              <>
+                <div className="alert alert-info">
+                  تم الحفظ — {result.chain_ref} ({result.step1.entry_no} · {result.step2.entry_no})
+                </div>
+                <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={onClose}>
+                  إغلاق
+                </button>
+              </>
+            ) : (
+              <div className="op-row">
+                <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>السابق</button>
+                <button type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }} disabled={busy || !client} onClick={save}>
+                  حفظ السلسلة
+                </button>
               </div>
             )}
-            <div className="op-row">
-              <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>السابق</button>
-              <button type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }} disabled={busy || !client} onClick={save}>
-                حفظ السلسلة
-              </button>
-            </div>
           </div>
         )}
       </div>

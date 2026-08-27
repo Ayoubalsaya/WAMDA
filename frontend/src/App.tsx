@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { useAuth } from './hooks/useAuth'
 import { LoginScreen } from './screens/LoginScreen'
@@ -12,6 +12,11 @@ const SCREEN_TITLES: Record<ScreenId, string> = {
   dashboard: 'لوحة التحكم', journal: 'دفتر اليومية', clients: 'العملاء', position: 'مركز السيولة',
   accounts: 'الحسابات', reports: 'التقارير', reconcile: 'المطابقة', settings: 'الإعدادات',
 }
+
+// ج-٥: ترتيب Alt+1..8 يطابق ب-١ حرفياً — فوق الزر المركزي ثم تحته
+const ALT_SHORTCUT_SCREENS: ScreenId[] = [
+  'dashboard', 'journal', 'clients', 'position', 'accounts', 'reports', 'reconcile', 'settings',
+]
 
 function Placeholder({ id }: { id: ScreenId }) {
   return (
@@ -32,6 +37,7 @@ export default function App() {
   const [transitionKey, setTransitionKey] = useState(0)
   const [newOpOpen, setNewOpOpen] = useState(false)
   const [requestedOpType, setRequestedOpType] = useState<string | null>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   const navigate = useCallback((id: ScreenId, originEl: HTMLElement | null) => {
     if (originEl) setOriginY(originEl.getBoundingClientRect().top + originEl.getBoundingClientRect().height / 2)
@@ -39,6 +45,31 @@ export default function App() {
     setTransitionKey((k) => k + 1)
     setNewOpOpen(false)
   }, [])
+
+  // ج-٥: اختصارات لوحة المفاتيح الشاملة — Alt+1..8 · Ctrl+N · `/`
+  useEffect(() => {
+    if (!user) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.altKey && /^[1-8]$/.test(e.key)) {
+        e.preventDefault()
+        navigate(ALT_SHORTCUT_SCREENS[Number(e.key) - 1], null)
+        return
+      }
+      if (e.ctrlKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        setNewOpOpen((v) => !v)
+        return
+      }
+      const target = e.target as HTMLElement | null
+      const isTyping = target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      if (e.key === '/' && !isTyping) {
+        e.preventDefault()
+        searchRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [user, navigate])
 
   if (checking) return <div className="app-loading">...جارٍ التحقق من الجلسة</div>
   if (!user) return <LoginScreen login={login} />
@@ -56,7 +87,7 @@ export default function App() {
       />
       <div className="app-main">
         <header className="app-topbar">
-          <input className="app-search" placeholder="بحث ذكي... ( / )" />
+          <input ref={searchRef} className="app-search" placeholder="بحث ذكي... ( / )" />
           <button type="button" className="btn btn-muted" style={{ width: 42, padding: 0 }} aria-label="التنبيهات">
             <Bell size={18} strokeWidth={1.9} />
           </button>

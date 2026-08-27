@@ -66,7 +66,7 @@ export function JournalScreen({ requestedOpType, onRequestedOpTypeConsumed }: Jo
         <ExchangeWizard
           client={client}
           onClose={() => setWizardOpen(false)}
-          onPosted={() => { void reloadEntries(); setBalanceRefreshToken((v) => v + 1); setWizardOpen(false) }}
+          onPosted={() => { void reloadEntries(); setBalanceRefreshToken((v) => v + 1) }}
         />
       )}
     </div>

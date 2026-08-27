@@ -1,14 +1,29 @@
 """حذف بيانات العرض/الاختبار قبل إدخال أي بيانات حقيقية — تفاعلي، يطلب
 تأكيداً صريحاً قبل أي حذف فعلي.
 
+═══ السابقة الموحَّدة لأي بيانات اختبار يدوي/QA من الآن فصاعداً ═══
+  · اسم مستخدم:   `qa_<شيء>`      مثال: qa_stage7
+  · كود عميل:     `QA-<شيء>`      مثال: QA-STAGE7-001
+  · كود شريك:     `QA-P-<شيء>`
+  · كود حساب:     `QA-ACC-<شيء>` أو `QA-BANK-<شيء>`
+هذه السابقة الوحيدة المطلوب تذكّرها لأي بيانات اختبار يدوي جديدة — أي
+بيانات بها تُحذف بأمر واحد دائماً، بلا استثناء وبلا حاجة لتحديث هذا
+الملف لاحقاً.
+
+═══ أنماط قديمة مُغطاة رجعياً لأغراض التوافق (لا تُستخدَم لبيانات جديدة) ═══
+  · `test_%`/`T-%`/`T-P-%`/`T-ACC-%`/`T-BANK-%` — اصطلاح `tests/factories.py`
+    (اختبارات pytest المُلتزَمة فعلياً مثل test_concurrency.py/test_cli_admin.py)
+  · `test-admin-%` — اصطلاح `tests/test_cli_admin.py`
+  · `STG%` (أكواد عملاء) — بقايا اختبار يدوي من المرحلة ٦ قبل توحيد السابقة
+  · `TEST%` (مستخدمون وعملاء) — شبكة أمان عامة لأي تسمية غير موحَّدة
+  · `demo_admin` / `DEMO-%` — حساب/عميل العرض التأسيسي (§٩)
+
 **النطاق حصراً** (لا يمسّ أي شيء آخر — لا currencies/locations/شجرة
 الحسابات النظامية/client_currency_locations/founding_period):
-  · عملاء بكود `DEMO-%` أو `T-%` (الأخير اصطلاح `tests/factories.py`)
-  · شركاء بكود `T-P-%` وحسابات مراسل/بنك تجريبية `T-ACC-%`/`T-BANK-%`
-  · مستخدمون: `demo_admin` أو `test_%` أو `test-admin-%` أو `qa_%`
-  · كل قيد يمسّ أياً مما سبق (كعميل/شريك/منشئ) + كل الجداول التابعة
-    (أسطر القيد · دفعات الرمبي واستهلاكها · حركات السويفت · الأرصدة
-    الافتتاحية · لقطات REMIT_OUT · مفاتيح التفرّد · الجلسات)
+  عملاء/شركاء/حسابات/مستخدمون مطابقون لما سبق + كل قيد يمسّ أياً منهم
+  (كعميل/شريك/منشئ) + كل الجداول التابعة (أسطر القيد · دفعات الرمبي
+  واستهلاكها · حركات السويفت · الأرصدة الافتتاحية · لقطات REMIT_OUT ·
+  مفاتيح التفرّد · الجلسات).
 
 **قيد POSTED لا يُحذف عادة (§٥ قاعدة ٢: "لا حذف أبداً")** — مشغّل
 `trg_journal_lines_no_edit_when_posted` يرفض ذلك بتصميمه. هذا الأمر
@@ -19,6 +34,10 @@
 `audit_log` **لا يُمسّ إطلاقاً** (append-only، §٥ قاعدة ١١) — صفوفه التي
 تشير إلى كيانات مُحذوفة تبقى أثراً تاريخياً صادقاً، و`entity_id` فيها
 بلا قيد مفتاح أجنبي أصلاً فلا يتعارض حذفها مع بقاء تلك الصفوف.
+
+**حارس بيئة إلزامي**: يرفض العمل كلياً إن كان `settings.app_env` غير
+`local` — أداة حذف شامل بهذا الاتساع لا يجوز أن تُشغَّل عن طريق الخطأ
+على أي بيئة نشر حقيقية، مهما كانت الثقة بالأنماط أعلاه.
 """
 
 from __future__ import annotations
@@ -28,22 +47,41 @@ import sys
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import SessionLocal
 from app.engine import recompute
 
 
+def _demo_client_codes(alias: str = "") -> str:
+    col = f"{alias}.code" if alias else "code"
+    return f"({col} LIKE 'DEMO-%' OR {col} LIKE 'QA-%' OR {col} LIKE 'T-%' OR {col} LIKE 'STG%' OR {col} LIKE 'TEST%')"
+
+
+def _demo_partner_codes(alias: str = "") -> str:
+    col = f"{alias}.code" if alias else "code"
+    return f"({col} LIKE 'QA-P-%' OR {col} LIKE 'T-P-%')"
+
+
 def _demo_account_codes(alias: str = "") -> str:
     col = f"{alias}.code" if alias else "code"
-    return f"({col} LIKE 'T-ACC-%' OR {col} LIKE 'T-BANK-%')"
+    return f"({col} LIKE 'QA-ACC-%' OR {col} LIKE 'QA-BANK-%' OR {col} LIKE 'T-ACC-%' OR {col} LIKE 'T-BANK-%')"
 
 
-_DEMO_CLIENT_CODES = "(code LIKE 'DEMO-%' OR code LIKE 'T-%')"
-_DEMO_PARTNER_CODES = "(code LIKE 'T-P-%')"
+def _demo_usernames(alias: str = "") -> str:
+    col = f"{alias}.username" if alias else "username"
+    return (
+        f"({col} = 'demo_admin' "
+        rf"OR {col} LIKE 'qa\_%' ESCAPE '\' "
+        rf"OR {col} LIKE 'test\_%' ESCAPE '\' "
+        f"OR {col} LIKE 'test-admin-%' "
+        f"OR {col} LIKE 'TEST%')"
+    )
+
+
+_DEMO_CLIENT_CODES = _demo_client_codes()
+_DEMO_PARTNER_CODES = _demo_partner_codes()
 _DEMO_ACCOUNT_CODES = _demo_account_codes()
-_DEMO_USERNAMES = (
-    r"(username = 'demo_admin' OR username LIKE 'test\_%' ESCAPE '\' "
-    r"OR username LIKE 'test-admin-%' OR username LIKE 'qa\_%' ESCAPE '\')"
-)
+_DEMO_USERNAMES = _demo_usernames()
 
 
 def _counts(db: Session) -> dict[str, int]:
@@ -78,7 +116,7 @@ def _demo_entry_ids_cte() -> str:
                 SELECT jl.entry_id FROM journal_lines jl JOIN accounts a ON a.id = jl.account_id
                 WHERE a.client_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})
                    OR a.partner_id IN (SELECT id FROM partners WHERE {_DEMO_PARTNER_CODES})
-                   OR {_DEMO_ACCOUNT_CODES.replace("code", "a.code")}
+                   OR {_demo_account_codes("a")}
             )
     )"""
 
@@ -151,6 +189,13 @@ def _purge(db: Session) -> None:
 
 
 def run() -> None:
+    if settings.app_env != "local":
+        print(
+            f"مرفوض — APP_ENV=\"{settings.app_env}\" وليس \"local\". "
+            "هذا الأمر لا يعمل إلا في بيئة تطوير محلية — لا يُشغَّل على أي بيئة نشر أبداً."
+        )
+        sys.exit(1)
+
     db = SessionLocal()
     try:
         counts = _counts(db)
