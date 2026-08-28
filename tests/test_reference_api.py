@@ -132,6 +132,47 @@ def test_client_beneficiaries(db, client):
     assert any(row["id"] == b.id for row in resp.json())
 
 
+def test_pending_swift_movements_lists_sent_excludes_received(db, client, now):
+    from app.engine.operations import swift_in as swift_in_op, swift_out as swift_out_op
+
+    _login(db, client)
+    user = f.make_user(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    out1 = swift_out_op.execute(
+        db, partner_account_code=partner_acct.code, amount=Decimal("1000.00"), work_timezone=WORK_TZ,
+        created_by=user.id, now=now, idempotency_key=f.uid(), external_ref="REF-PENDING",
+    )
+    out2 = swift_out_op.execute(
+        db, partner_account_code=partner_acct.code, amount=Decimal("500.00"), work_timezone=WORK_TZ,
+        created_by=user.id, now=now, idempotency_key=f.uid(),
+    )
+    from sqlalchemy import select as _select
+    from app.models import SwiftMovement
+
+    movement2 = db.execute(_select(SwiftMovement).where(SwiftMovement.out_entry_id == out2.id)).scalar_one()
+    bank = f.make_bank_account(db, currency_code="USD")
+    swift_in_op.execute(
+        db, swift_movement_id=movement2.id, total_amount=Decimal("500.00"), fee_amount=Decimal("0.00"),
+        receiving_account_code=bank.code, work_timezone=WORK_TZ, created_by=user.id, now=now,
+        idempotency_key=f.uid(),
+    )
+
+    resp = client.get("/reference/swift-movements/pending")
+    assert resp.status_code == 200
+    rows = resp.json()
+    ids = {r["id"] for r in rows}
+    assert movement2.id not in ids  # استُقبلت بالفعل — لا تظهر كمعلَّقة
+    pending = next(r for r in rows if r["external_ref"] == "REF-PENDING")
+    assert pending["amount"] == "1000.000000"
+    assert pending["out_entry_no"] == out1.entry_no
+    assert pending["partner_name_ar"] is not None
+
+
 def test_journal_entries_lists_todays_posted_entries_with_lines(db, client, now):
     _login(db, client)
     c = f.make_client(db)

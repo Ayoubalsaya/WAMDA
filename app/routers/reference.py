@@ -29,8 +29,11 @@ from app.models import (
     JournalEntry,
     JournalLine,
     Location,
+    Partner,
+    SwiftMovement,
     User,
 )
+from app.models.enums import SwiftStatus
 from app.schemas.reference import (
     AccountOut,
     BeneficiaryOut,
@@ -41,6 +44,7 @@ from app.schemas.reference import (
     JournalEntryOut,
     JournalLineOut,
     LocationOut,
+    PendingSwiftMovementOut,
 )
 from app.security.deps import require_password_changed
 
@@ -141,6 +145,33 @@ def client_beneficiaries(client_id: int, db: OrmSession = Depends(get_db)) -> li
         BeneficiaryOut(id=b.id, name=b.name, account_number=b.account_number, bank_name=b.bank_name, currency_code=b.currency_code)
         for b in rows
     ]
+
+
+@router.get("/reference/swift-movements/pending", response_model=list[PendingSwiftMovementOut])
+def list_pending_swift_movements(db: OrmSession = Depends(get_db)) -> list[PendingSwiftMovementOut]:
+    """حركات SENT لم تُستقبَل ولم تُرتجَع بعد — ما يحتاجه اختيار SWIFT_IN/
+    SWIFT_RETURN في الواجهة. الشريك واسم قيد الخروج مُشتقّان عبر out_entry_id."""
+    movements = db.execute(
+        select(SwiftMovement).where(SwiftMovement.status == SwiftStatus.SENT).order_by(SwiftMovement.transfer_date)
+    ).scalars().all()
+    if not movements:
+        return []
+    out_entry_ids = {m.out_entry_id for m in movements if m.out_entry_id is not None}
+    entries = {e.id: e for e in db.execute(select(JournalEntry).where(JournalEntry.id.in_(out_entry_ids))).scalars().all()}
+    partner_ids = {e.partner_id for e in entries.values() if e.partner_id is not None}
+    partners = {p.id: p for p in db.execute(select(Partner).where(Partner.id.in_(partner_ids))).scalars().all()}
+    result = []
+    for m in movements:
+        entry = entries.get(m.out_entry_id) if m.out_entry_id else None
+        partner = partners.get(entry.partner_id) if entry and entry.partner_id else None
+        result.append(
+            PendingSwiftMovementOut(
+                id=m.id, amount=m.amount, currency_code=m.currency_code, transfer_date=m.transfer_date,
+                external_ref=m.external_ref, partner_name_ar=partner.name_ar if partner else None,
+                out_entry_no=entry.entry_no if entry else None,
+            )
+        )
+    return result
 
 
 @router.get("/journal/entries", response_model=list[JournalEntryOut])

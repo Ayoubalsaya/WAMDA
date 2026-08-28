@@ -69,6 +69,19 @@ class JournalLineOut(BaseModel):
     memo: Optional[str] = None
 
 
+class PendingSwiftMovementOut(BaseModel):
+    """حركات سويفت `SENT` لم تُستقبَل ولم تُرتجَع بعد — ما يحتاجه اختيار
+    SWIFT_IN/SWIFT_RETURN في الواجهة (§٤ رقم ٧/٨)."""
+
+    id: int
+    amount: Decimal
+    currency_code: str
+    transfer_date: date
+    external_ref: Optional[str] = None
+    partner_name_ar: Optional[str] = None
+    out_entry_no: Optional[str] = None
+
+
 class JournalEntryOut(BaseModel):
     id: int
     entry_no: str
