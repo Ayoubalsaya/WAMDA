@@ -43,6 +43,7 @@ from app.engine.posting import (
 from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
 from app.models import Beneficiary, Client, JournalEntry, JournalLine, User
+from app.models.partners import RemitOutDestination
 from app.schemas.operations import (
     AdjustmentRequest,
     CashTransferRequest,
@@ -340,7 +341,15 @@ def create_remit_out(
         negative_margin_reason=payload.negative_margin_reason,
     ))
     db.commit()
-    return _entry_response(entry)
+    response = _entry_response(entry)
+    destination = db.execute(
+        select(RemitOutDestination).where(RemitOutDestination.entry_id == entry.id)
+    ).scalar_one_or_none()
+    if destination is not None:
+        response.beneficiary_name_snapshot = destination.beneficiary_name_snapshot
+        response.account_number_snapshot = destination.account_number_snapshot
+        response.bank_name_snapshot = destination.bank_name_snapshot
+    return response
 
 
 @router.post("/swift-out", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)

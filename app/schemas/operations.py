@@ -26,6 +26,10 @@ class EntryResponse(BaseModel):
     chain_ref: Optional[str] = None
     chain_seq: Optional[int] = None
     chain_total: Optional[int] = None
+    # لقطة وجهة REMIT_OUT فقط — §3-3، تظهر في الإيصال ولا تتأثر بتعديل المستفيد لاحقاً
+    beneficiary_name_snapshot: Optional[str] = None
+    account_number_snapshot: Optional[str] = None
+    bank_name_snapshot: Optional[str] = None
 
 
 class ReceiptRequest(BaseModel):

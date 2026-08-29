@@ -96,6 +96,9 @@ export interface EntryResponse {
   chain_ref: string | null
   chain_seq: number | null
   chain_total: number | null
+  beneficiary_name_snapshot: string | null
+  account_number_snapshot: string | null
+  bank_name_snapshot: string | null
 }
 
 export interface ExchangeChainResponse {
@@ -164,4 +167,14 @@ export interface BeneficiaryFull {
   purpose: string | null
   notes: string | null
   is_active: boolean
+}
+
+export interface PendingSwiftMovement {
+  id: number
+  amount: string
+  currency_code: string
+  transfer_date: string
+  external_ref: string | null
+  partner_name_ar: string | null
+  out_entry_no: string | null
 }

@@ -106,7 +106,10 @@ export default function App() {
           style={{ ['--origin-y' as string]: `${originY}px` }}
         >
           {active === 'journal' ? (
-            <JournalScreen requestedOpType={requestedOpType} onRequestedOpTypeConsumed={() => setRequestedOpType(null)} />
+            <JournalScreen
+              currentUserRole={user.role} requestedOpType={requestedOpType}
+              onRequestedOpTypeConsumed={() => setRequestedOpType(null)}
+            />
           ) : active === 'clients' ? (
             <ClientsScreen currentUserRole={user.role} />
           ) : (

@@ -7,14 +7,20 @@ import { OperationForm } from './journal/OperationForm'
 import { ExchangeWizard } from './journal/ExchangeWizard'
 import './JournalScreen.css'
 
-const SUPPORTED_TABS = new Set(['RECEIPT', 'PAYMENT', 'EXCHANGE', 'CASH_TRANSFER'])
+// الاثنتا عشرة عملية كلها مدعومة الآن (المرحلتان ٥+٧) — القائمة هنا حارس
+// بسيط ضد أي قيمة requestedOpType غير متوقعة، لا تعبير عن نقص فعلي.
+const SUPPORTED_TABS = new Set([
+  'RECEIPT', 'PAYMENT', 'EXCHANGE', 'CASH_TRANSFER', 'REMIT_OUT', 'EXPENSE',
+  'SWIFT_OUT', 'SWIFT_IN', 'SWIFT_RETURN', 'LOCAL_MOVE', 'OPENING', 'ADJUSTMENT',
+])
 
 interface JournalScreenProps {
+  currentUserRole: 'ADMIN' | 'ACCOUNTANT'
   requestedOpType?: string | null
   onRequestedOpTypeConsumed?: () => void
 }
 
-export function JournalScreen({ requestedOpType, onRequestedOpTypeConsumed }: JournalScreenProps) {
+export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpTypeConsumed }: JournalScreenProps) {
   const [client, setClient] = useState<ClientSearchResult | null>(null)
   const [entries, setEntries] = useState<JournalEntryOut[]>([])
   const [loadingEntries, setLoadingEntries] = useState(true)
@@ -46,8 +52,7 @@ export function JournalScreen({ requestedOpType, onRequestedOpTypeConsumed }: Jo
       <h2 className="screen-title" style={{ marginBottom: 16 }}>دفتر اليومية</h2>
       {unsupportedNotice && (
         <div className="alert alert-info" style={{ marginBottom: 16 }}>
-          هذه العملية ({unsupportedNotice}) واجهتها في دفتر اليومية غير مبنية بعد في هذه المرحلة —
-          مسار الـAPI الخلفي جاهز فعلاً (`app/routers/operations.py`).
+          نوع عملية غير معروف ({unsupportedNotice}).
           <button type="button" className="btn-text" style={{ marginInlineStart: 8 }} onClick={() => setUnsupportedNotice(null)}>إغلاق</button>
         </div>
       )}
@@ -56,6 +61,7 @@ export function JournalScreen({ requestedOpType, onRequestedOpTypeConsumed }: Jo
         <ClientPanel selected={client} onSelect={setClient} refreshToken={balanceRefreshToken} />
         <OperationForm
           client={client}
+          currentUserRole={currentUserRole}
           onPosted={() => { void reloadEntries(); setBalanceRefreshToken((v) => v + 1) }}
           onOpenWizard={() => setWizardOpen(true)}
           requestedTab={requestedOpType && SUPPORTED_TABS.has(requestedOpType) ? requestedOpType : null}
