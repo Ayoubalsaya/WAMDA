@@ -6,6 +6,7 @@ import type {
 } from '../../api/types'
 import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
+import { useAccountsForOperation, type AccountFieldSpec } from '../../hooks/useAccountsForOperation'
 
 type OpTab =
   | 'RECEIPT' | 'PAYMENT' | 'EXCHANGE' | 'CASH_TRANSFER' | 'REMIT_OUT' | 'EXPENSE'
@@ -53,15 +54,16 @@ function LocationSelect({ value, onChange, locations, disabled }: { value: strin
 }
 
 function AccountSelect({
-  value, onChange, accounts, label,
-}: { value: string; onChange: (v: string) => void; accounts: AccountRef[]; label: string }) {
+  value, onChange, accounts, label, emptyMessage,
+}: { value: string; onChange: (v: string) => void; accounts: AccountRef[]; label: string; emptyMessage?: string }) {
   return (
     <div className="field">
       <label className="field-label">{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="" disabled>اختر حساباً</option>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={accounts.length === 0}>
+        <option value="" disabled>{accounts.length ? 'اختر حساباً' : (emptyMessage ?? 'لا حسابات مطابقة')}</option>
         {accounts.map((a) => <option key={a.code} value={a.code}>{a.code} — {a.name_ar}</option>)}
       </select>
+      {accounts.length === 0 && emptyMessage && <span className="rate-hint">{emptyMessage}</span>}
     </div>
   )
 }
@@ -178,11 +180,63 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
   const ctFromLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
   const ctToLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
   const remitLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
-  const assetAccounts = useMemo(() => accounts.filter((a) => a.type === 'ASSET'), [accounts])
   const expenseAccounts = useMemo(() => accounts.filter((a) => a.type === 'EXPENSE'), [accounts])
-  const correspondentAccounts = useMemo(() => accounts.filter((a) => a.form === 'CORRESPONDENT'), [accounts])
+
+  // حسابات مُصفّاة بحسب (نوع العملية × دور الحقل × العملة × الموقع) عبر
+  // /reference/accounts/for-operation — بديل `accounts` غير المُصفّى الذي
+  // كان يعرض شجرة الحسابات كاملة لكل حقل بلا استثناء. spec=null يعني
+  // "هذا الحقل غير معني بالتبويب الحالي" فلا يُطلَق أي جلب.
+  const receivingPayingSpec: AccountFieldSpec | null =
+    tab === 'RECEIPT' || tab === 'PAYMENT'
+      ? { operationType: tab, field: tab === 'RECEIPT' ? 'receiving' : 'paying', currencyCode, locationCode: locationCode || undefined }
+      : null
+  const { accounts: receivingPayingAccounts } = useAccountsForOperation(receivingPayingSpec)
+
+  const ctSourceSpec: AccountFieldSpec | null =
+    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
+  const { accounts: ctSourceAccounts } = useAccountsForOperation(ctSourceSpec)
+
+  const ctExecutionSpec: AccountFieldSpec | null =
+    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
+  const { accounts: ctExecutionAccounts } = useAccountsForOperation(ctExecutionSpec)
+
+  const ctCollectionSpec: AccountFieldSpec | null =
+    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
+  const { accounts: ctCollectionAccounts } = useAccountsForOperation(ctCollectionSpec)
+
+  const ctCostCorrespondentSpec: AccountFieldSpec | null =
+    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
+  const { accounts: ctCostCorrespondentAccounts } = useAccountsForOperation(ctCostCorrespondentSpec)
+
+  const localMoveFromSpec: AccountFieldSpec | null =
+    tab === 'LOCAL_MOVE' ? { operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
+  const { accounts: localMoveFromAccounts } = useAccountsForOperation(localMoveFromSpec)
+
+  const localMoveToSpec: AccountFieldSpec | null =
+    tab === 'LOCAL_MOVE' ? { operationType: 'LOCAL_MOVE', field: 'to', currencyCode: fields.currency_code ?? '' } : null
+  const { accounts: localMoveToAccounts } = useAccountsForOperation(localMoveToSpec)
+
+  const swiftOutPartnerSpec: AccountFieldSpec | null =
+    tab === 'SWIFT_OUT' ? { operationType: 'SWIFT_OUT', field: 'partner', currencyCode: PIVOT_CODE } : null
+  const { accounts: swiftOutPartnerAccounts } = useAccountsForOperation(swiftOutPartnerSpec)
+
+  // عملة الاستقبال تتبع وجود سعر تحويل البنك: بلا سعر = إيداع دولار مباشر،
+  // بسعر = فتح دفعة رمبي (انظر الشارة الديناميكية أدناه) — نفس المنطق هنا.
+  const swiftInCurrency = fields.bank_conversion_rate ? 'CNY' : PIVOT_CODE
+  const swiftInReceivingSpec: AccountFieldSpec | null =
+    tab === 'SWIFT_IN' ? { operationType: 'SWIFT_IN', field: 'receiving', currencyCode: swiftInCurrency } : null
+  const { accounts: swiftInReceivingAccounts } = useAccountsForOperation(swiftInReceivingSpec)
+
+  const remitOutPartnerSpec: AccountFieldSpec | null =
+    tab === 'REMIT_OUT' ? { operationType: 'REMIT_OUT', field: 'partner', currencyCode: PIVOT_CODE, locationCode: fields.from_location_code || undefined } : null
+  const { accounts: remitOutPartnerAccounts } = useAccountsForOperation(remitOutPartnerSpec)
+
+  const expensePayingSpec: AccountFieldSpec | null =
+    tab === 'EXPENSE' ? { operationType: 'EXPENSE', field: 'paying', currencyCode: fields.currency_code ?? '' } : null
+  const { accounts: expensePayingAccounts } = useAccountsForOperation(expensePayingSpec)
 
   const selectedBeneficiary = beneficiaries.find((b) => b.id === Number(fields.beneficiary_id))
+  const selectedReturnMovement = pendingSwift.find((m) => m.id === Number(fields.swift_movement_id))
 
   // معاينة فورية — decimal.js في المتصفح فقط، السيرفر يعيد الحساب ويحسم
   const exchangePreview = useMemo(() => {
@@ -266,8 +320,9 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
           bank_conversion_rate: fields.bank_conversion_rate || undefined,
         }, idemKey)
       } else if (tab === 'SWIFT_RETURN') {
+        // partner_account_code مُشتقّ من الحركة نفسها — لا اختيار يدوي (انظر التعليق في JSX)
         entry = await api.post<EntryResponse>('/operations/swift-return', {
-          swift_movement_id: Number(fields.swift_movement_id), partner_account_code: fields.partner_account_code,
+          swift_movement_id: Number(fields.swift_movement_id), partner_account_code: selectedReturnMovement?.partner_account_code,
           total_amount: fields.total_amount, client_id: client!.id, client_location_code: fields.client_location_code,
           return_fee_amount: fields.return_fee_amount || '0',
         }, idemKey)
@@ -374,8 +429,9 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
 
         {(tab === 'RECEIPT' || tab === 'PAYMENT') && (
           <AccountSelect
-            value={accountCode} onChange={setAccountCode} accounts={accounts}
+            value={accountCode} onChange={setAccountCode} accounts={receivingPayingAccounts}
             label={tab === 'RECEIPT' ? 'الحساب المستقبِل' : 'الحساب المصروف منه'}
+            emptyMessage={!currencyCode || !locationCode ? 'اختر العملة والموقع أولاً' : 'لا حسابات صناديق/مراسلين/بنوك بهذه العملة والموقع'}
           />
         )}
 
@@ -395,10 +451,22 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
                 <LocationSelect value={toLocationCt} onChange={setToLocationCt} locations={ctToLocations} disabled={!currencyCode} />
               </div>
             </div>
-            <AccountSelect value={sourceAccount} onChange={setSourceAccount} accounts={accounts} label="حساب المصدر (الشركة)" />
-            <AccountSelect value={executionAccount} onChange={setExecutionAccount} accounts={accounts} label="الحساب المنفِّذ" />
-            <AccountSelect value={collectionAccount} onChange={setCollectionAccount} accounts={accounts} label="حساب تحصيل العمولة" />
-            <AccountSelect value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} accounts={accounts} label="حساب تكلفة العمولة (المراسل)" />
+            <AccountSelect
+              value={sourceAccount} onChange={setSourceAccount} accounts={ctSourceAccounts} label="حساب المصدر (الشركة)"
+              emptyMessage={!currencyCode || !fromLocation ? 'اختر العملة وموقع المصدر أولاً' : 'لا صناديق/بنوك بهذه العملة في موقع المصدر'}
+            />
+            <AccountSelect
+              value={executionAccount} onChange={setExecutionAccount} accounts={ctExecutionAccounts} label="الحساب المنفِّذ"
+              emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا صناديق/بنوك بهذه العملة في موقع الوجهة'}
+            />
+            <AccountSelect
+              value={collectionAccount} onChange={setCollectionAccount} accounts={ctCollectionAccounts} label="حساب تحصيل العمولة"
+              emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا صناديق/بنوك بعملة العمولة في موقع الوجهة'}
+            />
+            <AccountSelect
+              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} accounts={ctCostCorrespondentAccounts} label="حساب تكلفة العمولة (المراسل)"
+              emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا حسابات مراسلين بعملة العمولة في موقع الوجهة'}
+            />
             <div className="op-row">
               <div className="field">
                 <label className="field-label">عملة العمولة</label>
@@ -425,7 +493,8 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
               </div>
               <AccountSelect
                 value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)}
-                accounts={correspondentAccounts} label="حساب المراسل"
+                accounts={remitOutPartnerAccounts} label="حساب المراسل"
+                emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
               />
             </div>
             <div className="field">
@@ -487,7 +556,10 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
                 <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
               </div>
             </div>
-            <AccountSelect value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} accounts={assetAccounts} label="الحساب المصروف منه" />
+            <AccountSelect
+              value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} accounts={expensePayingAccounts} label="الحساب المصروف منه"
+              emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا صناديق/بنوك بهذه العملة'}
+            />
             <div className="op-row">
               <div className="field field-amount">
                 <label className="field-label">المبلغ</label>
@@ -503,7 +575,10 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
 
         {tab === 'SWIFT_OUT' && (
           <>
-            <AccountSelect value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} accounts={correspondentAccounts} label="حساب المراسل (تركيا)" />
+            <AccountSelect
+              value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} accounts={swiftOutPartnerAccounts} label="حساب المراسل (تركيا)"
+              emptyMessage="لا حسابات مراسلين بالدولار في تركيا — سجّل الشريك من شاشة الشركاء أولاً"
+            />
             <div className="op-row">
               <div className="field field-amount">
                 <label className="field-label">المبلغ (USD)</label>
@@ -540,7 +615,10 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
                 <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
               </div>
             </div>
-            <AccountSelect value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} accounts={assetAccounts} label="الحساب المستقبِل" />
+            <AccountSelect
+              value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} accounts={swiftInReceivingAccounts} label="الحساب المستقبِل"
+              emptyMessage={`لا بنوك صينية بعملة ${swiftInCurrency} — سجّل البنك من شاشة الشركاء أولاً`}
+            />
             <div className="field">
               <label className="field-label">سعر تحويل البنك للرمبي (اختياري)</label>
               <input className="num" value={fields.bank_conversion_rate ?? ''} onChange={(e) => setField('bank_conversion_rate', e.target.value)} />
@@ -565,8 +643,15 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
                   </option>
                 ))}
               </select>
+              {/* بلا حقل اختيار حساب مراسل إطلاقاً — يُشتق آلياً من partner_account_code
+                  الذي تحمله الحركة المختارة نفسها (انظر submit()). أي اختيار
+                  يدوي هنا خطر حقيقي: قد يُعيد المال لمراسل خاطئ. */}
+              {fields.swift_movement_id && (
+                <span className="rate-hint">
+                  حساب المراسل يُشتق تلقائياً من الحركة المختارة: {selectedReturnMovement?.partner_account_code ?? '—'}
+                </span>
+              )}
             </div>
-            <AccountSelect value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} accounts={correspondentAccounts} label="حساب المراسل" />
             <div className="op-row">
               <div className="field field-amount">
                 <label className="field-label">المبلغ المرتجع كاملاً</label>
@@ -592,8 +677,14 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
               <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
             </div>
             <div className="op-row">
-              <AccountSelect value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} accounts={accounts} label="من حساب" />
-              <AccountSelect value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} accounts={accounts} label="إلى حساب" />
+              <AccountSelect
+                value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} accounts={localMoveFromAccounts} label="من حساب"
+                emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+              />
+              <AccountSelect
+                value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} accounts={localMoveToAccounts} label="إلى حساب"
+                emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+              />
             </div>
             <div className="op-row">
               <div className="field field-amount">
@@ -621,6 +712,10 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
               </label>
             </div>
             {openingAccountMode === 'system' ? (
+              // استثناء مقصود — لا تصفية عبر /reference/accounts/for-operation هنا:
+              // رصيد افتتاحي قد يمسّ أي حساب في الشجرة، فتضييق الاختيار كان
+              // سيمنع حالات مشروعة لا يمكن حصرها مسبقاً (انظر توثيق الاستثناء
+              // الكامل في app/engine/account_filters.py).
               <AccountSelect value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} accounts={accounts} label="الحساب" />
             ) : (
               <div className="field">
@@ -685,7 +780,9 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
 
         {tab === 'ADJUSTMENT' && (
           <>
-            <AccountSelect value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} accounts={assetAccounts} label="الحساب (الصندوق)" />
+            {/* استثناء مقصود — بلا تصفية عبر for-operation، نفس سبب OPENING أعلاه:
+                تسوية قد تمسّ أي حساب في الشجرة، لا الصندوق وحده. */}
+            <AccountSelect value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} accounts={accounts} label="الحساب" />
             <div className="op-row">
               <div className="field">
                 <label className="field-label">العملة</label>

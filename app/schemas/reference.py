@@ -80,6 +80,9 @@ class PendingSwiftMovementOut(BaseModel):
     external_ref: Optional[str] = None
     partner_name_ar: Optional[str] = None
     out_entry_no: Optional[str] = None
+    # الحساب المراسل الأصلي مُشتقّ من قيد الخروج — SWIFT_RETURN يستخدمه
+    # آلياً بلا أي اختيار من المستخدم (خطر إرجاع المال لمراسل خاطئ).
+    partner_account_code: Optional[str] = None
 
 
 class JournalEntryOut(BaseModel):

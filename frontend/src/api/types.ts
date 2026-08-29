@@ -177,4 +177,5 @@ export interface PendingSwiftMovement {
   external_ref: string | null
   partner_name_ar: string | null
   out_entry_no: string | null
+  partner_account_code: string | null
 }

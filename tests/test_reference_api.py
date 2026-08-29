@@ -173,6 +173,92 @@ def test_pending_swift_movements_lists_sent_excludes_received(db, client, now):
     assert pending["partner_name_ar"] is not None
 
 
+def test_accounts_for_operation_receipt_scoped_to_currency_and_location(db, client):
+    _login(db, client)
+    resp = client.get("/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code=LYD&location_code=TRIPOLI")
+    assert resp.status_code == 200
+    codes = {a["code"] for a in resp.json()}
+    assert "1101" in codes  # صندوق دينار طرابلس — يطابق تماماً
+    assert "1102" not in codes  # نفس العملة، موقع مختلف (بنغازي)
+    assert not any(a["type"] == "EXPENSE" for a in resp.json())  # لا حسابات مصروفات في حقل استقبال
+
+
+def test_accounts_for_operation_swift_out_only_turkey_correspondents(db, client):
+    _login(db, client)
+    turkey = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    china_wrong = f.make_correspondent_account(db, currency_code="USD", location_code="CHINA", parent_code="1320")
+    resp = client.get("/reference/accounts/for-operation?operation_type=SWIFT_OUT&field=partner&currency_code=USD")
+    assert resp.status_code == 200
+    codes = {a["code"] for a in resp.json()}
+    assert turkey.code in codes
+    assert china_wrong.code not in codes  # موقع خاطئ رغم مطابقة العملة والدور
+
+
+def test_accounts_for_operation_swift_in_only_china_banks(db, client):
+    _login(db, client)
+    china_bank = f.make_bank_account(db, currency_code="USD", location_code="CHINA")
+    turkey_wrong_form = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    resp = client.get("/reference/accounts/for-operation?operation_type=SWIFT_IN&field=receiving&currency_code=USD")
+    assert resp.status_code == 200
+    codes = {a["code"] for a in resp.json()}
+    assert china_bank.code in codes
+    assert turkey_wrong_form.code not in codes  # form=CORRESPONDENT لا BANK، وموقع خاطئ أيضاً
+
+
+def test_accounts_for_operation_local_move_excludes_client_accounts(db, client, now):
+    _login(db, client)
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("10.000"),
+        receiving_account_code="1101", user=f.make_user(db), now=now,
+    )
+    resp = client.get("/reference/accounts/for-operation?operation_type=LOCAL_MOVE&field=from&currency_code=LYD")
+    assert resp.status_code == 200
+    codes = {a["code"] for a in resp.json()}
+    assert "1101" in codes
+    assert not any(code.startswith(f"2100-{c.code}-") for code in codes)  # حساب عميل مُشتق — لا يظهر أبداً
+
+
+def test_accounts_for_operation_unknown_combo_rejected(db, client):
+    _login(db, client)
+    resp = client.get("/reference/accounts/for-operation?operation_type=EXCHANGE&field=from&currency_code=USD")
+    assert resp.status_code == 400  # EXCHANGE مقاصة تلقائية — لا مواصفة تصفية له أصلاً
+
+
+def test_accounts_for_operation_missing_location_rejected(db, client):
+    _login(db, client)
+    resp = client.get("/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code=LYD")
+    assert resp.status_code == 400  # الحقل يحتاج موقعاً ولم يُرسَل
+
+
+def test_accounts_for_operation_no_match_returns_empty_list_not_error(db, client):
+    _login(db, client)
+    resp = client.get("/reference/accounts/for-operation?operation_type=SWIFT_OUT&field=partner&currency_code=CNY")
+    assert resp.status_code == 200
+    assert resp.json() == []  # لا مراسل رمبي في تركيا — قائمة فارغة صريحة، لا خطأ
+
+
+def test_pending_swift_movement_carries_partner_account_code_for_swift_return(db, client, now):
+    from app.engine.operations import swift_out as swift_out_op
+
+    _login(db, client)
+    user = f.make_user(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    swift_out_op.execute(
+        db, partner_account_code=partner_acct.code, amount=Decimal("1000.00"), work_timezone=WORK_TZ,
+        created_by=user.id, now=now, idempotency_key=f.uid(),
+    )
+    resp = client.get("/reference/swift-movements/pending")
+    assert resp.status_code == 200
+    row = resp.json()[0]
+    assert row["partner_account_code"] == partner_acct.code
+
+
 def test_journal_entries_lists_todays_posted_entries_with_lines(db, client, now):
     _login(db, client)
     c = f.make_client(db)

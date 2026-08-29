@@ -457,3 +457,86 @@ def test_unauthenticated_rejected(client):
         headers={"X-CSRF-Token": client.cookies.get("wamda_csrf"), "Idempotency-Key": uuid.uuid4().hex},
     )
     assert resp.status_code == 401
+
+
+def _find_key_anywhere(payload, key: str) -> list[str]:
+    """بحث تكراري عن مفتاح داخل أي بنية JSON متداخلة (كائنات/قوائم) — يُعيد
+    مسارات كل ظهور، لا مجرد True/False، لتشخيص أي تسريب بدقة إن وُجد."""
+    hits: list[str] = []
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k == key:
+                    hits.append(path + "." + k)
+                walk(v, path + "." + k)
+        elif isinstance(node, list):
+            for i, item in enumerate(node):
+                walk(item, f"{path}[{i}]")
+
+    walk(payload, "$")
+    return hits
+
+
+@pytest.mark.acceptance(41)
+def test_cost_rate_absent_from_every_response_body_reachable_today(db, client, now):
+    """اختبار القبول ٤١: «`cost_rate` غير موجود في أي رد API للبوابة» —
+    فحص صريح.
+
+    **نطاق محكوم صراحة**: بوابة العميل المستقلة (§٧-٦) لم تُبنَ بعد
+    (المرحلة ٩) فلا يمكن اختبار عزلها الفعلي بصدق هنا (نفس سبب استبعاد
+    اختبار ٤٠ في `test_acceptance_41_50.py`). ما يُختبَر هنا حقيقي مع ذلك:
+    الخاصية الأساسية التي يجب أن يُبنى عليها API البوابة لاحقاً — أن
+    `cost_rate` (سعر التكلفة الداخلي، §٢-٨) لا يظهر إطلاقاً في أي رد فعلي
+    من أي مسار API قائم اليوم، حتى العمليات التي تستقبله كمُدخَل (EXCHANGE
+    وREMIT_OUT) لا تُعيده في ردّها. حين تُبنى بوابة العميل فعلياً، يبقى هذا
+    الاختبار صحيحاً وقابلاً للتوسعة بفحص عزل الجلسة (اختبار ٤٠) فوقه، لا
+    إعادة كتابته من الصفر."""
+    _login(db, client)
+    c = f.make_client(db)
+    user = f.make_user(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("10000.000"),
+        receiving_account_code="1101", user=user, now=now,
+    )
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    ben = f.make_beneficiary(db, c, currency_code="CNY")
+
+    responses = []
+    exch = client.post(
+        "/operations/exchange",
+        json={"client_id": c.id, "from_currency": "LYD", "from_location_code": "TRIPOLI",
+              "to_currency": "USD", "to_location_code": "TRIPOLI", "amount": "1000.000",
+              "cost_rate": "5.15", "client_rate": "5.10", "negative_margin_reason": "سعر السوق"},
+        headers=_headers(client),
+    )
+    assert exch.status_code == 201, exch.text
+    responses.append(("POST /operations/exchange", exch.json()))
+
+    remit = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
+              "beneficiary_id": ben.id, "beneficiary_amount": "100.00", "cost_rate": "7.2", "client_rate": "7.1"},
+        headers=_headers(client),
+    )
+    assert remit.status_code == 201, remit.text
+    responses.append(("POST /operations/remit-out", remit.json()))
+
+    entries = client.get("/journal/entries")
+    assert entries.status_code == 200
+    responses.append(("GET /journal/entries", entries.json()))
+
+    balances = client.get(f"/clients/{c.id}/balances")
+    assert balances.status_code == 200
+    responses.append((f"GET /clients/{c.id}/balances", balances.json()))
+
+    pending = client.get("/reference/swift-movements/pending")
+    assert pending.status_code == 200
+    responses.append(("GET /reference/swift-movements/pending", pending.json()))
+
+    leaks = {label: hits for label, body in responses if (hits := _find_key_anywhere(body, "cost_rate"))}
+    assert not leaks, f"cost_rate ظهر في ردود لم يُتوقَّع ظهوره فيها: {leaks}"

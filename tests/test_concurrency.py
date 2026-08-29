@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -45,6 +45,95 @@ def conc_engine():
 
 def _session(engine):
     return sessionmaker(bind=engine)()
+
+
+_WATERMARK_TABLES = ["journal_entries", "swift_movements", "currency_lots", "accounts", "clients", "users"]
+
+
+@pytest.fixture(autouse=True)
+def _cleanup_real_commits(conc_engine):
+    """كل اختبار في هذا الملف يلتزم (commit) بيانات حقيقية فعلاً (انظر
+    تحذير رأس الملف) — بلا تنظيف تلقائي، تتراكم عبر التشغيلات المتكررة
+    وتُفسد اختبارات أخرى تفترض حسابات نظامية مشتركة (مثل أرباح الصرافة
+    `4120`) تبدأ من الصفر. حادثة حقيقية وقعت بهذا الضبط ووُثِّقت في
+    PROGRESS.md — كانت مُسجَّلة "دَين تقني" بسبب غامض حتى حُدِّد هنا بدقة.
+
+    الحل: بصمة معرّف أقصى لكل جدول قد يُنشئ صفوفاً حقيقية قبل الاختبار،
+    وحذف كل ما فوقها بعده — بصرف النظر عن أي اختبار في الملف أنشأه، فلا
+    حاجة لتعديل هذا التنظيف كلما أُضيف اختبار تزامن جديد (نفس مبدأ إعادة
+    بناء `purge_demo_data` — لا تنظيف يدوي متوسِّع)."""
+    session = _session(conc_engine)
+    watermarks = {
+        table: session.execute(text(f"SELECT COALESCE(MAX(id), 0) FROM {table}")).scalar_one()
+        for table in _WATERMARK_TABLES
+    }
+    session.close()
+
+    yield
+
+    session = _session(conc_engine)
+    try:
+        session.execute(text("ALTER TABLE journal_lines DISABLE TRIGGER trg_journal_lines_no_edit_when_posted"))
+
+        eids = [
+            r[0] for r in session.execute(
+                text("SELECT id FROM journal_entries WHERE id > :w"), {"w": watermarks["journal_entries"]}
+            ).fetchall()
+        ]
+        if eids:
+            session.execute(
+                text(
+                    "DELETE FROM lot_consumptions WHERE entry_id = ANY(:e) "
+                    "OR lot_id IN (SELECT id FROM currency_lots WHERE source_entry_id = ANY(:e))"
+                ),
+                {"e": eids},
+            )
+            session.execute(text("DELETE FROM currency_lots WHERE source_entry_id = ANY(:e)"), {"e": eids})
+            session.execute(text("DELETE FROM remit_out_destinations WHERE entry_id = ANY(:e)"), {"e": eids})
+            session.execute(text("UPDATE swift_movements SET out_entry_id = NULL WHERE out_entry_id = ANY(:e)"), {"e": eids})
+            session.execute(text("UPDATE swift_movements SET in_entry_id = NULL WHERE in_entry_id = ANY(:e)"), {"e": eids})
+            session.execute(
+                text("UPDATE journal_entries SET reversed_by_entry_id = NULL WHERE reversed_by_entry_id = ANY(:e)"), {"e": eids}
+            )
+            session.execute(text("DELETE FROM idempotency_keys WHERE entry_id = ANY(:e)"), {"e": eids})
+            session.execute(text("DELETE FROM journal_lines WHERE entry_id = ANY(:e)"), {"e": eids})
+            session.execute(text("DELETE FROM journal_entries WHERE id = ANY(:e)"), {"e": eids})
+
+        session.execute(text("DELETE FROM swift_movements WHERE id > :w"), {"w": watermarks["swift_movements"]})
+        session.execute(text("DELETE FROM currency_lots WHERE id > :w"), {"w": watermarks["currency_lots"]})
+
+        acct_ids = [
+            r[0] for r in session.execute(text("SELECT id FROM accounts WHERE id > :w"), {"w": watermarks["accounts"]}).fetchall()
+        ]
+        if acct_ids:
+            session.execute(
+                text("DELETE FROM opening_balances WHERE account_id = ANY(:a) OR contra_account_id = ANY(:a)"), {"a": acct_ids}
+            )
+            session.execute(text("DELETE FROM account_balances WHERE account_id = ANY(:a)"), {"a": acct_ids})
+            session.execute(text("DELETE FROM accounts WHERE id = ANY(:a)"), {"a": acct_ids})
+
+        client_ids = [
+            r[0] for r in session.execute(text("SELECT id FROM clients WHERE id > :w"), {"w": watermarks["clients"]}).fetchall()
+        ]
+        if client_ids:
+            session.execute(text("DELETE FROM client_credit_limits WHERE client_id = ANY(:c)"), {"c": client_ids})
+            session.execute(text("DELETE FROM beneficiaries WHERE client_id = ANY(:c)"), {"c": client_ids})
+            session.execute(text("DELETE FROM clients WHERE id = ANY(:c)"), {"c": client_ids})
+
+        user_ids = [
+            r[0] for r in session.execute(text("SELECT id FROM users WHERE id > :w"), {"w": watermarks["users"]}).fetchall()
+        ]
+        if user_ids:
+            session.execute(text("DELETE FROM opening_balances WHERE approved_by = ANY(:u)"), {"u": user_ids})
+            session.execute(text("DELETE FROM sessions WHERE subject_id = ANY(:u)"), {"u": user_ids})
+            session.execute(text("DELETE FROM users WHERE id = ANY(:u)"), {"u": user_ids})
+
+        session.execute(text("ALTER TABLE journal_lines ENABLE TRIGGER trg_journal_lines_no_edit_when_posted"))
+        session.flush()
+        recompute.rebuild(session)
+        session.commit()
+    finally:
+        session.close()
 
 
 @pytest.mark.acceptance(17)

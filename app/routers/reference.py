@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
+from app.engine import account_filters
 from app.engine.clock import system_clock, local_entry_date
 from app.config import settings
 from app.models import (
@@ -160,6 +161,24 @@ def list_pending_swift_movements(db: OrmSession = Depends(get_db)) -> list[Pendi
     entries = {e.id: e for e in db.execute(select(JournalEntry).where(JournalEntry.id.in_(out_entry_ids))).scalars().all()}
     partner_ids = {e.partner_id for e in entries.values() if e.partner_id is not None}
     partners = {p.id: p for p in db.execute(select(Partner).where(Partner.id.in_(partner_ids))).scalars().all()}
+
+    # الحساب المراسل الأصلي = طرف قيد SWIFT_OUT غير "1501" — يُشتق هنا لا
+    # يُختار في الواجهة (SWIFT_RETURN بلا حقل اختيار حساب إطلاقاً).
+    lines = db.execute(select(JournalLine).where(JournalLine.entry_id.in_(out_entry_ids))).scalars().all() if out_entry_ids else []
+    line_account_ids = {ln.account_id for ln in lines}
+    line_accounts = {a.id: a for a in db.execute(select(Account).where(Account.id.in_(line_account_ids))).scalars().all()}
+    lines_by_entry: dict[int, list[JournalLine]] = {}
+    for ln in lines:
+        lines_by_entry.setdefault(ln.entry_id, []).append(ln)
+    partner_account_code_by_entry: dict[int, Optional[str]] = {}
+    for entry_id, entry_lines in lines_by_entry.items():
+        candidates = [
+            line_accounts[ln.account_id].code
+            for ln in entry_lines
+            if line_accounts[ln.account_id].code != "1501"
+        ]
+        partner_account_code_by_entry[entry_id] = candidates[0] if len(candidates) == 1 else None
+
     result = []
     for m in movements:
         entry = entries.get(m.out_entry_id) if m.out_entry_id else None
@@ -169,9 +188,42 @@ def list_pending_swift_movements(db: OrmSession = Depends(get_db)) -> list[Pendi
                 id=m.id, amount=m.amount, currency_code=m.currency_code, transfer_date=m.transfer_date,
                 external_ref=m.external_ref, partner_name_ar=partner.name_ar if partner else None,
                 out_entry_no=entry.entry_no if entry else None,
+                partner_account_code=partner_account_code_by_entry.get(m.out_entry_id) if m.out_entry_id else None,
             )
         )
     return result
+
+
+@router.get("/reference/accounts/for-operation", response_model=list[AccountOut])
+def list_accounts_for_operation(
+    operation_type: str = Query(...),
+    field: str = Query(...),
+    currency_code: str = Query(...),
+    location_code: Optional[str] = Query(default=None),
+    db: OrmSession = Depends(get_db),
+) -> list[AccountOut]:
+    """حسابات مُصفّاة بحسب (نوع العملية × دور الحقل × العملة × الموقع) —
+    لا شجرة الحسابات كاملة. **استثناء مقصود**: OPENING/ADJUSTMENT لا يمرّان
+    من هنا إطلاقاً — يستخدمان `/reference/accounts` غير المُصفّى (انظر
+    التوثيق الكامل في `app/engine/account_filters.py`)."""
+    try:
+        accounts = account_filters.accounts_for_operation(
+            db, operation_type=operation_type, field=field, currency_code=currency_code, location_code=location_code,
+        )
+    except account_filters.InvalidAccountFieldError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except account_filters.LocationRequiredError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+    locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
+    return [
+        AccountOut(
+            code=a.code, name_ar=a.name_ar, type=a.type.value, currency_code=a.currency_code,
+            location_code=locations.get(a.location_id) if a.location_id else None,
+            form=a.form.value if a.form else None,
+        )
+        for a in accounts
+    ]
 
 
 @router.get("/journal/entries", response_model=list[JournalEntryOut])
