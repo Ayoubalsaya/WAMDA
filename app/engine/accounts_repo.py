@@ -66,6 +66,20 @@ def get_currency_subaccount(db: Session, parent_code: str, currency_code: str) -
     return get_account_by_code(db, assignment.assigned_code)
 
 
+def leaf_accounts(db: Session, *, include_client_accounts: bool = True) -> list[Account]:
+    """حسابات قابلة للترحيل مباشرة — أوراق الشجرة النشطة فقط (لا رؤوس
+    تجميع لها أبناء). `include_client_accounts=False` يستثني أيضاً
+    حسابات العملاء المُشتقة (`2100-*`) — نفس نمط `/reference/accounts`
+    وتصفية `account_filters.py`، مُشتَرَك هنا بدل تكراره حرفياً بكل شاشة
+    جديدة تحتاجه (لوحة التحكم/مركز السيولة/الحسابات، §٧-٢·٧-٤·٧-٧)."""
+    all_accounts = db.execute(select(Account).where(Account.is_active.is_(True))).scalars().all()
+    parent_ids = {a.parent_id for a in all_accounts if a.parent_id is not None}
+    return [
+        a for a in all_accounts
+        if a.id not in parent_ids and (include_client_accounts or a.client_id is None)
+    ]
+
+
 def get_or_create_client_account(
     db: Session, *, client: Client, currency_code: str, location_code: str
 ) -> Account:

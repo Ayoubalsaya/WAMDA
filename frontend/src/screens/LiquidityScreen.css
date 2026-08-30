@@ -1,0 +1,24 @@
+.liquidity-table-wrap { overflow-x: auto; }
+.liquidity-table .col-amount { min-width: 120px; }
+.liquidity-net { font-weight: 700; font-size: 15px; }
+.liquidity-bar-track { width: 90px; height: 8px; border-radius: 4px; background: var(--sky-100); overflow: hidden; }
+.liquidity-bar-fill { height: 100%; border-radius: 4px; }
+.liquidity-bar-fill.is-positive { background: var(--money-in-text); }
+.liquidity-bar-fill.is-negative { background: var(--money-out-text); }
+
+/* د-...: مركز السيولة بطاقات على الشاشات الضيقة — أولوية قصوى (أ-... الجدول لا يتحمّل ضغطاً أفقياً) */
+@media (max-width: 767px) {
+  .liquidity-table, .liquidity-table thead { display: none; }
+  .liquidity-table tbody, .liquidity-row { display: block; width: 100%; }
+  .liquidity-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+  .liquidity-row td { border-bottom: none; height: auto; padding: 2px 0; }
+  .liquidity-row td:first-child { grid-column: 1 / -1; font-weight: 600; }
+}

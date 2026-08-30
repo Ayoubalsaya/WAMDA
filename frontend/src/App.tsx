@@ -4,6 +4,9 @@ import { useAuth } from './hooks/useAuth'
 import { LoginScreen } from './screens/LoginScreen'
 import { JournalScreen } from './screens/JournalScreen'
 import { ClientsScreen } from './screens/ClientsScreen'
+import { DashboardScreen } from './screens/DashboardScreen'
+import { LiquidityScreen } from './screens/LiquidityScreen'
+import { AccountsScreen } from './screens/AccountsScreen'
 import { Sidebar, type ScreenId } from './components/Sidebar'
 import { NewOperationPanel } from './components/NewOperationPanel'
 import './App.css'
@@ -23,8 +26,7 @@ function Placeholder({ id }: { id: ScreenId }) {
     <div className="journal-screen">
       <h2 className="screen-title" style={{ marginBottom: 16 }}>{SCREEN_TITLES[id]}</h2>
       <div className="card">
-        <p className="text-muted">هذه الشاشة خارج نطاق المرحلة الحالية (٥) — نظام التصميم والشريط الجانبي
-          ودفتر اليومية ومعالج الخطوتين فقط. تُبنى الشاشات المتبقية في المراحل اللاحقة.</p>
+        <p className="text-muted">هذه الشاشة خارج نطاق المراحل المبنية حتى الآن (٥-٨) — تُبنى في مرحلة لاحقة.</p>
       </div>
     </div>
   )
@@ -112,6 +114,12 @@ export default function App() {
             />
           ) : active === 'clients' ? (
             <ClientsScreen currentUserRole={user.role} />
+          ) : active === 'dashboard' ? (
+            <DashboardScreen />
+          ) : active === 'position' ? (
+            <LiquidityScreen />
+          ) : active === 'accounts' ? (
+            <AccountsScreen />
           ) : (
             <Placeholder id={active} />
           )}

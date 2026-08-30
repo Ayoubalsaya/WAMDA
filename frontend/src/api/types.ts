@@ -179,3 +179,108 @@ export interface PendingSwiftMovement {
   out_entry_no: string | null
   partner_account_code: string | null
 }
+
+export interface CurrencyAmount {
+  currency_code: string
+  amount: string
+}
+
+export interface DashboardKpis {
+  funds: CurrencyAmount[]
+  client_liabilities: CurrencyAmount[]
+}
+
+export interface ProfitBreakdown {
+  transfer_fee: CurrencyAmount[]
+  exchange_spread: CurrencyAmount[]
+  net_by_currency: CurrencyAmount[]
+}
+
+export interface TopClientRow {
+  client_id: number
+  code: string
+  name_ar: string
+  operation_count: number
+}
+
+export interface AlertRow {
+  severity: 'critical' | 'warning' | 'info'
+  code: string
+  message_ar: string
+}
+
+export interface DashboardSummary {
+  kpis: DashboardKpis
+  today_profit: ProfitBreakdown
+  top_clients: TopClientRow[]
+  recent_entries: JournalEntryOut[]
+  alerts: AlertRow[]
+}
+
+export interface LiquidityRow {
+  currency_code: string
+  location_code: string
+  location_name_ar: string
+  assets: string
+  liabilities: string
+  net: string
+}
+
+export interface AccountBalanceRow {
+  code: string
+  name_ar: string
+  currency_code: string
+  balance: string
+}
+
+export interface CorrespondentGroup {
+  partner_id: number | null
+  partner_name_ar: string
+  accounts: AccountBalanceRow[]
+}
+
+export interface CorrespondentsResponse {
+  groups: CorrespondentGroup[]
+  totals: CurrencyAmount[]
+}
+
+export interface BoxesResponse {
+  accounts: AccountBalanceRow[]
+  totals: CurrencyAmount[]
+}
+
+export interface BanksResponse {
+  accounts: AccountBalanceRow[]
+  totals: CurrencyAmount[]
+}
+
+export interface LotRow {
+  id: number
+  lot_no: string
+  swift_external_ref: string | null
+  partner_name_ar: string | null
+  arrival_date: string
+  original_qty: string
+  cost_rate: string
+  remaining_qty: string
+  num_sales: number
+  weighted_avg_sale_rate: string | null
+  total_profit: string
+  profit_currency: string | null
+  status: string
+}
+
+export interface LotConsumptionRow {
+  consumed_at: string
+  client_name_ar: string | null
+  qty: string
+  client_rate: string
+  cost_share: string
+  profit: string
+  profit_currency: string
+}
+
+export interface LotDetail {
+  lot: LotRow
+  consumptions: LotConsumptionRow[]
+}
