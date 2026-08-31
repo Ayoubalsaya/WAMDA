@@ -8,7 +8,10 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import auth, clients, dashboard, operations, reference, users
+from app.routers import (
+    auth, clients, dashboard, operations, partners, portal, reconciliation, reference, reports, search, settings,
+    users,
+)
 from app.security import csrf
 
 app = FastAPI(title="ومضة")
@@ -19,6 +22,12 @@ app.include_router(operations.router)
 app.include_router(reference.router)
 app.include_router(clients.router)
 app.include_router(dashboard.router)
+app.include_router(portal.router)
+app.include_router(search.router)
+app.include_router(reconciliation.router)
+app.include_router(reports.router)
+app.include_router(partners.router)
+app.include_router(settings.router)
 
 _FRONTEND_DIST = Path(__file__).parent / "static" / "app"
 if _FRONTEND_DIST.is_dir():
@@ -29,6 +38,13 @@ if _FRONTEND_DIST.is_dir():
         """واجهة React المبنية (`frontend/` → `npm run build`) — صفحة واحدة
         بلا توجيه عناوين من جهة العميل، فلا حاجة لمسار شامل (catch-all)."""
         return FileResponse(_FRONTEND_DIST / "index.html")
+
+    @app.get("/portal", include_in_schema=False)
+    def portal_index() -> FileResponse:
+        """بوابة العميل (§٧-٦) — حزمة React **مستقلة** تماماً عن واجهة
+        الموظف (مدخل Vite ثانٍ `portal.html`، لا مشاركة شجرة React ولا
+        حالة). صفحة واحدة أيضاً — لا شاشات فرعية تحتاج توجيهاً."""
+        return FileResponse(_FRONTEND_DIST / "portal.html")
 
 
 @app.middleware("http")

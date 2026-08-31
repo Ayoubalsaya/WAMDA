@@ -9,12 +9,13 @@ from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.engine.clock import system_clock
-from app.models import User
+from app.models import Client, User
 from app.models.enums import SessionSubjectType
 from app.security import csrf, sessions
-from app.security.permissions import Action, PermissionDeniedError, require_permission
+from app.security.permissions import CLIENT_ROLE, Action, PermissionDeniedError, require_permission
 
 SESSION_COOKIE_NAME = "wamda_session"
+PORTAL_SESSION_COOKIE_NAME = "wamda_portal_session"
 
 
 def get_current_user(
@@ -41,6 +42,43 @@ def require_password_changed(current_user: User = Depends(get_current_user)) -> 
     if current_user.must_change_password:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "يجب تغيير كلمة المرور أولاً")
     return current_user
+
+
+def get_current_client(
+    request: Request,
+    db: OrmSession = Depends(get_db),
+    wamda_portal_session: Optional[str] = Cookie(default=None),
+) -> Client:
+    """مطابق لـ`get_current_user` لكن لجلسات `SessionSubjectType.CLIENT`
+    حصراً — كوكي منفصل تماماً (`wamda_portal_session`) عن جلسة الموظف، فلا
+    يمكن لأي منهما أن يُستخدَم مكان الآخر ولو بالخطأ (اختبار القبول ٤٠)."""
+    if not wamda_portal_session:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "لا جلسة")
+    now = system_clock()
+    session_row = sessions.get_valid_session(db, wamda_portal_session, now)
+    if session_row is None or session_row.subject_type != SessionSubjectType.CLIENT:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "الجلسة غير صالحة أو منتهية")
+    client = db.get(Client, session_row.subject_id)
+    if client is None or not client.is_active:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "الحساب غير نشط")
+    request.state.portal_session_id = str(session_row.id)
+    return client
+
+
+def require_portal_password_changed(current_client: Client = Depends(get_current_client)) -> Client:
+    """§٧-٦/اختبار القبول ٤٢: عميل قبل تغيير كلمة المرور أول دخول لا يرى
+    شيئاً — نفس مبدأ `require_password_changed` للموظف بالضبط. يفحص أيضاً
+    `Action.VIEW_OWN_STATEMENT` عبر `PERMISSION_MATRIX` الموجودة أصلاً منذ
+    المرحلة ٤ (`CLIENT_ROLE` كانت مُعرَّفة بانتظار هذه المرحلة) — تكرار
+    بنيوي مقصود مع فحص `subject_type` في `get_current_client`، لا اعتماد
+    عليه وحده."""
+    if current_client.portal_must_change:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "يجب تغيير كلمة المرور أولاً")
+    try:
+        require_permission(CLIENT_ROLE, Action.VIEW_OWN_STATEMENT)
+    except PermissionDeniedError as exc:  # pragma: no cover — CLIENT_ROLE يملكها دائماً، دفاع بنيوي إضافي فقط
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    return current_client
 
 
 def verify_csrf(

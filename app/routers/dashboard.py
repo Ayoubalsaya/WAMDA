@@ -202,7 +202,10 @@ def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int
         ))
 
     # ٥) رصيد ٣٩٠٠ غير صفري — فروق تأسيسية تحت المصالحة.
-    suspense_accounts = [a for a in leaves if a.code.startswith("3900")]
+    # ملاحظة: حسابات ٣٩٠٠ الفرعية لكل عملة تُرقَّم تسلسلياً (٣٩٠١، ٣٩٠٢...)
+    # لا بادئة نصية "3900" — المطابقة عبر parent_id لا startswith.
+    suspense_parent = db.execute(select(Account).where(Account.code == "3900")).scalar_one_or_none()
+    suspense_accounts = [a for a in leaves if suspense_parent is not None and a.parent_id == suspense_parent.id]
     suspense_total = sum((balances.get(a.id, Decimal("0")) for a in suspense_accounts), Decimal("0"))
     if suspense_total != 0:
         alerts.append(AlertRow(

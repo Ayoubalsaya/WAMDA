@@ -6,17 +6,25 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.engine.clock import system_clock
 from app.models import User
 from app.schemas.auth import CreateUserRequest, CreateUserResponse
+from app.schemas.settings import UserListRow
 from app.security import user_management
 from app.security.deps import require_role, verify_csrf
 from app.security.permissions import Action
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("", response_model=list[UserListRow], dependencies=[Depends(require_role(Action.MANAGE_USERS))])
+def list_users(db: OrmSession = Depends(get_db)) -> list[UserListRow]:
+    rows = db.execute(select(User).order_by(User.username)).scalars().all()
+    return [UserListRow(**{c: getattr(u, c) for c in UserListRow.model_fields}) for u in rows]
 
 
 @router.post(
