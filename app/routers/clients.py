@@ -46,7 +46,8 @@ from app.schemas.clients import (
     StatementRow,
     UpdateClientRequest,
 )
-from app.security import audit
+from app.schemas.portal import SetPortalCredentialsRequest
+from app.security import audit, passwords
 from app.security.deps import require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -242,19 +243,15 @@ def set_credit_limit(
     db.commit()
 
 
-@router.get(
-    "/clients/{client_id}/statement", response_model=StatementResponse,
-    dependencies=[Depends(require_role(Action.POST_ENTRY))],
-)
-def client_statement(
-    client_id: int, currency: str = Query(...), location: str = Query(...),
-    date_from: Optional[date] = Query(default=None, alias="from"),
-    date_to: Optional[date] = Query(default=None, alias="to"),
-    db: OrmSession = Depends(get_db),
+def compute_client_statement(
+    db: OrmSession, *, client_id: int, currency: str, location: str,
+    date_from: Optional[date], date_to: Optional[date],
 ) -> StatementResponse:
     """كشف حساب برصيد متحرك — حساب واحد محدَّد (عملة×موقع)، لا مزج بين
-    مواقع مختلفة في نفس الرصيد المتحرك (القاعدة الفاصلة §٢-٢)."""
-    client = _get_client_or_404(db, client_id)
+    مواقع مختلفة في نفس الرصيد المتحرك (القاعدة الفاصلة §٢-٢). دالة مشتركة
+    يستدعيها مسار الموظف أدناه **وبوابة العميل** (`app/routers/portal.py`)
+    بلا تكرار — العميل هناك يمرِّر `client_id` جلسته هو حصراً، لا مُدخَلاً
+    من الطلب (اختبار القبول ٤٠)."""
     location_row = db.execute(select(Location).where(Location.code == location)).scalar_one_or_none()
     if location_row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا موقع بالكود {location}")
@@ -312,6 +309,22 @@ def client_statement(
     return StatementResponse(
         account_code=account.code, currency_code=currency, location_code=location,
         opening_balance=opening_balance, closing_balance=running, rows=statement_rows,
+    )
+
+
+@router.get(
+    "/clients/{client_id}/statement", response_model=StatementResponse,
+    dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
+def client_statement(
+    client_id: int, currency: str = Query(...), location: str = Query(...),
+    date_from: Optional[date] = Query(default=None, alias="from"),
+    date_to: Optional[date] = Query(default=None, alias="to"),
+    db: OrmSession = Depends(get_db),
+) -> StatementResponse:
+    _get_client_or_404(db, client_id)
+    return compute_client_statement(
+        db, client_id=client_id, currency=currency, location=location, date_from=date_from, date_to=date_to,
     )
 
 
@@ -386,5 +399,34 @@ def set_beneficiary_active(
         action="BENEFICIARY_DISABLED" if not payload.is_active else "BENEFICIARY_ENABLED",
         entity="beneficiaries", entity_id=beneficiary.id,
         before={"is_active": before}, after={"is_active": payload.is_active},
+    )
+    db.commit()
+
+
+@router.put(
+    "/clients/{client_id}/portal-credentials", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def set_portal_credentials(
+    client_id: int, payload: SetPortalCredentialsRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> None:
+    """ينشئ/يُعيد ضبط دخول بوابة العميل (§٧-٦) — نفس نمط `POST /users`
+    بالضبط (كلمة مرور أولية يحدِّدها المدير، `MANAGE_USERS` مُعاد استخدامها
+    بالقياس — لا صلاحية مخصَّصة لهذا الإجراء تحديداً في §٧-١٣، وهو أقرب
+    مطابقة: إدارة دخول طرف آخر للنظام). يفرض `portal_must_change=True`
+    دائماً — نفس إجبار أول دخول المفروض على الموظفين."""
+    client = _get_client_or_404(db, client_id)
+    client.portal_password_hash = passwords.hash_password(payload.initial_password)
+    client.portal_must_change = True
+    client.portal_failed_attempts = 0
+    client.portal_locked_until = None
+    if payload.security_question is not None:
+        client.portal_security_question = payload.security_question
+    if payload.security_answer is not None:
+        client.portal_security_answer_hash = passwords.hash_security_answer(payload.security_answer)
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="PORTAL_CREDENTIALS_SET",
+        entity="clients", entity_id=client.id,
     )
     db.commit()

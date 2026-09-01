@@ -1,0 +1,55 @@
+.portal-home {
+  min-height: 100vh;
+  background: var(--canvas);
+  max-width: 480px;
+  margin: 0 auto;
+}
+.portal-topbar {
+  background: var(--identity-gradient);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+}
+.portal-topbar-brand { display: flex; align-items: center; gap: 10px; }
+.portal-topbar-logo {
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.18); display: flex; align-items: center; justify-content: center;
+}
+.portal-topbar-name { font-size: 14.5px; font-weight: 600; }
+.portal-topbar-code { font-size: 11.5px; opacity: .85; }
+.portal-topbar .btn-text { color: #fff; }
+
+.portal-main { padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-4); }
+
+.portal-balance-cards { display: flex; flex-direction: column; gap: var(--space-3); }
+.portal-balance-card { padding: var(--space-4); }
+.portal-balance-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.portal-balance-total { font-size: 26px; font-weight: 700; }
+.portal-balance-locations { display: flex; flex-direction: column; gap: 2px; }
+.portal-location-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 6px; border-radius: var(--radius-sm); border: none; background: transparent;
+  font-size: 13px; color: var(--text-secondary); cursor: pointer; width: 100%; font-family: inherit;
+}
+.portal-location-row.is-active { background: var(--sky-50); color: var(--sky-800); font-weight: 600; }
+
+.portal-statement-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.portal-statement-actions { display: flex; gap: 6px; }
+.portal-tx-list { display: flex; flex-direction: column; gap: 2px; }
+.portal-tx-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 4px; border-bottom: 1px solid var(--divider);
+}
+.portal-tx-row:last-child { border-bottom: none; }
+.portal-tx-desc { font-size: 13.5px; }
+.portal-tx-date { font-size: 11.5px; margin-top: 2px; }
+
+.portal-bottom-buttons { display: flex; gap: var(--space-3); padding-bottom: var(--space-4); }
+.portal-bottom-buttons .btn { flex: 1; }
+
+@media print {
+  .portal-topbar, .portal-bottom-buttons, .portal-statement-actions { display: none !important; }
+  .portal-home { max-width: none; }
+}

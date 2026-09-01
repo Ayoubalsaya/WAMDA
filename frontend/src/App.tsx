@@ -7,8 +7,13 @@ import { ClientsScreen } from './screens/ClientsScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
 import { LiquidityScreen } from './screens/LiquidityScreen'
 import { AccountsScreen } from './screens/AccountsScreen'
+import { ReportsScreen } from './screens/ReportsScreen'
+import { ReconciliationScreen } from './screens/ReconciliationScreen'
+import { SettingsScreen } from './screens/SettingsScreen'
 import { Sidebar, type ScreenId } from './components/Sidebar'
 import { NewOperationPanel } from './components/NewOperationPanel'
+import { SearchResultsPanel } from './components/SearchResultsPanel'
+import { type SearchChip, parseSearchQuery } from './lib/parseSearchQuery'
 import './App.css'
 
 const SCREEN_TITLES: Record<ScreenId, string> = {
@@ -39,7 +44,16 @@ export default function App() {
   const [transitionKey, setTransitionKey] = useState(0)
   const [newOpOpen, setNewOpOpen] = useState(false)
   const [requestedOpType, setRequestedOpType] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchChips, setSearchChips] = useState<SearchChip[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  function runSearch() {
+    const chips = parseSearchQuery(searchQuery)
+    setSearchChips(chips)
+    setSearchOpen(true)
+  }
 
   const navigate = useCallback((id: ScreenId, originEl: HTMLElement | null) => {
     if (originEl) setOriginY(originEl.getBoundingClientRect().top + originEl.getBoundingClientRect().height / 2)
@@ -89,7 +103,11 @@ export default function App() {
       />
       <div className="app-main">
         <header className="app-topbar">
-          <input ref={searchRef} className="app-search" placeholder="بحث ذكي... ( / )" />
+          <input
+            ref={searchRef} className="app-search" placeholder="بحث ذكي... ( / )"
+            value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch() } }}
+          />
           <button type="button" className="btn btn-muted" style={{ width: 42, padding: 0 }} aria-label="التنبيهات">
             <Bell size={18} strokeWidth={1.9} />
           </button>
@@ -120,6 +138,12 @@ export default function App() {
             <LiquidityScreen />
           ) : active === 'accounts' ? (
             <AccountsScreen />
+          ) : active === 'reports' ? (
+            <ReportsScreen />
+          ) : active === 'reconcile' ? (
+            <ReconciliationScreen />
+          ) : active === 'settings' ? (
+            <SettingsScreen currentUserRole={user.role} />
           ) : (
             <Placeholder id={active} />
           )}
@@ -134,6 +158,13 @@ export default function App() {
             setTransitionKey((k) => k + 1)
             setNewOpOpen(false)
           }}
+        />
+      )}
+      {searchOpen && (
+        <SearchResultsPanel
+          chips={searchChips}
+          onRemoveChip={(id) => setSearchChips((chips) => chips.filter((c) => c.id !== id))}
+          onClose={() => setSearchOpen(false)}
         />
       )}
     </div>

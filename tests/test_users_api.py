@@ -105,3 +105,19 @@ def test_create_user_duplicate_username_conflict(db, client):
 
     resp2 = client.post("/users", json=_NEW_USER_PAYLOAD, headers=_csrf_headers(client))
     assert resp2.status_code == 409
+
+
+def test_list_users_admin_only(db, client):
+    _login(db, client, role="ACCOUNTANT")
+    resp = client.get("/users")
+    assert resp.status_code == 403
+
+
+def test_list_users_includes_created_user(db, client):
+    admin = _login(db, client, role="ADMIN")
+    client.post("/users", json=_NEW_USER_PAYLOAD, headers=_csrf_headers(client))
+    resp = client.get("/users")
+    assert resp.status_code == 200
+    usernames = {u["username"] for u in resp.json()}
+    assert admin.username in usernames
+    assert "backup-admin-test" in usernames

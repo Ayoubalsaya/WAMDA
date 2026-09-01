@@ -1,0 +1,39 @@
+.portal-login-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--outer-gradient);
+}
+.portal-login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+.portal-login-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md);
+  background: var(--identity-gradient);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-elevated);
+}
+.portal-login-name { font-size: 26px; font-weight: 700; color: var(--sky-900); }
+.portal-login-tagline { font-size: 13.5px; color: var(--text-secondary); }
+.portal-login-form {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-base);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

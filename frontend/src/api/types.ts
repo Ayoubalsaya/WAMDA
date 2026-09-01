@@ -284,3 +284,189 @@ export interface LotDetail {
   lot: LotRow
   consumptions: LotConsumptionRow[]
 }
+
+export interface PortalLoginResponse {
+  status: string
+  must_change_password?: boolean
+}
+
+export interface PortalMeResponse {
+  code: string
+  name_ar: string
+  must_change_password: boolean
+}
+
+// §٧-١١ التقارير
+export interface DebtsByCurrencyRow {
+  currency_code: string
+  total_owed: string
+  client_count: number
+}
+
+export interface ProfitByPeriodRow {
+  period_label: string
+  transfer_fee: CurrencyAmount[]
+  exchange_spread: CurrencyAmount[]
+  net_by_currency: CurrencyAmount[]
+}
+
+export interface TrialBalanceRow {
+  account_code: string
+  account_name_ar: string
+  account_type: string
+  currency_code: string | null
+  debit: string
+  credit: string
+}
+
+export interface TrialBalanceResponse {
+  rows: TrialBalanceRow[]
+  total_debit_by_currency: CurrencyAmount[]
+  total_credit_by_currency: CurrencyAmount[]
+  balanced: boolean
+}
+
+export interface IncomeStatementLine {
+  account_code: string
+  account_name_ar: string
+  currency_code: string
+  amount: string
+}
+
+export interface IncomeStatementResponse {
+  revenue: IncomeStatementLine[]
+  expense: IncomeStatementLine[]
+  net_by_currency: CurrencyAmount[]
+}
+
+export interface ClientProfitabilityRow {
+  client_id: number
+  client_code: string
+  client_name_ar: string
+  profit_by_currency: CurrencyAmount[]
+  operation_count: number
+}
+
+export interface ActivityRow {
+  key: string
+  entry_count: number
+}
+
+export interface CorrespondentActivityRow {
+  partner_id: number
+  partner_name_ar: string
+  entry_count: number
+  total_debit_by_currency: CurrencyAmount[]
+  total_credit_by_currency: CurrencyAmount[]
+}
+
+export interface SwiftHistoryRow {
+  id: number
+  status: string
+  amount: string
+  currency_code: string
+  transfer_date: string
+  received_date: string | null
+  external_ref: string | null
+  partner_name_ar: string | null
+}
+
+export interface LossMakingEntryRow {
+  entry_id: number
+  entry_no: string
+  entry_date: string
+  operation_type: string
+  client_name_ar: string | null
+  profit_amount: string
+  profit_currency: string
+}
+
+export interface BalanceOverrideRow {
+  id: number
+  created_at: string
+  action: string
+  account_code: string | null
+  entry_no: string | null
+  reason: string | null
+  actor_username: string | null
+}
+
+export interface EmergencyEntryRow {
+  entry_id: number
+  entry_no: string
+  entry_date: string
+  operation_type: string
+  real_operation_time: string | null
+  backdate_reason: string | null
+}
+
+export interface FoundingReconciliationResponse {
+  suspense_balance_by_currency: CurrencyAmount[]
+  opening_balances_total_by_currency: CurrencyAmount[]
+  opening_balances_count: number
+  open_reconciliation_items: number
+}
+
+// §٧-٩ المطابقة
+export interface StatementLineOut {
+  id: number
+  value_date: string
+  description: string | null
+  amount: string
+  status: 'OPEN' | 'RESOLVED'
+  matched_entry_id: number | null
+  matched_entry_no: string | null
+}
+
+export interface PartnerStatementSummary {
+  id: number
+  partner_id: number
+  partner_name_ar: string
+  period_from: string
+  period_to: string
+  imported_at: string
+  total_lines: number
+  open_lines: number
+}
+
+export interface PartnerStatementDetail {
+  id: number
+  partner_id: number
+  partner_name_ar: string
+  period_from: string
+  period_to: string
+  imported_at: string
+  lines: StatementLineOut[]
+}
+
+export interface AutoMatchResponse {
+  matched_count: number
+  statement: PartnerStatementDetail
+}
+
+// §٧-١٤ الإعدادات
+export interface CompanyProfile {
+  name_ar: string
+  logo_data_url: string | null
+}
+
+export interface UserListRow {
+  id: number
+  username: string
+  full_name: string
+  role: string
+  is_active: boolean
+  must_change_password: boolean
+  last_login_at: string | null
+}
+
+export interface PartnerRow {
+  id: number
+  code: string
+  name_ar: string
+  name_en: string | null
+  country: string
+  contact_phone: string | null
+  notes: string | null
+  is_active: boolean
+}
