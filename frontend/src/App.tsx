@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { useAuth } from './hooks/useAuth'
 import { LoginScreen } from './screens/LoginScreen'
+import { ChangePasswordScreen } from './screens/ChangePasswordScreen'
 import { JournalScreen } from './screens/JournalScreen'
 import { ClientsScreen } from './screens/ClientsScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
@@ -38,7 +39,7 @@ function Placeholder({ id }: { id: ScreenId }) {
 }
 
 export default function App() {
-  const { user, checking, login, logout } = useAuth()
+  const { user, checking, login, logout, refresh } = useAuth()
   const [active, setActive] = useState<ScreenId>('journal')
   const [originY, setOriginY] = useState(200)
   const [transitionKey, setTransitionKey] = useState(0)
@@ -89,6 +90,7 @@ export default function App() {
 
   if (checking) return <div className="app-loading">...جارٍ التحقق من الجلسة</div>
   if (!user) return <LoginScreen login={login} />
+  if (user.must_change_password) return <ChangePasswordScreen onDone={refresh} onLogout={logout} />
 
   return (
     <div className="app-shell">

@@ -388,13 +388,31 @@ function FoundingReconciliationTab({ currencies }: { currencies: Currency[] }) {
   )
 }
 
+// تصدير PDF متاح فقط للتقارير التي لها مستند مطابق في `app/documents/reports_doc.py`
+// (المرحلة ١٠) — بقية التقارير أعلاه تبقى عرض شاشة فقط حتى الآن.
+const PDF_EXPORT_KEYS: Partial<Record<ReportId, string>> = {
+  'trial-balance': 'trial-balance',
+  'founding-reconciliation': 'founding-reconciliation',
+  'balance-overrides': 'balance-overrides',
+  'emergency-entries': 'emergency-entries',
+  'lot-profitability': 'lot-profitability',
+}
+
 export function ReportsScreen() {
   const [report, setReport] = useState<ReportId>('debts')
   const { currencies } = useReferenceData()
+  const exportKey = PDF_EXPORT_KEYS[report]
 
   return (
     <div className="journal-screen reports-screen">
-      <h2 className="screen-title" style={{ marginBottom: 16 }}>التقارير</h2>
+      <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+        <h2 className="screen-title" style={{ margin: 0 }}>التقارير</h2>
+        {exportKey && (
+          <a href={`/documents/reports/${exportKey}.pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+            تنزيل PDF
+          </a>
+        )}
+      </div>
       <div className="reports-layout">
         <div className="reports-nav">
           {REPORTS.map((r) => (

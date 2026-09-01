@@ -2,19 +2,43 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.documents import render as doc_render
 from app.routers import (
-    auth, clients, dashboard, operations, partners, portal, reconciliation, reference, reports, search, settings,
-    users,
+    auth, clients, dashboard, documents, operations, partners, portal, reconciliation, reference, reports, search,
+    settings, users,
 )
 from app.security import csrf
 
-app = FastAPI(title="ومضة")
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """محرك توليد المستندات (§٨) — متصفح Chromium واحد يُشغَّل هنا مرة عند
+    الإقلاع ويُعاد استخدامه لكل طلبات PDF/PNG طوال عمر العملية، بدل
+    تشغيل/إغلاق متصفح لكل مستند.
+
+    **لا `doc_render.stop()` هنا عمداً** — `_lifespan` يُطلَق مرة واحدة على
+    خادم uvicorn حقيقي، لكن كل ملف اختبار في `tests/` ينشئ `TestClient(app)`
+    خاصاً به (`with TestClient(app) as c:`) فيُشغِّل دورة lifespan كاملة —
+    استدعاء `stop()` هنا كان يُغلق المتصفح الحقيقي بعد كل ملف اختبار
+    فيُعاد تشغيله من الصفر في التالي (`start()` نفسها idempotent، محمية
+    بفحص `_thread is not None` أعلاها) — رفع وقت مجموعة `pytest` الكاملة
+    من ~دقيقتين إلى **أكثر من ٣ ساعات** فعلياً (اكتُشف بتشغيل حقيقي، ليس
+    افتراضاً). الخيط خلفية (`daemon=True`) وعملية Chromium الفرعية تُنهيان
+    تلقائياً مع خروج عملية Python نفسها (خادم uvicorn الحقيقي أو جلسة
+    pytest) — لا حاجة فعلية لإغلاق صريح، `render.stop()` تبقى موجودة
+    لاستخدام مستقبلي مُتحكَّم به إن استُدعيت صراحة خارج هذا المسار."""
+    doc_render.start()
+    yield
+
+
+app = FastAPI(title="ومضة", lifespan=_lifespan)
 
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -28,6 +52,7 @@ app.include_router(reconciliation.router)
 app.include_router(reports.router)
 app.include_router(partners.router)
 app.include_router(settings.router)
+app.include_router(documents.router)
 
 _FRONTEND_DIST = Path(__file__).parent / "static" / "app"
 if _FRONTEND_DIST.is_dir():

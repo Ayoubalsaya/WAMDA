@@ -1,0 +1,135 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<title>{{ doc_title }}</title>
+<style>
+{{ font_css | safe }}
+
+* { box-sizing: border-box; }
+body {
+  font-family: "Plex Arabic", sans-serif;
+  margin: 0;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+{% if doc_size == "thermal" %}
+@page { size: 80mm auto; margin: 4mm 3mm; }
+body { width: 74mm; font-size: 11px; }
+{% elif doc_size == "png" %}
+body { width: {{ png_width or 720 }}px; padding: 0; }
+{% else %}
+@page { size: A4; margin: 14mm 16mm; }
+body { font-size: 13px; }
+{% endif %}
+
+.doc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: {% if doc_size == "thermal" %}0 0 6px 0{% else %}10px 16px{% endif %};
+  {% if doc_size != "thermal" %}
+  background: linear-gradient(140deg, #42B0D5 0%, #1A7B9E 55%, #10455B 100%);
+  color: #fff; border-radius: 10px;
+  {% else %}
+  border-bottom: 1px dashed #000; color: #000;
+  {% endif %}
+  margin-bottom: {% if doc_size == "thermal" %}8px{% else %}18px{% endif %};
+}
+.doc-header-brand { display: flex; align-items: center; gap: 10px; }
+.doc-header-logo { flex-shrink: 0; }
+.doc-header-name { font-weight: 700; font-size: {% if doc_size == "thermal" %}14px{% else %}17px{% endif %}; }
+.doc-header-title { text-align: left; }
+.doc-header-title .t1 { font-weight: 700; font-size: {% if doc_size == "thermal" %}13px{% else %}15px{% endif %}; }
+.doc-header-title .t2 { font-size: {% if doc_size == "thermal" %}10px{% else %}11.5px{% endif %}; opacity: .85; }
+
+.doc-qr { position: absolute; top: {% if doc_size == "a4" %}18mm{% else %}6px{% endif %}; left: {% if doc_size == "a4" %}18mm{% else %}6px{% endif %}; }
+.doc-qr img { width: {% if doc_size == "thermal" %}42px{% else %}64px{% endif %}; height: auto; display: block; }
+
+.balances-strip {
+  display: flex; gap: 10px; margin: 10px 0;
+  {% if doc_size == "thermal" %} flex-direction: column; {% endif %}
+}
+.balances-box {
+  flex: 1; border: 1px solid {% if doc_size == "thermal" %}#000{% else %}#dbeaf1{% endif %};
+  border-radius: 6px; padding: 8px 10px;
+  background: {% if doc_size == "thermal" %}#fff{% else %}#f4fbfd{% endif %};
+}
+.balances-box .lbl { font-size: {% if doc_size == "thermal" %}9px{% else %}11px{% endif %}; color: {% if doc_size == "thermal" %}#000{% else %}#5b7480{% endif %}; margin-bottom: 3px; }
+.balances-box .row { display: flex; justify-content: space-between; font-size: {% if doc_size == "thermal" %}10.5px{% else %}12.5px{% endif %}; margin-bottom: 2px; }
+
+table.doc-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: inherit; }
+table.doc-table th, table.doc-table td { padding: {% if doc_size == "thermal" %}3px 2px{% else %}7px 8px{% endif %}; text-align: right; }
+table.doc-table th { border-bottom: {% if doc_size == "thermal" %}1px solid #000{% else %}2px solid #1A7B9E{% endif %}; font-weight: 700; }
+table.doc-table td { border-bottom: 1px solid {% if doc_size == "thermal" %}#000{% else %}#e5eef1{% endif %}; }
+
+.doc-signatures {
+  display: flex; justify-content: space-between; margin-top: {% if doc_size == "thermal" %}18px{% else %}40px{% endif %};
+  gap: 20px;
+}
+.doc-signature { flex: 1; text-align: center; }
+.doc-signature .line { border-top: 1px solid #000; margin-top: {% if doc_size == "thermal" %}22px{% else %}34px{% endif %}; padding-top: 4px; font-size: {% if doc_size == "thermal" %}9px{% else %}11px{% endif %}; }
+.doc-stamp {
+  width: {% if doc_size == "thermal" %}56px{% else %}84px{% endif %}; height: {% if doc_size == "thermal" %}56px{% else %}84px{% endif %};
+  border: 2px dashed {% if doc_size == "thermal" %}#000{% else %}#1A7B9E{% endif %}; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-size: {% if doc_size == "thermal" %}8px{% else %}9.5px{% endif %}; color: {% if doc_size == "thermal" %}#000{% else %}#1A7B9E{% endif %};
+  margin: {% if doc_size == "thermal" %}18px auto 0{% else %}30px auto 0{% endif %};
+}
+
+.doc-footer {
+  margin-top: {% if doc_size == "thermal" %}14px{% else %}26px{% endif %};
+  padding-top: 8px;
+  border-top: 1px {% if doc_size == "thermal" %}dashed #000{% else %}solid #e5eef1{% endif %};
+  font-size: {% if doc_size == "thermal" %}8.5px{% else %}10px{% endif %};
+  color: {% if doc_size == "thermal" %}#000{% else %}#7a8b92{% endif %};
+  text-align: center;
+}
+</style>
+</head>
+<body>
+
+{% if qr_data_uri and doc_size != "thermal" %}
+<div class="doc-qr"><img src="{{ qr_data_uri }}" alt="QR"></div>
+{% endif %}
+
+<div class="doc-header">
+  <div class="doc-header-brand">
+    <span class="doc-header-logo">
+      {% if company_logo_data_uri %}
+      <img src="{{ company_logo_data_uri }}" alt="" style="width:{% if doc_size == 'thermal' %}22{% else %}32{% endif %}px;height:auto;">
+      {% else %}
+      <svg width="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" height="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" viewBox="0 0 24 24" fill="none">
+        <path d="M13.2 2 4.8 13.4h5.6L10 22l9-11.6h-5.9L13.2 2Z" fill="{% if doc_size == 'thermal' %}#000{% else %}#fff{% endif %}"/>
+      </svg>
+      {% endif %}
+    </span>
+    <span class="doc-header-name">{{ company_name }}</span>
+  </div>
+  <div class="doc-header-title">
+    <div class="t1">{{ doc_title }}</div>
+    {% if doc_subtitle %}<div class="t2">{{ doc_subtitle }}</div>{% endif %}
+  </div>
+</div>
+
+{% if qr_data_uri and doc_size == "thermal" %}
+<div style="text-align:center;margin-bottom:8px;"><img src="{{ qr_data_uri }}" alt="QR" style="width:42px;"></div>
+{% endif %}
+
+{% block content %}{% endblock %}
+
+{% if show_signatures %}
+<div class="doc-signatures">
+  <div class="doc-signature"><div class="line">توقيع الموظف</div></div>
+  <div class="doc-signature"><div class="line">توقيع العميل</div></div>
+</div>
+<div class="doc-stamp">ختم<br>الشركة</div>
+{% endif %}
+
+<div class="doc-footer">
+  {{ company_name }} — {{ footer_text or "نظام إدارة تحويلات وصرافة" }}<br>
+  وُلِّد في {{ generated_at }}
+</div>
+
+</body>
+</html>

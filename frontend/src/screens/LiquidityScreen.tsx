@@ -16,7 +16,12 @@ export function LiquidityScreen() {
 
   return (
     <div className="journal-screen">
-      <h2 className="screen-title" style={{ marginBottom: 16 }}>مركز السيولة</h2>
+      <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+        <h2 className="screen-title" style={{ margin: 0 }}>مركز السيولة</h2>
+        <a href="/documents/reports/liquidity-position.pdf" target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+          تنزيل PDF
+        </a>
+      </div>
       <div className="card">
         {!rows && <p className="text-muted">...جارٍ التحميل</p>}
         {rows && rows.length === 0 && <p className="text-muted">لا حسابات مرتبطة بموقع بعد</p>}

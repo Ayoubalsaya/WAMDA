@@ -1,0 +1,77 @@
+<!doctype html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="utf-8">
+<title>بطاقة رصيد</title>
+<style>
+{{ font_css | safe }}
+* { box-sizing: border-box; }
+body {
+  margin: 0; width: 1080px; height: 1080px; overflow: hidden;
+  font-family: "Plex Arabic", sans-serif;
+  background: linear-gradient(140deg, #42B0D5 0%, #1A7B9E 55%, #10455B 100%);
+  color: #fff; display: flex; flex-direction: column;
+}
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+.card-header { padding: 56px 64px 0; display: flex; align-items: center; justify-content: space-between; }
+.card-brand { display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 700; }
+
+.card-client { padding: 20px 64px 0; }
+.card-client .name { font-size: 44px; font-weight: 700; }
+.card-client .code { font-size: 22px; opacity: .85; margin-top: 4px; }
+
+.card-balances { flex: 1; padding: 30px 64px; display: flex; flex-direction: column; gap: 18px; justify-content: center; }
+.balance-group { background: rgba(255,255,255,.12); border-radius: 18px; padding: 22px 28px; }
+.balance-group .ccy { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
+.balance-row { display: flex; justify-content: space-between; font-size: 30px; font-weight: 700; padding: 4px 0; }
+.balance-row .loc { font-size: 18px; font-weight: 400; opacity: .8; align-self: center; }
+
+.card-footer { padding: 0 64px 50px; display: flex; align-items: flex-end; justify-content: space-between; }
+.card-qr { background: #fff; padding: 10px; border-radius: 12px; }
+.card-qr img { width: 130px; height: 130px; display: block; }
+.card-qr-label { font-size: 15px; margin-top: 8px; text-align: center; opacity: .9; }
+.card-generated { font-size: 15px; opacity: .75; }
+</style>
+</head>
+<body>
+
+<div class="card-header">
+  <div class="card-brand">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M13.2 2 4.8 13.4h5.6L10 22l9-11.6h-5.9L13.2 2Z" fill="#fff"/></svg>
+    {{ company_name }}
+  </div>
+  <div style="font-size:20px;opacity:.85;">بطاقة رصيد</div>
+</div>
+
+<div class="card-client">
+  <div class="name">{{ client_name }}</div>
+  <div class="code">{{ client_code }}</div>
+</div>
+
+<div class="card-balances">
+  {% for g in groups %}
+  <div class="balance-group">
+    <div class="ccy">{{ g.currency_code }}</div>
+    {% for row in g.rows %}
+    <div class="balance-row"><span class="num">{{ row.amount }}</span><span class="loc">{{ row.location_code or "" }}</span></div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% if groups|length == 0 %}
+  <div class="balance-group"><div class="ccy">لا أرصدة حالياً</div></div>
+  {% endif %}
+</div>
+
+<div class="card-footer">
+  <div class="card-generated">وُلِّد في {{ generated_at }}</div>
+  {% if qr_data_uri %}
+  <div>
+    <div class="card-qr"><img src="{{ qr_data_uri }}" alt="QR"></div>
+    <div class="card-qr-label">امسح لفتح بوابتك</div>
+  </div>
+  {% endif %}
+</div>
+
+</body>
+</html>

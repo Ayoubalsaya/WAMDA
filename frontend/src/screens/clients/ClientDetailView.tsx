@@ -94,9 +94,14 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
               <h2 className="screen-title" style={{ fontSize: 20 }}>{detail.name_ar}</h2>
               <div className="num text-muted">{detail.code}{detail.phone ? ` · ${detail.phone}` : ''}</div>
             </div>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>
-              <PenLine size={14} /> تعديل
-            </button>
+            <div className="op-row" style={{ gap: 8 }}>
+              <a href={`/documents/balance-card/${clientId}.png`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+                بطاقة الرصيد
+              </a>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>
+                <PenLine size={14} /> تعديل
+              </button>
+            </div>
           </div>
         ) : (
           <div className="op-row">
@@ -173,6 +178,12 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
             <span className="text-muted">إلى</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadStatement()}>تصفية</button>
+            <a
+              href={`/documents/statement/client/${clientId}.pdf?currency=${activeCcy}&location=${activeLocation}${dateFrom ? `&date_from=${dateFrom}` : ''}${dateTo ? `&date_to=${dateTo}` : ''}`}
+              target="_blank" rel="noreferrer" className="btn-text"
+            >
+              طباعة PDF
+            </a>
           </div>
         </div>
         {statement && (

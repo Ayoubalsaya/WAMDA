@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { CompanyProfile, PartnerRow, UserListRow } from '../api/types'
+import type { AccountOut, CompanyProfile, PartnerRow, UserListRow } from '../api/types'
+import { useReferenceData } from '../hooks/useReferenceData'
 import './SettingsScreen.css'
 
-type SettingsTab = 'company' | 'users' | 'partners'
+type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'company', label: 'ملف الشركة' },
   { id: 'users', label: 'المستخدمون' },
   { id: 'partners', label: 'الشركاء' },
+  { id: 'bank-accounts', label: 'الحسابات البنكية' },
+]
+
+const PARTNER_ACCOUNT_PARENTS = [
+  { code: '1310', label: 'مراسل ليبيا' },
+  { code: '1320', label: 'مراسل تركيا' },
 ]
 
 function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTANT' }) {
@@ -167,6 +174,100 @@ function CreatePartnerForm({ onCreated }: { onCreated: () => void }) {
   )
 }
 
+function CreatePartnerAccountForm({ partnerId, onCreated }: { partnerId: number; onCreated: () => void }) {
+  const { currencies, locationsForCurrency } = useReferenceData()
+  const [parentCode, setParentCode] = useState('1320')
+  const [currency, setCurrency] = useState('')
+  const [location, setLocation] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const locations = locationsForCurrency(currency)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await api.post(`/partners/${partnerId}/accounts`, { parent_code: parentCode, currency_code: currency, location_code: location })
+      onCreated()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, margin: '8px 0', alignItems: 'flex-end' }}>
+      <div className="field">
+        <label className="field-label">النوع</label>
+        <select value={parentCode} onChange={(e) => setParentCode(e.target.value)}>
+          {PARTNER_ACCOUNT_PARENTS.map((p) => <option key={p.code} value={p.code}>{p.label}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field-label">العملة</label>
+        <select value={currency} onChange={(e) => { setCurrency(e.target.value); setLocation('') }} required>
+          <option value="">اختر...</option>
+          {currencies.map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field-label">الموقع</label>
+        <select value={location} onChange={(e) => setLocation(e.target.value)} required disabled={!currency}>
+          <option value="">اختر...</option>
+          {locations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+        </select>
+      </div>
+      <button type="submit" className="btn btn-secondary btn-sm" disabled={busy || !currency || !location}>+ حساب</button>
+      {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+    </form>
+  )
+}
+
+function PartnerAccountsRow({ partner }: { partner: PartnerRow }) {
+  const [expanded, setExpanded] = useState(false)
+  const [accounts, setAccounts] = useState<AccountOut[] | null>(null)
+
+  async function reload() {
+    const data = await api.get<AccountOut[]>(`/partners/${partner.id}/accounts`)
+    setAccounts(data)
+  }
+
+  useEffect(() => { if (expanded) void reload() }, [expanded])
+
+  return (
+    <>
+      <tr className="acc-lot-row" onClick={() => setExpanded((v) => !v)}>
+        <td className="num text-muted">{partner.code}</td>
+        <td>{partner.name_ar}</td>
+        <td>{partner.country}</td>
+        <td className="num">{partner.contact_phone ?? '—'}</td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={4} style={{ background: 'var(--sky-50)', padding: 'var(--space-3)' }}>
+            {!accounts ? <p className="text-muted">...جارٍ التحميل</p> : (
+              <>
+                <table className="data-table" style={{ marginBottom: 4 }}>
+                  <thead><tr><th>الكود</th><th>الاسم</th><th>العملة</th></tr></thead>
+                  <tbody>
+                    {accounts.map((a) => (
+                      <tr key={a.id}><td className="num text-muted">{a.code}</td><td>{a.name_ar}</td><td>{a.currency_code}</td></tr>
+                    ))}
+                    {accounts.length === 0 && <tr><td colSpan={3} className="text-muted">لا حسابات مالية لهذا الشريك بعد</td></tr>}
+                  </tbody>
+                </table>
+                <CreatePartnerAccountForm partnerId={partner.id} onCreated={() => void reload()} />
+              </>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
 function PartnersTab() {
   const [rows, setRows] = useState<PartnerRow[] | null>(null)
 
@@ -184,15 +285,80 @@ function PartnersTab() {
         <table className="data-table">
           <thead><tr><th>الكود</th><th>الاسم</th><th>الدولة</th><th>الهاتف</th></tr></thead>
           <tbody>
-            {rows.map((p) => (
-              <tr key={p.id}>
-                <td className="num text-muted">{p.code}</td>
-                <td>{p.name_ar}</td>
-                <td>{p.country}</td>
-                <td className="num">{p.contact_phone ?? '—'}</td>
-              </tr>
-            ))}
+            {rows.map((p) => <PartnerAccountsRow key={p.id} partner={p} />)}
             {rows.length === 0 && <tr><td colSpan={4} className="text-muted">لا شركاء مسجَّلين بعد</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}
+
+function CreateBankAccountForm({ onCreated }: { onCreated: () => void }) {
+  const { currencies, locationsForCurrency } = useReferenceData()
+  const [currency, setCurrency] = useState('')
+  const [location, setLocation] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const locations = locationsForCurrency(currency)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await api.post('/settings/bank-accounts', { currency_code: currency, location_code: location })
+      onCreated()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+      <div className="field">
+        <label className="field-label">العملة</label>
+        <select value={currency} onChange={(e) => { setCurrency(e.target.value); setLocation('') }} required>
+          <option value="">اختر...</option>
+          {currencies.map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field-label">الموقع</label>
+        <select value={location} onChange={(e) => setLocation(e.target.value)} required disabled={!currency}>
+          <option value="">اختر...</option>
+          {locations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+        </select>
+      </div>
+      <button type="submit" className="btn btn-primary" disabled={busy || !currency || !location}>+ حساب بنكي جديد</button>
+      {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+    </form>
+  )
+}
+
+function BankAccountsTab() {
+  const [rows, setRows] = useState<AccountOut[] | null>(null)
+
+  async function reload() {
+    const data = await api.get<AccountOut[]>('/settings/bank-accounts')
+    setRows(data)
+  }
+
+  useEffect(() => { void reload() }, [])
+
+  return (
+    <>
+      <CreateBankAccountForm onCreated={() => void reload()} />
+      {!rows ? <p className="text-muted">...جارٍ التحميل</p> : (
+        <table className="data-table">
+          <thead><tr><th>الكود</th><th>الاسم</th><th>العملة</th></tr></thead>
+          <tbody>
+            {rows.map((a) => (
+              <tr key={a.id}><td className="num text-muted">{a.code}</td><td>{a.name_ar}</td><td>{a.currency_code}</td></tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={3} className="text-muted">لا حسابات بنكية مسجَّلة بعد</td></tr>}
           </tbody>
         </table>
       )}
@@ -217,6 +383,7 @@ export function SettingsScreen({ currentUserRole }: { currentUserRole: 'ADMIN' |
         {tab === 'company' && <CompanyTab currentUserRole={currentUserRole} />}
         {tab === 'users' && (currentUserRole === 'ADMIN' ? <UsersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'partners' && (currentUserRole === 'ADMIN' ? <PartnersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
+        {tab === 'bank-accounts' && (currentUserRole === 'ADMIN' ? <BankAccountsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
       </div>
     </div>
   )

@@ -210,7 +210,14 @@ export function AccountsScreen() {
   const { currencies } = useReferenceData()
   return (
     <div className="journal-screen">
-      <h2 className="screen-title" style={{ marginBottom: 16 }}>الحسابات</h2>
+      <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+        <h2 className="screen-title" style={{ margin: 0 }}>الحسابات</h2>
+        {tab === 'correspondents' && (
+          <a href="/documents/reports/correspondent-balances.pdf" target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+            تنزيل PDF
+          </a>
+        )}
+      </div>
       <div className="op-tabs" style={{ marginBottom: 12 }}>
         {TABS.map((t) => (
           <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
