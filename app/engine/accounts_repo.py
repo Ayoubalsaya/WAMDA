@@ -9,8 +9,16 @@ from __future__ import annotations
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from app.models import Account, AccountNumberAssignment, Client, ClientCurrencyLocation, Currency, Location
-from app.models.enums import AccountType
+from app.models import (
+    Account,
+    AccountNumberAssignment,
+    AccountNumberCounter,
+    Client,
+    ClientCurrencyLocation,
+    Currency,
+    Location,
+)
+from app.models.enums import AccountForm, AccountType
 
 
 class AccountNotFoundError(Exception):
@@ -20,6 +28,12 @@ class AccountNotFoundError(Exception):
 class InvalidClientLocationError(Exception):
     """§٢-٢ (تعديل معتمد): تركيبة عملة×موقع غير مسموح بها لحساب عميل —
     الإنشاء الكسول بلا قيد كان يولّد حساباً لا وجود له في الواقع."""
+
+
+class AccountNumberExhaustedError(Exception):
+    """§٣-٢: الرقم الفرعي يستبدل رقماً أخيراً واحداً من كود الأب (١-٩) —
+    لا مجال لعاشر طفل تحت نفس الأب بهذا الترميز بلا تمديد الكود بالكامل،
+    قرار مالك خارج نطاق هذا المحرك."""
 
 
 def get_account_by_code(db: Session, code: str) -> Account:
@@ -116,6 +130,72 @@ def get_or_create_client_account(
         client_id=client.id,
         is_system=False,
         is_active=True,
+    )
+    db.add(account)
+    db.flush()
+    return account
+
+
+def _assign_next_child_code(db: Session, parent: Account) -> str:
+    """رقم فرعي تسلسلي جديد تحت `parent` — نفس آلية `account_number_counters`
+    المستخدَمة في `app.cli.seed._subdivide_by_currency` بالضبط (الرقم
+    الأخير من كود الأب يُستبدَل برقم تسلسلي، لا يُضاف)، لكن هنا **بلا**
+    `account_number_assignments` (ذاك مفتاحه عملة واحدة لكل أب — لا يناسب
+    "حساب واحد لكل شريك×عملة×موقع"؛ كل استدعاء هنا إنشاء متعمَّد جديد لا
+    بحثاً كسولاً idempotent). قفل صفّي (`with_for_update`) يمنع تصادماً
+    حقيقياً بين طلبين متزامنين على نفس الأب — نفس أسلوب `numbering.py`.
+    """
+    db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"), {"key": f"account_child:{parent.id}"})
+    counter = db.execute(
+        select(AccountNumberCounter).where(AccountNumberCounter.parent_id == parent.id).with_for_update()
+    ).scalar_one_or_none()
+    if counter is None:
+        counter = AccountNumberCounter(parent_id=parent.id, next_suffix=1)
+        db.add(counter)
+        db.flush()
+    suffix = counter.next_suffix
+    if suffix > 9 or not parent.code.endswith("0"):
+        raise AccountNumberExhaustedError(
+            f"لا مجال لحساب فرعي جديد تحت {parent.code} — الأرقام الفرعية (١-٩) استُهلكت بالكامل"
+        )
+    counter.next_suffix = suffix + 1
+    return f"{parent.code[:-1]}{suffix}"
+
+
+_PARTNER_ACCOUNT_PARENTS = {"1310", "1320"}  # مراسلو ليبيا · مراسلو تركيا
+
+
+def create_partner_account(
+    db: Session, *, partner_id: int, parent_code: str, currency_code: str, location_code: str, name_ar: str,
+) -> Account:
+    """حساب مالي حقيقي جديد لشريك (مراسل تحت ١٣١٠/١٣٢٠) — بترقيم آلي صحيح
+    لا يدوي (`T-ACC-...` كان حصراً لبيانات الاختبار، انظر `tests/factories.py`).
+    """
+    if parent_code not in _PARTNER_ACCOUNT_PARENTS:
+        raise AccountNotFoundError(f"{parent_code} ليس أباً صالحاً لحساب شريك — المسموح: {sorted(_PARTNER_ACCOUNT_PARENTS)}")
+    parent = get_account_by_code(db, parent_code)
+    location = get_location_by_code(db, location_code)
+    code = _assign_next_child_code(db, parent)
+    account = Account(
+        code=code, name_ar=name_ar, type=parent.type, currency_code=currency_code, location_id=location.id,
+        form=AccountForm.CORRESPONDENT, parent_id=parent.id, partner_id=partner_id, is_system=False, is_active=True,
+    )
+    db.add(account)
+    db.flush()
+    return account
+
+
+def create_bank_account(
+    db: Session, *, currency_code: str, location_code: str, name_ar: str, parent_code: str = "1400",
+) -> Account:
+    """حساب بنكي مملوك جديد (تحت ١٤٠٠) — لا شريك خارجي مرتبط به، بخلاف
+    حسابات المراسلين. بترقيم آلي صحيح لا يدوي."""
+    parent = get_account_by_code(db, parent_code)
+    location = get_location_by_code(db, location_code)
+    code = _assign_next_child_code(db, parent)
+    account = Account(
+        code=code, name_ar=name_ar, type=parent.type, currency_code=currency_code, location_id=location.id,
+        form=AccountForm.BANK, parent_id=parent.id, is_system=False, is_active=True,
     )
     db.add(account)
     db.flush()

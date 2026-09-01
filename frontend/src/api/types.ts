@@ -470,3 +470,13 @@ export interface PartnerRow {
   notes: string | null
   is_active: boolean
 }
+
+export interface AccountOut {
+  id: number
+  code: string
+  name_ar: string
+  currency_code: string | null
+  location_code: string | null
+  form: string | null
+  partner_id: number | null
+}

@@ -41,3 +41,26 @@ class CreatePartnerRequest(BaseModel):
     country: str
     contact_phone: Optional[str] = None
     notes: Optional[str] = None
+
+
+class AccountOut(BaseModel):
+    id: int
+    code: str
+    name_ar: str
+    currency_code: Optional[str] = None
+    location_code: Optional[str] = None
+    form: Optional[str] = None
+    partner_id: Optional[int] = None
+
+
+class CreatePartnerAccountRequest(BaseModel):
+    parent_code: str  # "1310" مراسلو ليبيا · "1320" مراسلو تركيا
+    currency_code: str
+    location_code: str
+    name_ar: Optional[str] = None
+
+
+class CreateBankAccountRequest(BaseModel):
+    currency_code: str
+    location_code: str
+    name_ar: Optional[str] = None

@@ -38,6 +38,15 @@
 **حارس بيئة إلزامي**: يرفض العمل كلياً إن كان `settings.app_env` غير
 `local` — أداة حذف شامل بهذا الاتساع لا يجوز أن تُشغَّل عن طريق الخطأ
 على أي بيئة نشر حقيقية، مهما كانت الثقة بالأنماط أعلاه.
+
+**مستخدم تجريبي يشير إليه شيء حقيقي — لا يُحذف، يُعطَّل** (قرار مالك
+صريح بعد حادثة `demo_admin` كـ`clients.created_by` لعميل حقيقي غير
+تجريبي): بعد تطهير كل ما هو تجريبي فعلاً، أي مستخدم مطابق للأنماط أعلاه
+لا يزال مرجعاً من صف حقيقي باقٍ (`journal_entries.created_by/posted_by`،
+`clients.created_by`، اعتماد رصيد افتتاحي، إغلاق فترة، نافذة طوارئ، طلب
+تعديل...) **لا يُحذف** — يُعطَّل (`is_active = false`) بدلاً من ذلك،
+ويُطبَع تحذير صريح بالجدول والعمود وعيّنة من الصفوف التي منعت الحذف.
+الحذف الجزئي الصامت (حذف المستخدم مع ترك مرجع يتيم) أسوأ من الرفض.
 """
 
 from __future__ import annotations
@@ -130,7 +139,50 @@ def _demo_account_ids_cte() -> str:
     )"""
 
 
-def _purge(db: Session) -> None:
+# جداول/أعمدة تشير إلى users.id — تُفحَص لكل مستخدم تجريبي قبل حذفه (انظر
+# _purge_or_deactivate_demo_users). كل زوج (جدول، عمود المعرّف المعروض)
+# يُستخدَم فقط لعرض تحذير مفهوم، لا لأي منطق حذف.
+_USER_REFERENCE_CHECKS: list[tuple[str, str, str]] = [
+    ("journal_entries", "created_by", "entry_no"),
+    ("journal_entries", "posted_by", "entry_no"),
+    ("clients", "created_by", "name_ar"),
+    ("opening_balances", "approved_by", "id"),
+    ("opening_reconciliation", "approved_by", "id"),
+    ("periods", "closed_by", "year"),
+    ("founding_period", "closed_by", "id"),
+    ("outage_windows", "opened_by", "id"),
+    ("outage_windows", "closed_by", "id"),
+    ("edit_requests", "requested_by", "id"),
+    ("edit_requests", "decided_by", "id"),
+]
+
+
+def _purge_or_deactivate_demo_users(db: Session) -> dict[str, list[str]]:
+    """لكل مستخدم تجريبي: يُحذف إن لم يبقَ أي مرجع حقيقي (غير تجريبي) إليه
+    بعد التطهير أعلاه؛ وإلا **لا يُحذف** — يُعطَّل (`is_active=false`)
+    ويُجمَع تحذير واضح بما منع الحذف (قرار مالك صريح: الحذف الجزئي الصامت
+    أسوأ من الرفض)."""
+    demo_users = db.execute(text(f"SELECT id, username FROM users WHERE {_DEMO_USERNAMES}")).all()
+    blocked: dict[str, list[str]] = {}
+    for user_id, username in demo_users:
+        reasons: list[str] = []
+        for table, column, label_col in _USER_REFERENCE_CHECKS:
+            rows = db.execute(
+                text(f"SELECT {label_col} FROM {table} WHERE {column} = :uid LIMIT 3"), {"uid": user_id}
+            ).scalars().all()
+            if rows:
+                total = db.execute(text(f"SELECT count(*) FROM {table} WHERE {column} = :uid"), {"uid": user_id}).scalar()
+                sample = "، ".join(str(r) for r in rows)
+                reasons.append(f"{table}.{column} ({total}): {sample}" + (" ..." if total > len(rows) else ""))
+        if reasons:
+            db.execute(text("UPDATE users SET is_active = false WHERE id = :uid"), {"uid": user_id})
+            blocked[username] = reasons
+        else:
+            db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
+    return blocked
+
+
+def _purge(db: Session) -> dict[str, list[str]]:
     entries = _demo_entry_ids_cte()
     accounts = _demo_account_ids_cte()
 
@@ -178,7 +230,7 @@ def _purge(db: Session) -> None:
     db.execute(text(f"""
         DELETE FROM sessions WHERE subject_type = 'USER' AND subject_id IN (SELECT id FROM users WHERE {_DEMO_USERNAMES})
     """))
-    db.execute(text(f"DELETE FROM users WHERE {_DEMO_USERNAMES}"))
+    blocked = _purge_or_deactivate_demo_users(db)
 
     # ٧) إعادة بناء account_balances بالكامل — إلزامي، لا اختياري: قيود
     # العرض/الاختبار المحذوفة قد تكون مسّت حسابات **مشتركة حقيقية** (١١٠١
@@ -186,6 +238,7 @@ def _purge(db: Session) -> None:
     # يترك account_balances.balance لتلك الحسابات المشتركة فاسداً بصمت.
     db.flush()
     recompute.rebuild(db)
+    return blocked
 
 
 def run() -> None:
@@ -221,9 +274,19 @@ def run() -> None:
             db.rollback()
             return
 
-        _purge(db)
+        blocked = _purge(db)
         db.commit()
         print("\nتم الحذف بنجاح.")
+        if blocked:
+            print(
+                "\nتحذير: المستخدمون التاليون لم يُحذفوا لأن بيانات حقيقية "
+                "(غير تجريبية) لا تزال تشير إليهم — عُطِّلوا (is_active=false) بدلاً "
+                "من الحذف الجزئي الصامت:"
+            )
+            for username, reasons in blocked.items():
+                print(f"\n  · {username}:")
+                for reason in reasons:
+                    print(f"      - {reason}")
     except Exception:
         db.rollback()
         raise

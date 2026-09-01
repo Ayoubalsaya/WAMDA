@@ -146,6 +146,43 @@ def test_purge_demo_data_matches_legacy_stg_and_test_patterns(db):
     assert after == before + 2
 
 
+def test_purge_demo_data_deactivates_instead_of_deleting_user_referenced_by_real_client(db):
+    """قرار مالك صريح بعد حادثة `demo_admin` الحقيقية: مستخدم تجريبي يشير
+    إليه عميل **حقيقي** (غير تجريبي) عبر `created_by` لا يُحذف — يُعطَّل
+    (`is_active=false`) ويُبلَّغ عنه بوضوح، بدل حذف جزئي صامت يترك مرجعاً
+    يتيماً أو يفشل بخطأ مفتاح أجنبي."""
+    from app.cli import purge_demo_data
+    from app.models import Client, User
+
+    demo_user = User(
+        username=f"test_blocked_{uid()}", full_name="مستخدم تجريبي مرجعي", password_hash="x",
+        role="ADMIN", is_active=True, must_change_password=False,
+    )
+    db.add(demo_user)
+    db.flush()
+
+    # عميل حقيقي (لا يطابق أي نمط عرض/اختبار) created_by يشير إلى المستخدم التجريبي
+    real_client = Client(
+        code=f"REAL-{uid()}", name_ar="عميل حقيقي يشير لمستخدم تجريبي",
+        search_name="عميل حقيقي يشير لمستخدم تجريبي", created_by=demo_user.id,
+    )
+    db.add(real_client)
+    db.flush()
+
+    blocked = purge_demo_data._purge(db)
+    db.expunge_all()
+
+    assert demo_user.username in blocked
+    assert any("clients.created_by" in reason for reason in blocked[demo_user.username])
+
+    reloaded_user = db.get(User, demo_user.id)
+    assert reloaded_user is not None  # لم يُحذف
+    assert reloaded_user.is_active is False  # عُطِّل بدلاً من ذلك
+
+    # العميل الحقيقي نفسه لم يُمسّ إطلاقاً
+    assert db.get(Client, real_client.id) is not None
+
+
 def test_purge_demo_data_noop_prints_message_when_nothing_matches(capsys):
     from app.cli import purge_demo_data
 

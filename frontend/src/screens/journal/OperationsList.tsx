@@ -53,6 +53,13 @@ export function OperationsList({ entries, loading }: OperationsListProps) {
                     </span>
                   </div>
                 )}
+                {entry.client_name_ar && entry.status === 'POSTED' && (
+                  <div className="today-op-print-row">
+                    <a href={`/documents/receipt/${entry.id}.pdf`} target="_blank" rel="noreferrer" className="btn-text">طباعة A4</a>
+                    <a href={`/documents/receipt/${entry.id}.pdf?size=thermal`} target="_blank" rel="noreferrer" className="btn-text">طباعة حراري</a>
+                    <a href={`/documents/receipt/${entry.id}.png`} target="_blank" rel="noreferrer" className="btn-text">صورة</a>
+                  </div>
+                )}
               </div>
             )}
           </div>

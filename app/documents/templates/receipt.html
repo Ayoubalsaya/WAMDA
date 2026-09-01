@@ -1,0 +1,50 @@
+{% extends "_base.html" %}
+{% block content %}
+
+<div style="margin-bottom:10px;">
+  <div class="row" style="display:flex;justify-content:space-between;">
+    <span>العميل</span><strong>{{ client_name }} ({{ client_code }})</strong>
+  </div>
+  {% if description %}
+  <div class="row" style="display:flex;justify-content:space-between;margin-top:4px;">
+    <span>الوصف</span><span>{{ description }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<table class="doc-table">
+  <thead><tr><th>العملة</th><th>الموقع</th><th>مدين</th><th>دائن</th></tr></thead>
+  <tbody>
+    {% for b in balances %}
+    <tr>
+      <td>{{ b.currency_code }}</td>
+      <td>{{ b.location_name }}</td>
+      <td class="num">{{ "%.3f"|format(b.debit) if b.debit else "—" }}</td>
+      <td class="num">{{ "%.3f"|format(b.credit) if b.credit else "—" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="balances-strip">
+  {% for b in balances %}
+  <div class="balances-box">
+    <div class="lbl">رصيد {{ b.currency_code }} · {{ b.location_name }}</div>
+    <div class="row"><span>قبل العملية</span><span class="num">{{ "%.3f"|format(b.before) }}</span></div>
+    <div class="row"><span>بعد العملية</span><span class="num">{{ "%.3f"|format(b.after) }}</span></div>
+  </div>
+  {% endfor %}
+</div>
+
+{% if destination %}
+<div class="balances-box" style="margin-top:8px;">
+  <div class="lbl">لقطة وجهة التحويل (وقت الترحيل)</div>
+  <div class="row"><span>المستفيد</span><span>{{ destination.beneficiary_name }}</span></div>
+  <div class="row"><span>رقم الحساب</span><span class="num">{{ destination.account_number }}</span></div>
+  {% if destination.bank_name %}
+  <div class="row"><span>البنك</span><span>{{ destination.bank_name }}</span></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% endblock %}

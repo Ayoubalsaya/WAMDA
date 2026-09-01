@@ -1,0 +1,31 @@
+{% extends "_base.html" %}
+{% block content %}
+
+{% if summary %}
+<div class="balances-strip">
+  {% for s in summary %}
+  <div class="balances-box">
+    <div class="lbl">{{ s.label }}</div>
+    {% for item in s.lines %}
+    <div class="row"><span>{{ item.k }}</span><span class="num">{{ item.v }}</span></div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<table class="doc-table">
+  <thead>
+    <tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>{% for cell in row %}<td class="num">{{ cell }}</td>{% endfor %}</tr>
+    {% endfor %}
+    {% if rows|length == 0 %}
+    <tr><td colspan="{{ columns|length }}" style="text-align:center;color:#8a9aa1;">لا بيانات</td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% endblock %}
