@@ -17,7 +17,12 @@ from sqlalchemy.orm import Session as OrmSession
 
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import get_db
+from app.documents import balance_card as balance_card_doc
+from app.documents.jinja import render_template
+from app.documents.qr import qr_data_uri
+from app.documents.render import render_png
 from app.engine.clock import system_clock
 from app.models import Client, Currency, Location
 from app.routers.clients import _client_balances, compute_client_statement
@@ -185,3 +190,24 @@ def portal_statement(
     return compute_client_statement(
         db, client_id=current_client.id, currency=currency, location=location, date_from=date_from, date_to=date_to,
     )
+
+
+@router.get("/balance-card.png")
+def portal_balance_card(
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+) -> Response:
+    """بطاقة رصيد العميل نفسه — **لا معرّف عميل في المسار أو الاستعلام
+    إطلاقاً** (نفس بنية `/portal/balances`/`/portal/statement` بالضبط،
+    اختبار القبول ٤٠): الهوية تُشتق حصراً من `current_client.id`. مسار
+    `/documents/balance-card/{client_id}.png` (المرحلة ١٠) يبقى قائماً
+    للموظف فقط (`require_password_changed` هناك تعتمد `get_current_user`
+    لا `get_current_client` — كوكي مختلف تماماً `wamda_session` لا
+    `wamda_portal_session`، فجلسة بوابة لا تُصادَق عليه أصلاً)."""
+    now = system_clock()
+    ctx = balance_card_doc.build_balance_card_context(
+        db, client_id=current_client.id, now=now, work_timezone=settings.work_timezone,
+    )
+    ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
+    html = render_template("balance_card.html", **ctx)
+    png_bytes = render_png(html, width=balance_card_doc.WHATSAPP_CARD_SIZE, height=balance_card_doc.WHATSAPP_CARD_SIZE)
+    return Response(content=png_bytes, media_type="image/png")

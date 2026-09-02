@@ -3,6 +3,7 @@ import Decimal from 'decimal.js'
 import { ArrowRight, PenLine } from 'lucide-react'
 import { api, ApiError } from '../../api/client'
 import type { ClientDetail, StatementResponse } from '../../api/types'
+import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { BeneficiariesPanel } from './BeneficiariesPanel'
@@ -98,6 +99,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
               <a href={`/documents/balance-card/${clientId}.png`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
                 بطاقة الرصيد
               </a>
+              <BalanceCardCopyButton src={`/documents/balance-card/${clientId}.png`} />
               <button type="button" className="btn btn-secondary btn-sm" onClick={() => setEditing(true)}>
                 <PenLine size={14} /> تعديل
               </button>

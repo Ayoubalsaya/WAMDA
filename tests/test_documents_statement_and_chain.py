@@ -65,6 +65,35 @@ def test_client_statement_pdf_shows_running_balance(db, client, now):
     assert ctx["closing_balance"] == "1250.000"
 
 
+def test_client_statement_pdf_never_contains_cost_rate(db, client, now):
+    """فحص فعلي على الملف المولَّد نفسه (استخراج نص PDF حقيقي عبر pypdf،
+    لا HTML وسيط ولا بايتات خام قد تكون مضغوطة) — كشف حساب عميل يمرّ به
+    قيد EXCHANGE حقيقي بـcost_rate مميَّز، ويجب ألا يظهر في الملف إطلاقاً."""
+    user = _login(db, client)
+    c = f.make_client(db, name="عميل كشف حساب فحص تكلفة فريد")
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("10000.000"),
+        receiving_account_code="1101", user=user, now=now,
+    )
+    from app.engine.operations import exchange as exchange_op
+
+    exchange_op.execute_via_rates(
+        db, client=c, from_currency="LYD", from_location_code="TRIPOLI", to_currency="USD", to_location_code="TRIPOLI",
+        amount=Decimal("2000.000"), cost_rate=Decimal("5.37"), client_rate=Decimal("5.42"), work_timezone=WORK_TZ,
+        created_by=user.id, now=now, idempotency_key=f.uid(),
+    )
+    resp = client.get(f"/documents/statement/client/{c.id}.pdf?currency=LYD&location=TRIPOLI")
+    assert resp.status_code == 200
+
+    from pypdf import PdfReader
+    import io as _io
+
+    pdf_text = "".join(page.extract_text() for page in PdfReader(_io.BytesIO(resp.content)).pages)
+    assert "5.37" not in pdf_text
+    # سلامة الفحص نفسه: رقم حقيقي آخر من نفس الكشف يجب أن يظهر فعلاً
+    assert "2000.000" in pdf_text
+
+
 def test_client_statement_404_unknown_client(db, client):
     _login(db, client)
     resp = client.get("/documents/statement/client/999999999.pdf?currency=LYD&location=TRIPOLI")

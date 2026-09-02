@@ -137,6 +137,21 @@ def test_receipt_never_contains_cost_rate(db, client, now):
     assert "5.10" not in html
     assert "cost_rate" not in html.lower()
 
+    # فحص فعلي على الملف المولَّد نفسه لا الـHTML الوسيط فقط — استخراج نص
+    # PDF حقيقي (pypdf، يفكّ ضغط تيارات المحتوى ويطابق ترميز الخط المضمَّن
+    # فعلياً، لا بحثاً في البايتات الخام التي قد تكون مضغوطة فيُخفي الرقم
+    # صمتاً حتى لو كان موجوداً).
+    resp = client.get(f"/documents/receipt/{entry.id}.pdf")
+    assert resp.status_code == 200
+    from pypdf import PdfReader
+    import io as _io
+
+    pdf_text = "".join(page.extract_text() for page in PdfReader(_io.BytesIO(resp.content)).pages)
+    assert "5.10" not in pdf_text
+    # سلامة الفحص نفسه: التأكد أن الاستخراج لا يُعيد نصاً فارغاً/تالفاً
+    # فيمرّر الاختبار زوراً — رقم حقيقي آخر من نفس القيد يجب أن يظهر
+    assert "1000.000" in pdf_text
+
 
 def test_receipt_remit_out_shows_destination_snapshot(db, client, now):
     user = _login(db, client)

@@ -11,8 +11,8 @@ from fastapi.staticfiles import StaticFiles
 
 from app.documents import render as doc_render
 from app.routers import (
-    auth, clients, dashboard, documents, operations, partners, portal, reconciliation, reference, reports, search,
-    settings, users,
+    audit, auth, clients, dashboard, documents, operations, partners, periods, portal, reconciliation, reference,
+    reports, search, settings, users,
 )
 from app.security import csrf
 
@@ -53,6 +53,8 @@ app.include_router(reports.router)
 app.include_router(partners.router)
 app.include_router(settings.router)
 app.include_router(documents.router)
+app.include_router(periods.router)
+app.include_router(audit.router)
 
 _FRONTEND_DIST = Path(__file__).parent / "static" / "app"
 if _FRONTEND_DIST.is_dir():

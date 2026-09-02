@@ -480,3 +480,33 @@ export interface AccountOut {
   form: string | null
   partner_id: number | null
 }
+
+// §٩ المرحلة ١١ — إقفال الفترات
+export interface PeriodRow {
+  year: number
+  month: number
+  is_closed: boolean
+  closed_by_username: string | null
+  closed_at: string | null
+}
+
+export interface FoundingPeriodStatus {
+  is_open: boolean
+  closed_at: string | null
+  closed_by_username: string | null
+  suspense_balance_by_currency: Record<string, string>
+}
+
+// §٩ المرحلة ١١ — سجل التدقيق
+export interface AuditLogRow {
+  id: number
+  at: string
+  actor_type: 'USER' | 'CLIENT'
+  actor_id: number
+  actor_label: string
+  action: string
+  entity: string
+  entity_id: number | null
+  before_json: Record<string, unknown> | null
+  after_json: Record<string, unknown> | null
+}

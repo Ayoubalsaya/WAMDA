@@ -107,6 +107,8 @@ def test_reset_failed_attempts_clears_lock(db):
         (Action.RECONCILIATION, True, False, False),
         (Action.OPENING_BALANCES, True, False, False),
         (Action.VIEW_OWN_STATEMENT, False, False, True),
+        (Action.CLOSE_PERIOD, True, False, False),
+        (Action.VIEW_AUDIT_LOG, True, False, False),
     ],
 )
 def test_permission_matrix_cell(action, admin_allowed, accountant_allowed, client_allowed):
