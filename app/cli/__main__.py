@@ -60,6 +60,30 @@ def _cmd_purge_demo_data() -> None:
     run()
 
 
+def _cmd_backup() -> None:
+    from app.cli.backup import cli_run
+
+    cli_run()
+
+
+def _cmd_restore(backup_file: str, target_db: str | None) -> None:
+    from app.cli.restore import cli_restore
+
+    cli_restore(backup_file, target_db, confirm_text=None)
+
+
+def _cmd_restore_test(backup_file: str) -> None:
+    from app.cli.restore import cli_restore_test
+
+    cli_restore_test(backup_file)
+
+
+def _cmd_daily_integrity_check() -> None:
+    from app.cli.integrity_check import run
+
+    run()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -76,6 +100,20 @@ def main() -> None:
         "purge-demo-data",
         help="حذف عملاء/مستخدمي العرض والاختبار وقيودهم (تفاعلي، يطلب تأكيداً) — قبل إدخال بيانات حقيقية",
     )
+    sub.add_parser("backup", help="نسخة احتياطية مُشفَّرة (pg_dump -Fc) + رفع خارج السيرفر إن أُعِدَّت وجهة")
+    restore_parser = sub.add_parser(
+        "restore", help="استعادة نسخة احتياطية إلى قاعدة بيانات محدَّدة — يُدمِّر بياناتها الحالية، تأكيد كتابي إلزامي"
+    )
+    restore_parser.add_argument("backup_file", help="مسار ملف .dump.enc")
+    restore_parser.add_argument("--target-db", required=True, help="اسم قاعدة البيانات المستهدَفة")
+    restore_test_parser = sub.add_parser(
+        "restore-test", help="استعادة إلى قاعدة مؤقتة تُحذَف تلقائياً + recompute-balances --verify — آمن للتشغيل الدوري"
+    )
+    restore_test_parser.add_argument("backup_file", help="مسار ملف .dump.enc")
+    sub.add_parser(
+        "daily-integrity-check",
+        help="recompute-balances --verify + حفظ النتيجة (Setting) لعرضها كتنبيه فوري في لوحة التحكم عند أي اختلاف",
+    )
 
     args = parser.parse_args()
 
@@ -89,6 +127,14 @@ def main() -> None:
         _cmd_reset_admin_password()
     elif args.command == "purge-demo-data":
         _cmd_purge_demo_data()
+    elif args.command == "backup":
+        _cmd_backup()
+    elif args.command == "restore":
+        _cmd_restore(args.backup_file, args.target_db)
+    elif args.command == "restore-test":
+        _cmd_restore_test(args.backup_file)
+    elif args.command == "daily-integrity-check":
+        _cmd_daily_integrity_check()
     else:  # pragma: no cover
         parser.print_help()
         sys.exit(1)

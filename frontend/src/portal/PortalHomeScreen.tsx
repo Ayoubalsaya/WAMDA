@@ -3,6 +3,7 @@ import { RefreshCw, Printer } from 'lucide-react'
 import Decimal from 'decimal.js'
 import { api } from '../api/client'
 import type { ClientBalance, Currency, Location, PortalMeResponse, StatementResponse } from '../api/types'
+import { BalanceCardCopyButton } from '../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../components/CurrencyBadge'
 import { LogoMark } from '../components/LogoMark'
 import './PortalHomeScreen.css'
@@ -165,6 +166,7 @@ export function PortalHomeScreen({ me, onLogout }: PortalHomeScreenProps) {
           <button type="button" className="btn btn-primary-dark btn-lg" onClick={() => window.print()}>
             طباعة كشف PDF
           </button>
+          <BalanceCardCopyButton src="/portal/balance-card.png" className="btn btn-secondary btn-lg" />
           <button type="button" className="btn btn-secondary btn-lg" onClick={() => void loadAll()}>
             تحديث
           </button>

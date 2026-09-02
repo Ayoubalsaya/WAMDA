@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import AuditLog
@@ -41,3 +43,34 @@ def log_write(
     db.add(row)
     db.flush()
     return row
+
+
+def query_audit_log(
+    db: Session,
+    *,
+    actor_id: Optional[int] = None,
+    actor_type: Optional[SessionSubjectType] = None,
+    entity: Optional[str] = None,
+    action: Optional[str] = None,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[AuditLog]:
+    """عرض عام مُصفَّى فوق `audit_log` — شاشة سجل التدقيق (§٩ المرحلة ١١).
+    الأحدث أولاً دائماً."""
+    query = select(AuditLog).order_by(AuditLog.at.desc())
+    if actor_id is not None:
+        query = query.where(AuditLog.actor_id == actor_id)
+    if actor_type is not None:
+        query = query.where(AuditLog.actor_type == actor_type)
+    if entity is not None:
+        query = query.where(AuditLog.entity == entity)
+    if action is not None:
+        query = query.where(AuditLog.action == action)
+    if date_from is not None:
+        query = query.where(AuditLog.at >= date_from)
+    if date_to is not None:
+        query = query.where(AuditLog.at < date_to + timedelta(days=1))  # نهاية اليوم شاملة
+    query = query.limit(limit).offset(offset)
+    return list(db.execute(query).scalars().all())

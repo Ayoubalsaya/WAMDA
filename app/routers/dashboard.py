@@ -26,6 +26,7 @@ from app.models import (
     LotConsumption,
     Location,
     Partner,
+    Setting,
     SwiftMovement,
 )
 from app.models.enums import AccountForm, AccountType, EntryStatus, OperationType, SwiftStatus
@@ -146,6 +147,25 @@ def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
 
 def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int, Decimal]) -> list[AlertRow]:
     alerts: list[AlertRow] = []
+
+    # ٠) فحص السلامة اليومي المجدول (§٩، أهم إنذار في النظام) — قراءة
+    # رخيصة لآخر نتيجة محفوظة (`app.cli.integrity_check`، `Setting`
+    # key="last_integrity_check") بدل إعادة `recompute.verify` الكاملة
+    # (مسح journal_lines بالكامل) عند كل تحميل شاشة. أول عنصر في القائمة
+    # عمداً — أعلى أولوية.
+    integrity = db.execute(select(Setting).where(Setting.key == "last_integrity_check")).scalar_one_or_none()
+    if integrity is not None and not integrity.value.get("ok", True):
+        diffs = integrity.value.get("balance_diff_count", 0)
+        swift = integrity.value.get("swift_problem_count", 0)
+        lots = integrity.value.get("lot_problem_count", 0)
+        checked_at = integrity.value.get("checked_at", "")
+        alerts.append(AlertRow(
+            severity="critical", code="integrity_check_failed",
+            message_ar=(
+                f"فحص السلامة اليومي ({checked_at[:16]}) وجد اختلافاً حقيقياً: "
+                f"{diffs} فرق رصيد · {swift} مشكلة سويفت · {lots} مشكلة دفعة — يستحق فحصاً فورياً"
+            ),
+        ))
 
     # ١) أرصدة سالبة — أصول الشركة/الشركاء غير حسابات المقاصة (§٥ قاعدة ٨:
     # قد تُصبح سالبة فعلياً بتجاوز مُصرَّح مُسجَّل، ليست علّة بالضرورة لكن

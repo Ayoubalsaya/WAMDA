@@ -2,15 +2,19 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { AccountOut, CompanyProfile, PartnerRow, UserListRow } from '../api/types'
 import { useReferenceData } from '../hooks/useReferenceData'
+import { AuditLogTab } from './settings/AuditLogTab'
+import { PeriodsTab } from './settings/PeriodsTab'
 import './SettingsScreen.css'
 
-type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts'
+type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts' | 'periods' | 'audit-log'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'company', label: 'ملف الشركة' },
   { id: 'users', label: 'المستخدمون' },
   { id: 'partners', label: 'الشركاء' },
   { id: 'bank-accounts', label: 'الحسابات البنكية' },
+  { id: 'periods', label: 'الفترات المحاسبية' },
+  { id: 'audit-log', label: 'سجل التدقيق' },
 ]
 
 const PARTNER_ACCOUNT_PARENTS = [
@@ -384,6 +388,8 @@ export function SettingsScreen({ currentUserRole }: { currentUserRole: 'ADMIN' |
         {tab === 'users' && (currentUserRole === 'ADMIN' ? <UsersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'partners' && (currentUserRole === 'ADMIN' ? <PartnersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'bank-accounts' && (currentUserRole === 'ADMIN' ? <BankAccountsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
+        {tab === 'periods' && (currentUserRole === 'ADMIN' ? <PeriodsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
+        {tab === 'audit-log' && (currentUserRole === 'ADMIN' ? <AuditLogTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
       </div>
     </div>
   )

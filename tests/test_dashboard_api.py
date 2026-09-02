@@ -127,6 +127,53 @@ def test_dashboard_alert_draft_pending_detects_stray_draft(db, client, now):
     assert any(a["code"] == "draft_pending" for a in alerts)
 
 
+def _set_integrity_check_setting(db, value: dict) -> None:
+    """`Setting.key` مفتاح أساسي حقيقي — صف "last_integrity_check" موجود
+    فعلياً في قاعدة التطوير (يُكتَب من `python -m app.cli daily-integrity-check`
+    الحقيقي)، فإدراج أعمى `db.add(Setting(...))` يصطدم بقيد التفرّد. نفس
+    منطق تحقُّق-ثم-تحديث/إدراج المستخدَم في `app.cli.integrity_check.run` تماماً."""
+    from sqlalchemy import select
+
+    from app.models import Setting
+
+    row = db.execute(select(Setting).where(Setting.key == "last_integrity_check")).scalar_one_or_none()
+    if row is None:
+        db.add(Setting(key="last_integrity_check", value=value))
+    else:
+        row.value = value
+    db.flush()
+
+
+def test_dashboard_alert_integrity_check_failed_is_first_and_critical(db, client):
+    """§٩ المرحلة ١١ — أهم إنذار في النظام: يظهر أولاً في القائمة عند فشل
+    فحص السلامة اليومي المحفوظ (`Setting` key="last_integrity_check")،
+    قراءة رخيصة لا إعادة حساب كامل عند كل تحميل شاشة."""
+    _login(db, client)
+    _set_integrity_check_setting(db, {
+        "ok": False, "checked_at": "2026-06-15T03:00:00+00:00",
+        "balance_diff_count": 2, "swift_problem_count": 0, "lot_problem_count": 0,
+    })
+
+    resp = client.get("/dashboard/summary")
+    assert resp.status_code == 200
+    alerts = resp.json()["alerts"]
+    assert alerts[0]["code"] == "integrity_check_failed"
+    assert alerts[0]["severity"] == "critical"
+    assert "2" in alerts[0]["message_ar"]
+
+
+def test_dashboard_no_integrity_alert_when_last_check_ok(db, client):
+    _login(db, client)
+    _set_integrity_check_setting(db, {
+        "ok": True, "checked_at": "2026-06-15T03:00:00+00:00",
+        "balance_diff_count": 0, "swift_problem_count": 0, "lot_problem_count": 0,
+    })
+
+    resp = client.get("/dashboard/summary")
+    alerts = resp.json()["alerts"]
+    assert not any(a["code"] == "integrity_check_failed" for a in alerts)
+
+
 def test_liquidity_position_assets_vs_liabilities_per_location(db, client, now):
     _login(db, client)
     user = f.make_user(db)
