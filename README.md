@@ -99,3 +99,27 @@ uvicorn app.main:app          # بلا --reload عمداً — انظر أدنا
 
 `python -m app.cli reset-admin-password` (تفاعلي، `getpass`) — طوارئ
 استعادة وصول فقط، لا يُنشئ حساباً جديداً.
+
+## التقسية الأمنية (§٩ — المرحلة ١٢)
+
+### رؤوس الأمان
+
+`app/main.py` يضيف على **كل** رد: `Content-Security-Policy` صارمة
+(`script-src 'self'` — لا سكربت سطري ولا CDN؛ الخط مُستضاف محلياً)،
+`Permissions-Policy` تُعطِّل كل ميزة متصفح غير مستخدَمة، `X-Frame-Options:
+DENY` (+ `frame-ancestors 'none'`)، `X-Content-Type-Options`،
+`Referrer-Policy`، و`Cache-Control: no-store` على كل رد غير الأصول الثابتة.
+
+### إعداد النشر الإلزامي
+
+- **`APP_ENV=production`** في `.env` على الخادم: يُفعّل `Strict-Transport-Security`
+  (HSTS، سنة + النطاقات الفرعية) ويُعطّل `/docs` و`/redoc` (تبقى
+  `/openapi.json` للتحقق الآلي).
+- **uvicorn بـ`--no-server-header`**: يمنع كشف نسخة uvicorn في ترويسة
+  `Server` (لا يمكن حذفها من داخل التطبيق — يضيفها uvicorn بعد الوسائط).
+- **nginx `server_tokens off;`**: مكافئ على مستوى الوكيل العكسي. وحدة
+  systemd وإعداد nginx الفعليان في المرحلة ١٥.
+
+```
+APP_ENV=production uvicorn app.main:app --no-server-header --host 127.0.0.1 --port 8000
+```

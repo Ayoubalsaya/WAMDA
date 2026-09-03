@@ -1,0 +1,40 @@
+/* IBM Plex Sans Arabic — مُستضاف محلياً (المرحلة ١٢، §٩ التقسية الأمنية).
+ *
+ * كان يُحمَّل سابقاً من Google Fonts CDN عبر <link> في index.html/portal.html —
+ * أُزيل: اعتماد خارجي وقت التشغيل يخالف مبدأ "لا CDN" الموثَّق (README) ويمنع
+ * سياسة CSP صارمة (`font-src 'self'`). نفس ملفات .woff2 المستخدمة في توليد
+ * المستندات (app/static/fonts/) — Vite يبصمها ويحزمها، فتُخدَم من أصلنا.
+ * الأوزان الأربعة نفسها التي كان طلب Google Fonts يجلبها: 400·500·600·700.
+ */
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Regular.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Medium.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./fonts/IBMPlexSansArabic-Bold.woff2') format('woff2');
+}
