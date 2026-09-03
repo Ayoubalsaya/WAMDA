@@ -115,16 +115,18 @@ DENY` (+ `frame-ancestors 'none'`)، `X-Content-Type-Options`،
 - **`APP_ENV=production`** في `.env` على الخادم: يُفعّل `Strict-Transport-Security`
   (HSTS، سنة + النطاقات الفرعية) ويُعطّل `/docs` و`/redoc` (تبقى
   `/openapi.json` للتحقق الآلي).
-- **uvicorn بـ`--no-server-header --proxy-headers --forwarded-allow-ips=127.0.0.1`**:
-  الأول يمنع كشف نسخة uvicorn في `Server`؛ الأخيران يجعلان `request.client`
-  يعكس عنوان العميل الحقيقي خلف nginx (يلزم لتحديد المعدل — بلا ذلك يصبح
-  الحدّ عامّاً لا لكل عميل). nginx يجب أن يمرّر `X-Forwarded-For`.
+- **`TRUST_PROXY_HEADERS=true`** في `.env`: يجعل تحديد المعدل يقرأ عنوان
+  العميل من `X-Real-IP`/`X-Forwarded-For` (انظر قسم تحديد المعدل أدناه).
+- **uvicorn بـ`--no-server-header`**: يمنع كشف نسخة uvicorn في `Server`.
+  `--proxy-headers --forwarded-allow-ips=127.0.0.1` اختياريان لكنهما
+  يجعلان `sessions.ip` المُسجَّل يعكس عنوان العميل الحقيقي لا 127.0.0.1.
 - **nginx `server_tokens off;`**: مكافئ على مستوى الوكيل العكسي. وحدة
   systemd وإعداد nginx الفعليان في المرحلة ١٥.
 
 ```
-APP_ENV=production uvicorn app.main:app --no-server-header \
-  --proxy-headers --forwarded-allow-ips=127.0.0.1 --host 127.0.0.1 --port 8000
+APP_ENV=production TRUST_PROXY_HEADERS=true \
+  uvicorn app.main:app --no-server-header --proxy-headers \
+  --forwarded-allow-ips=127.0.0.1 --host 127.0.0.1 --port 8000
 ```
 
 ### تحديد معدل مسارات الدخول
@@ -136,10 +138,14 @@ APP_ENV=production uvicorn app.main:app --no-server-header \
 يكفي لعامل uvicorn واحد؛ نشر متعدد العمّال يحتاج مخزناً مشتركاً (غير مطلوب
 في نشر AL SAHEM المخطَّط).
 
-**العنوان خلف nginx**: في `APP_ENV=production` يُقرأ من `X-Real-IP` (يُفضَّل)
-وإلا آخر مُدخَل في `X-Forwarded-For` (النظير المباشر كما ألحقه nginx —
-لا يُخدَع بمُدخَلات يسارية يزوّرها العميل). خارج الإنتاج تُتجاهَل كل
-ترويسات الوكيل ويُستخدَم عنوان الاتصال المباشر. إعداد nginx المطلوب:
+**العنوان خلف nginx**: يُضبَط **`TRUST_PROXY_HEADERS=true`** في `.env`
+على السيرفر **فقط** (خلف nginx يضبط الترويسات فعلاً) — حينها يُقرأ العنوان
+من `X-Real-IP` وإلا آخر مُدخَل في `X-Forwarded-For` (النظير المباشر كما
+ألحقه nginx — لا يُخدَع بمُدخَلات يسارية يزوّرها العميل). **الافتراض
+`false`**: الثقة العمياء بهذه الترويسات تسمح لأي أحد بتزوير عنوانه وتجاوز
+الحدّ؛ بلا تفعيله يُستخدَم عنوان الاتصال المباشر (محلياً = صحيح، خلف nginx
+بلا تفعيله = كل الطلبات من 127.0.0.1 فيُقفَل الحدّ على الجميع). إعداد
+nginx المطلوب عند التفعيل:
 
 ```nginx
 proxy_set_header X-Real-IP        $remote_addr;

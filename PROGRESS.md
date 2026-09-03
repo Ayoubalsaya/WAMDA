@@ -1691,11 +1691,13 @@ not_configured، `cli_check_freshness` يكتب `Setting` ويخرج بالرم�
 الفردي (يحمي من رشّ أسماء كثيرة من مصدر واحد، كلٌّ تحت حدّ القفل). ٤٢٩ +
 ترويسة `Retry-After`.
 
-**العنوان خلف nginx** (`_rate_limit_key`): في الإنتاج يُقرأ من `X-Real-IP`
-وإلا **آخر** مُدخَل في `X-Forwarded-For` (النظير المباشر كما ألحقه nginx
-عبر `$proxy_add_x_forwarded_for` — لا يُخدَع بمُدخَلات يسارية مزوَّرة).
-خارج الإنتاج تُتجاهَل كل ترويسات الوكيل (`request.client` مباشرةً).
-بلا هذا كل الطلبات من 127.0.0.1 وتُقفَل على الجميع.
+**العنوان خلف nginx** (`_rate_limit_key`): مشروط بإعداد صريح
+**`TRUST_PROXY_HEADERS`** (لا بـ`app_env` — أوضح، ويسمح بضبط منفصل).
+`false` افتراضاً: الثقة العمياء بالترويسات تسمح بتزوير العنوان وتجاوز
+الحدّ. `true` (على السيرفر فقط، خلف nginx): يُقرأ من `X-Real-IP` وإلا
+**آخر** مُدخَل في `X-Forwarded-For` (النظير المباشر كما ألحقه
+`$proxy_add_x_forwarded_for` — لا يُخدَع بمُدخَلات يسارية مزوَّرة).
+بلا تفعيله خلف nginx: كل الطلبات من 127.0.0.1 وتُقفَل على الجميع.
 
 عدّاد في الذاكرة = عامل uvicorn واحد؛ متعدد العمّال يحتاج مخزناً مشتركاً
 (قيد موثَّق). تجهيزة conftest تُصفّر العدّادات بين الاختبارات. اختبارات:
@@ -1718,6 +1720,19 @@ not_configured، `cli_check_freshness` يكتب `Setting` ويخرج بالرم�
   عاماً — هو `POST_ENTRY` (`clients.py` router بلا dep، المسار به
   `require_role`)؛ `PUT /clients/{id}/portal-credentials` مدير فقط
   (`MANAGE_USERS`) لا `POST_ENTRY`.
+
+**تفاوت حقيقي في حاجز بيانات العميل المالية — صُحِّح** (بعد مراجعة المالك):
+`GET /clients/{id}/balances` و`GET /clients/{id}/beneficiaries` (في
+`reference.py`) و`GET /documents/balance-card/{id}.png` و
+`GET /documents/statement/client/{id}.pdf` كانت خلف `require_password_changed`
+فقط (أي موظف)، بينما كل مسارات بيانات العميل الأخرى (`GET /clients/{id}`،
+`/statement`، `/beneficiaries-full`) خلف `require_role(POST_ENTRY)`.
+**لا تصعيد صلاحية فعلي اليوم** (`POST_ENTRY`={مدير،محاسب}=كل أدوار
+الموظفين، والبوابة/المجهول مرفوضان في الحالتين)، لكنه تفاوت واضح وخطر
+كامن لو أُضيف دور موظف للقراءة فقط. **شُدِّدت الأربعة إلى `POST_ENTRY`
+صراحةً.** `require_role` صار يعلّق `required_action` على الدالة للفحص
+الآلي؛ `test_client_financial_reads_all_require_post_entry` يفحص السلسلة
+ويؤكد `POST_ENTRY` على الستة مساراً.
 
 ### بند ٥ — فحص CSRF على كل مسار كتابة ✅ منجز ومُختبَر
 
@@ -1772,14 +1787,16 @@ not_configured، `cli_check_freshness` يكتب `Setting` ويخرج بالرم�
 
 ### مجموع المرحلة ١٢
 
-**٤٤٧ ناجحاً · صفر فشل** (زمن المجموعة ~٥ دقائق). المرحلة ١٢ **مكتملة
-تقنياً** — كل بنود §٩ منجزة ومُختبَرة، بانتظار موافقة المالك ثم الدمج.
+**٤٤٨ ناجحاً · صفر فشل** (زمن المجموعة ~٥ دقائق ونصف). المرحلة ١٢
+**مكتملة تقنياً** — كل بنود §٩ منجزة ومُختبَرة، بانتظار موافقة المالك ثم
+الدمج.
 
 بنود المرحلة: ٠ وجهة النسخ · ١ رؤوس أمان + خط محلي · ٢ فحص أسرار ·
-٣ تحديد معدل · ٤ مصفوفة صلاحيات · ٥ CSRF · ٦ إبطال جلسة · ٧
-reset-admin-password · ٨ حلّ #50. الاختبارات الجديدة: `test_backup_freshness`
-(١٢) · `test_security_headers` (٧) · `test_rate_limit` (١١) ·
-`test_permission_matrix` (٩٩) · `test_csrf_coverage` (٣٩) ·
+٣ تحديد معدل (+ `TRUST_PROXY_HEADERS`) · ٤ مصفوفة صلاحيات (+ تشديد
+بيانات العميل المالية) · ٥ CSRF · ٦ إبطال جلسة · ٧ reset-admin-password ·
+٨ حلّ #50. الاختبارات الجديدة: `test_backup_freshness` (١٢) ·
+`test_security_headers` (٧) · `test_rate_limit` (١١) ·
+`test_permission_matrix` (١٠٠) · `test_csrf_coverage` (٣٩) ·
 `test_session_invalidation` (٩) · `test_no_secrets_in_repo` (٣).
 
 ### ملاحظة واجهة مؤجَّلة

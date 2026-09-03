@@ -79,9 +79,7 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /reports/founding-reconciliation": STAFF,
     "GET /documents/receipt/{entry_id}.pdf": STAFF,
     "GET /documents/receipt/{entry_id}.png": STAFF,
-    "GET /documents/balance-card/{client_id}.png": STAFF,
-    "GET /documents/statement/client/{client_id}.pdf": STAFF,
-    "GET /documents/statement/account/{account_code}.pdf": STAFF,
+    "GET /documents/statement/account/{account_code}.pdf": STAFF,  # حساب داخلي لا عميل
     "GET /documents/chain-summary/{chain_ref}.pdf": STAFF,
     "GET /documents/reports/{report_key}.pdf": STAFF,
     "GET /documents/reports/{report_key}.png": STAFF,
@@ -97,9 +95,13 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /clients/{client_id}": POST_ENTRY,
     "POST /clients": POST_ENTRY,
     "PATCH /clients/{client_id}": POST_ENTRY,
+    # بيانات مالية للعميل — كلها POST_ENTRY باتساق (§٩ المرحلة ١٢: هذان
+    # المساران + مستندا العميل كانا `require_password_changed` فقط؛ شُدِّدا)
     "GET /clients/{client_id}/balances": POST_ENTRY,
     "GET /clients/{client_id}/beneficiaries": POST_ENTRY,
     "GET /clients/{client_id}/beneficiaries-full": POST_ENTRY,
+    "GET /documents/balance-card/{client_id}.png": POST_ENTRY,
+    "GET /documents/statement/client/{client_id}.pdf": POST_ENTRY,
     "POST /clients/{client_id}/beneficiaries": POST_ENTRY,
     "GET /clients/{client_id}/statement": POST_ENTRY,
     "PATCH /beneficiaries/{beneficiary_id}": POST_ENTRY,
@@ -230,6 +232,44 @@ def _actor_client(db, make, actor: str) -> TestClient:
     elif actor == "portal":
         _portal_login(db, c)
     return c
+
+
+def _route_required_actions(path: str, method: str) -> set:
+    """كل `Action` يفرضها أي `require_role` في سلسلة تبعيات المسار."""
+    from app.security.permissions import Action as _A
+
+    for r in app.routes:
+        if getattr(r, "path", None) == path and method in (getattr(r, "methods", None) or []):
+            found = set()
+            stack = list(getattr(r.dependant, "dependencies", []))
+            while stack:
+                d = stack.pop()
+                act = getattr(getattr(d, "call", None), "required_action", None)
+                if isinstance(act, _A):
+                    found.add(act)
+                stack.extend(getattr(d, "dependencies", []))
+            return found
+    raise AssertionError(f"لا مسار {method} {path}")
+
+
+def test_client_financial_reads_all_require_post_entry():
+    """§٩ المرحلة ١٢ — بيانات العميل المالية (أرصدة · كشف · بطاقة · مستفيدون)
+    كلها خلف `POST_ENTRY` صراحةً، لا حاجز الموظف العام وحده. يمنع تكرار
+    التفاوت الذي كان: `/clients/{id}/balances` و`/clients/{id}/beneficiaries`
+    ومستندَي العميل كانت `require_password_changed` فقط."""
+    from app.security.permissions import Action as _A
+
+    for path in (
+        "/clients/{client_id}/balances",
+        "/clients/{client_id}/beneficiaries",
+        "/clients/{client_id}/beneficiaries-full",
+        "/clients/{client_id}/statement",
+        "/documents/balance-card/{client_id}.png",
+        "/documents/statement/client/{client_id}.pdf",
+    ):
+        assert _A.POST_ENTRY in _route_required_actions(path, "GET"), (
+            f"{path} لا يفرض POST_ENTRY صراحةً"
+        )
 
 
 def test_every_route_is_classified():

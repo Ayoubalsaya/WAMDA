@@ -47,7 +47,8 @@ from app.schemas.reference import (
     LocationOut,
     PendingSwiftMovementOut,
 )
-from app.security.deps import require_password_changed
+from app.security.deps import require_password_changed, require_role
+from app.security.permissions import Action
 
 router = APIRouter(tags=["reference"], dependencies=[Depends(require_password_changed)])
 
@@ -114,9 +115,17 @@ def search_clients(
     ]
 
 
-@router.get("/clients/{client_id}/balances", response_model=list[ClientBalanceOut])
+@router.get(
+    "/clients/{client_id}/balances", response_model=list[ClientBalanceOut],
+    dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
 def client_balances(client_id: int, db: OrmSession = Depends(get_db)) -> list[ClientBalanceOut]:
-    """هـ-١: أرصدة العميل بمستوى **الموقع** — كل حساب 2100-{code}-{ccy}-{loc} سطر مستقل."""
+    """هـ-١: أرصدة العميل بمستوى **الموقع** — كل حساب 2100-{code}-{ccy}-{loc} سطر مستقل.
+
+    §٩ المرحلة ١٢: بيانات مالية للعميل — نفس حاجز `POST_ENTRY` لكل مسارات
+    بيانات العميل في `clients.py` (كان `require_password_changed` فقط —
+    لا فرق فعلي اليوم إذ `POST_ENTRY`={مدير،محاسب}=كل أدوار الموظفين، لكن
+    الاتساق يمنع تسرّباً لو أُضيف دور موظف للقراءة فقط لاحقاً)."""
     if db.get(Client, client_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
     locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
@@ -135,8 +144,12 @@ def client_balances(client_id: int, db: OrmSession = Depends(get_db)) -> list[Cl
     ]
 
 
-@router.get("/clients/{client_id}/beneficiaries", response_model=list[BeneficiaryOut])
+@router.get(
+    "/clients/{client_id}/beneficiaries", response_model=list[BeneficiaryOut],
+    dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
 def client_beneficiaries(client_id: int, db: OrmSession = Depends(get_db)) -> list[BeneficiaryOut]:
+    # §٩ المرحلة ١٢: نفس حاجز POST_ENTRY لبقية مسارات بيانات العميل
     if db.get(Client, client_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
     rows = db.execute(

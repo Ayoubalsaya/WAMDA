@@ -103,10 +103,11 @@ def test_limit_recovers_after_window_elapses(client, monkeypatch):
     assert client.post("/auth/login", json={"username": "qa_x", "password": "x"}).status_code == 401
 
 
-def test_key_read_from_forwarded_header_in_production(client, monkeypatch):
-    """خلف nginx: العنوان من `X-Real-IP`/`X-Forwarded-For` لا من الاتصال
-    المباشر — وإلا كل الطلبات من 127.0.0.1 وتُقفَل على الجميع."""
-    monkeypatch.setattr(settings, "app_env", "production")
+def test_key_read_from_forwarded_header_when_proxy_trusted(client, monkeypatch):
+    """خلف nginx (`TRUST_PROXY_HEADERS=true`): العنوان من `X-Real-IP`/
+    `X-Forwarded-For` لا من الاتصال المباشر — وإلا كل الطلبات من 127.0.0.1
+    وتُقفَل على الجميع."""
+    monkeypatch.setattr(settings, "trust_proxy_headers", True)
     limit = settings.login_rate_limit_max
 
     # العميل أ يستنفد حدّه
@@ -129,10 +130,11 @@ def test_key_read_from_forwarded_header_in_production(client, monkeypatch):
                        headers={"X-Forwarded-For": "1.1.1.1, 198.51.100.99"}).status_code == 429
 
 
-def test_forwarded_headers_ignored_outside_production(client, monkeypatch):
-    """تطوير/اختبار: لا نثق بأي ترويسة وكيل — مفاتيح مختلفة لا تُنشئ دلاءً
-    منفصلة (كلها الاتصال المباشر)."""
-    assert settings.app_env != "production"
+def test_forwarded_headers_ignored_when_proxy_not_trusted(client):
+    """الافتراض `trust_proxy_headers=False`: لا نثق بأي ترويسة وكيل —
+    مفاتيح مختلفة لا تُنشئ دلاءً منفصلة (كلها الاتصال المباشر)، فلا يستطيع
+    مهاجم تجاوز الحدّ بتزوير `X-Forwarded-For`."""
+    assert settings.trust_proxy_headers is False
     limit = settings.login_rate_limit_max
     for i in range(limit):
         client.post("/auth/login", json={"username": "qa_x", "password": "x"},

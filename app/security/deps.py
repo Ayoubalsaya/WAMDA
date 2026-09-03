@@ -33,16 +33,18 @@ def _rate_limit_key(request: Request) -> str:
     """عنوان العميل الحقيقي لمفتاح تحديد المعدل.
 
     خلف nginx يكون `request.client.host` دائماً `127.0.0.1` — لو اعتُمد
-    عليه لأصبح الحدّ عامّاً على كل المستخدمين من عنوان واحد. لذلك في
-    الإنتاج نقرأ العنوان من ترويسات الوكيل:
+    عليه لأصبح الحدّ عامّاً على كل المستخدمين من عنوان واحد. لذلك حين
+    `TRUST_PROXY_HEADERS=true` (يُضبَط في `.env` على السيرفر فقط، خلف nginx
+    يضبط الترويسات فعلاً) نقرأ العنوان من ترويسات الوكيل:
     - `X-Real-IP` (nginx: `proxy_set_header X-Real-IP $remote_addr;`) —
       قيمة واحدة، عنوان العميل المباشر كما رآه nginx.
     - وإلا آخر مُدخَل في `X-Forwarded-For` (`$proxy_add_x_forwarded_for`
       يُلحِق عنوان النظير المباشر في النهاية، فالأخير هو العميل الحقيقي
       حتى لو زوّر العميل مُدخَلات يسارية).
-    خارج الإنتاج (تطوير محلي، اختبار) لا نثق بأي ترويسة — `request.client`
-    مباشرةً. تفاصيل إعداد nginx في README (المرحلة ١٥)."""
-    if settings.app_env == "production":
+    **الافتراض `False`**: الثقة العمياء بهذه الترويسات تسمح لأي أحد بتزوير
+    عنوانه وتجاوز الحدّ — تُفعَّل فقط حين يوجد وكيل موثوق يضبطها. بلا
+    تفعيل: `request.client` مباشرةً. تفاصيل إعداد nginx في README."""
+    if settings.trust_proxy_headers:
         real_ip = request.headers.get("x-real-ip")
         if real_ip:
             return real_ip.strip()
@@ -156,4 +158,5 @@ def require_role(action: Action):
             raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
         return current_user
 
+    _dependency.required_action = action  # للفحص الآلي (test_permission_matrix)
     return _dependency
