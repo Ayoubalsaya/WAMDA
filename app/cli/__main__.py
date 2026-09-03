@@ -84,6 +84,12 @@ def _cmd_daily_integrity_check() -> None:
     run()
 
 
+def _cmd_check_backup_freshness() -> None:
+    from app.cli.backup import cli_check_freshness
+
+    cli_check_freshness()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -114,6 +120,10 @@ def main() -> None:
         "daily-integrity-check",
         help="recompute-balances --verify + حفظ النتيجة (Setting) لعرضها كتنبيه فوري في لوحة التحكم عند أي اختلاف",
     )
+    sub.add_parser(
+        "check-backup-freshness",
+        help="يتحقق أن آخر نسخة احتياطية وصلت مجلد الرفع الخارجي فعلياً خلال ٤٨ ساعة — تنبيه فوري إن لم تصل",
+    )
 
     args = parser.parse_args()
 
@@ -135,6 +145,8 @@ def main() -> None:
         _cmd_restore_test(args.backup_file)
     elif args.command == "daily-integrity-check":
         _cmd_daily_integrity_check()
+    elif args.command == "check-backup-freshness":
+        _cmd_check_backup_freshness()
     else:  # pragma: no cover
         parser.print_help()
         sys.exit(1)
