@@ -30,10 +30,25 @@ _portal_login_rate_limiter = RateLimiter(
 
 
 def _rate_limit_key(request: Request) -> str:
-    """عنوان العميل. خلف nginx يجب تشغيل uvicorn بـ
-    `--proxy-headers --forwarded-allow-ips=<nginx>` ليعكس `request.client`
-    العنوان الحقيقي لا 127.0.0.1 (موثَّق في README) — بلا ذلك يصبح الحدّ
-    عامّاً لا لكل عميل."""
+    """عنوان العميل الحقيقي لمفتاح تحديد المعدل.
+
+    خلف nginx يكون `request.client.host` دائماً `127.0.0.1` — لو اعتُمد
+    عليه لأصبح الحدّ عامّاً على كل المستخدمين من عنوان واحد. لذلك في
+    الإنتاج نقرأ العنوان من ترويسات الوكيل:
+    - `X-Real-IP` (nginx: `proxy_set_header X-Real-IP $remote_addr;`) —
+      قيمة واحدة، عنوان العميل المباشر كما رآه nginx.
+    - وإلا آخر مُدخَل في `X-Forwarded-For` (`$proxy_add_x_forwarded_for`
+      يُلحِق عنوان النظير المباشر في النهاية، فالأخير هو العميل الحقيقي
+      حتى لو زوّر العميل مُدخَلات يسارية).
+    خارج الإنتاج (تطوير محلي، اختبار) لا نثق بأي ترويسة — `request.client`
+    مباشرةً. تفاصيل إعداد nginx في README (المرحلة ١٥)."""
+    if settings.app_env == "production":
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            return real_ip.strip()
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[-1].strip()
     return request.client.host if request.client else "unknown"
 
 

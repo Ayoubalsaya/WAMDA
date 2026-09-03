@@ -12,3 +12,6 @@ alembic/versions/__pycache__/
 # النشر، لا يُلتزَم به. app/static/fonts وapp/static/uploads بيانات
 # حقيقية لا ناتج بناء، تبقيان مُتتبَّعتين.
 app/static/app/
+
+# لقطات تحقُّق Playwright المحلية (سكربتات scripts/verify_*)
+scripts/_*.png

@@ -136,6 +136,16 @@ APP_ENV=production uvicorn app.main:app --no-server-header \
 يكفي لعامل uvicorn واحد؛ نشر متعدد العمّال يحتاج مخزناً مشتركاً (غير مطلوب
 في نشر AL SAHEM المخطَّط).
 
+**العنوان خلف nginx**: في `APP_ENV=production` يُقرأ من `X-Real-IP` (يُفضَّل)
+وإلا آخر مُدخَل في `X-Forwarded-For` (النظير المباشر كما ألحقه nginx —
+لا يُخدَع بمُدخَلات يسارية يزوّرها العميل). خارج الإنتاج تُتجاهَل كل
+ترويسات الوكيل ويُستخدَم عنوان الاتصال المباشر. إعداد nginx المطلوب:
+
+```nginx
+proxy_set_header X-Real-IP        $remote_addr;
+proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+```
+
 ### تعطيل مستخدم أو تغيير دوره
 
 `PATCH /users/{id}` (مدير فقط، مُسجَّل في `audit_log`). التعطيل يُبطل كل

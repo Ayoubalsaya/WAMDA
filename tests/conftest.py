@@ -114,6 +114,14 @@ def _reset_login_rate_limiters():
 # ── تغطية اختبارات القبول ١-٥٠ (§١١) — يجعل تقرير التغطية موثوقاً لا ادعاءً ──
 TOTAL_ACCEPTANCE_TESTS = 50
 
+# اختبارات قبول لا يمكن التعبير عنها في pytest headless (تحتاج متصفحاً حياً
+# وواجهة مبنية)، لكن لها **سكربت تحقُّق Playwright حقيقي ملتزَم** يُشغَّل قبل
+# كل عرض ونتيجته توثَّق في PROGRESS.md. تُعدّ مغطّاة كي لا تبقى علامة حمراء
+# دائمة تفقد معناها (قرار المرحلة ١٢).
+ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT: dict[int, str] = {
+    50: "RTL/أرقام LTR/محاذاة أعمدة/أيقونات — scripts/verify_acceptance_50_rtl.py",
+}
+
 
 def pytest_collection_modifyitems(config, items):
     """يُجمع بعد كل تجميع اختبارات: يفحص كل `@pytest.mark.acceptance(n)` أن

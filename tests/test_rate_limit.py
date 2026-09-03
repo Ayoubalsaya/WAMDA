@@ -82,3 +82,61 @@ def test_portal_login_limit_is_more_lenient_than_staff(client):
 def test_read_requests_are_never_rate_limited(client):
     for _ in range(settings.login_rate_limit_max + 20):
         assert client.get("/health").status_code == 200
+
+
+def test_limit_recovers_after_window_elapses(client, monkeypatch):
+    """اختبار حيّ: تجاوز الحدّ → ٤٢٩ → مرور النافذة → يعود للعمل.
+    الزمن مُحقن عبر `system_clock` فلا انتظار فعلي."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.security import deps
+
+    base = datetime(2026, 9, 3, 12, 0, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(deps, "system_clock", lambda: base)
+    for _ in range(settings.login_rate_limit_max):
+        assert client.post("/auth/login", json={"username": "qa_x", "password": "x"}).status_code == 401
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"}).status_code == 429
+
+    # بعد تجاوز النافذة بثانية — مسموح مجدداً
+    later = base + timedelta(seconds=settings.login_rate_limit_window_seconds + 1)
+    monkeypatch.setattr(deps, "system_clock", lambda: later)
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"}).status_code == 401
+
+
+def test_key_read_from_forwarded_header_in_production(client, monkeypatch):
+    """خلف nginx: العنوان من `X-Real-IP`/`X-Forwarded-For` لا من الاتصال
+    المباشر — وإلا كل الطلبات من 127.0.0.1 وتُقفَل على الجميع."""
+    monkeypatch.setattr(settings, "app_env", "production")
+    limit = settings.login_rate_limit_max
+
+    # العميل أ يستنفد حدّه
+    for _ in range(limit):
+        r = client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                        headers={"X-Real-IP": "203.0.113.7"})
+        assert r.status_code == 401
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                       headers={"X-Real-IP": "203.0.113.7"}).status_code == 429
+
+    # العميل ب (عنوان آخر) — غير متأثر، رغم نفس اتصال السيرفر المباشر
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                       headers={"X-Real-IP": "198.51.100.42"}).status_code == 401
+
+    # ترويسة X-Forwarded-For — يُؤخَذ الأخير (النظير المباشر كما ألحقه nginx)
+    for _ in range(limit):
+        client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                    headers={"X-Forwarded-For": "1.1.1.1, 198.51.100.99"})
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                       headers={"X-Forwarded-For": "1.1.1.1, 198.51.100.99"}).status_code == 429
+
+
+def test_forwarded_headers_ignored_outside_production(client, monkeypatch):
+    """تطوير/اختبار: لا نثق بأي ترويسة وكيل — مفاتيح مختلفة لا تُنشئ دلاءً
+    منفصلة (كلها الاتصال المباشر)."""
+    assert settings.app_env != "production"
+    limit = settings.login_rate_limit_max
+    for i in range(limit):
+        client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                    headers={"X-Forwarded-For": f"10.0.0.{i}"})
+    # رغم تغيّر الترويسة كل مرة — نفس الدلو، فالتالي محظور
+    assert client.post("/auth/login", json={"username": "qa_x", "password": "x"},
+                       headers={"X-Forwarded-For": "10.9.9.9"}).status_code == 429
