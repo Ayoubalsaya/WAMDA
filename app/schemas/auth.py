@@ -61,3 +61,10 @@ class CreateUserResponse(BaseModel):
     id: int
     username: str
     role: str
+
+
+class UpdateUserRequest(BaseModel):
+    """§٩ المرحلة ١٢ — تعطيل/تفعيل و/أو تغيير الدور. كلاهما اختياري؛ حقل
+    غير مُمرَّر = لا تغيير له."""
+    is_active: Optional[bool] = None
+    role: Optional[str] = None  # "ADMIN" | "ACCOUNTANT"

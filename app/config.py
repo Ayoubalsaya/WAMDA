@@ -39,5 +39,12 @@ class Settings(BaseSettings):
     # صرامة بفصل الصلاحيات.
     backup_admin_database_url: Optional[str] = None
 
+    # §٩ المرحلة ١٢ — تحديد معدل مسارات الدخول (لكل عنوان IP، نافذة منزلقة).
+    # الموظف: عنوان ثابت غالباً → حدّ أضيق. العميل: هاتف بشبكة متغيّرة →
+    # حدّ أوسع. يُطبَّق على تسجيل الدخول فقط، لا أي طلب قراءة.
+    login_rate_limit_max: int = 10
+    portal_login_rate_limit_max: int = 30
+    login_rate_limit_window_seconds: int = 300
+
 
 settings = Settings()

@@ -7,15 +7,54 @@ from typing import Optional
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session as OrmSession
 
+from app.config import settings
 from app.database import get_db
 from app.engine.clock import system_clock
 from app.models import Client, User
 from app.models.enums import SessionSubjectType
 from app.security import csrf, sessions
 from app.security.permissions import CLIENT_ROLE, Action, PermissionDeniedError, require_permission
+from app.security.rate_limit import RateLimitedError, RateLimiter
 
 SESSION_COOKIE_NAME = "wamda_session"
 PORTAL_SESSION_COOKIE_NAME = "wamda_portal_session"
+
+# §٩ المرحلة ١٢ — عدّادات تحديد المعدل، واحد لكل سطح دخول (حالة على مستوى
+# الوحدة عمداً — تُصفَّر بين الاختبارات عبر تجهيزة conftest).
+_login_rate_limiter = RateLimiter(
+    max_hits=settings.login_rate_limit_max, window_seconds=settings.login_rate_limit_window_seconds
+)
+_portal_login_rate_limiter = RateLimiter(
+    max_hits=settings.portal_login_rate_limit_max, window_seconds=settings.login_rate_limit_window_seconds
+)
+
+
+def _rate_limit_key(request: Request) -> str:
+    """عنوان العميل. خلف nginx يجب تشغيل uvicorn بـ
+    `--proxy-headers --forwarded-allow-ips=<nginx>` ليعكس `request.client`
+    العنوان الحقيقي لا 127.0.0.1 (موثَّق في README) — بلا ذلك يصبح الحدّ
+    عامّاً لا لكل عميل."""
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce(limiter: RateLimiter, request: Request) -> None:
+    try:
+        limiter.hit(_rate_limit_key(request), now=system_clock().timestamp())
+    except RateLimitedError as exc:
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS, str(exc),
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
+def enforce_login_rate_limit(request: Request) -> None:
+    """تبعية على `POST /auth/login` فقط."""
+    _enforce(_login_rate_limiter, request)
+
+
+def enforce_portal_login_rate_limit(request: Request) -> None:
+    """تبعية على `POST /portal/login` فقط — حدّ أوسع (§٩)."""
+    _enforce(_portal_login_rate_limiter, request)
 
 
 def get_current_user(

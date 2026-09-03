@@ -100,6 +100,17 @@ def now() -> datetime:
     return FIXED_NOW
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_rate_limiters():
+    """عدّادات تحديد معدل الدخول (§٩ المرحلة ١٢) حالتها على مستوى الوحدة —
+    تُصفَّر قبل كل اختبار كي لا تتسرّب محاولات دخول اختبار إلى التالي."""
+    from app.security import deps
+
+    deps._login_rate_limiter.reset()
+    deps._portal_login_rate_limiter.reset()
+    yield
+
+
 # ── تغطية اختبارات القبول ١-٥٠ (§١١) — يجعل تقرير التغطية موثوقاً لا ادعاءً ──
 TOTAL_ACCEPTANCE_TESTS = 50
 

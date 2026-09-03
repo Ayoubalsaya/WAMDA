@@ -26,7 +26,7 @@ from app.schemas.auth import (
     RecoverStartResponse,
 )
 from app.security import auth_service, csrf, passwords, sessions
-from app.security.deps import SESSION_COOKIE_NAME, get_current_user, verify_csrf
+from app.security.deps import SESSION_COOKIE_NAME, enforce_login_rate_limit, get_current_user, verify_csrf
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -61,7 +61,7 @@ def _ensure_csrf_cookie(request: Request, response: Response) -> None:
         )
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse, dependencies=[Depends(enforce_login_rate_limit)])
 def login(
     payload: LoginRequest, request: Request, response: Response, db: OrmSession = Depends(get_db)
 ) -> LoginResponse:

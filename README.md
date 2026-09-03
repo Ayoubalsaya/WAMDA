@@ -115,11 +115,29 @@ DENY` (+ `frame-ancestors 'none'`)، `X-Content-Type-Options`،
 - **`APP_ENV=production`** في `.env` على الخادم: يُفعّل `Strict-Transport-Security`
   (HSTS، سنة + النطاقات الفرعية) ويُعطّل `/docs` و`/redoc` (تبقى
   `/openapi.json` للتحقق الآلي).
-- **uvicorn بـ`--no-server-header`**: يمنع كشف نسخة uvicorn في ترويسة
-  `Server` (لا يمكن حذفها من داخل التطبيق — يضيفها uvicorn بعد الوسائط).
+- **uvicorn بـ`--no-server-header --proxy-headers --forwarded-allow-ips=127.0.0.1`**:
+  الأول يمنع كشف نسخة uvicorn في `Server`؛ الأخيران يجعلان `request.client`
+  يعكس عنوان العميل الحقيقي خلف nginx (يلزم لتحديد المعدل — بلا ذلك يصبح
+  الحدّ عامّاً لا لكل عميل). nginx يجب أن يمرّر `X-Forwarded-For`.
 - **nginx `server_tokens off;`**: مكافئ على مستوى الوكيل العكسي. وحدة
   systemd وإعداد nginx الفعليان في المرحلة ١٥.
 
 ```
-APP_ENV=production uvicorn app.main:app --no-server-header --host 127.0.0.1 --port 8000
+APP_ENV=production uvicorn app.main:app --no-server-header \
+  --proxy-headers --forwarded-allow-ips=127.0.0.1 --host 127.0.0.1 --port 8000
 ```
+
+### تحديد معدل مسارات الدخول
+
+`POST /auth/login` و`POST /portal/login` فقط (لا يمسّ أي طلب قراءة) —
+نافذة منزلقة لكل عنوان IP، طبقة فوق قفل الحساب الفردي (٥ محاولات/١٥ دقيقة).
+حدّان منفصلان: الموظف `LOGIN_RATE_LIMIT_MAX=10` (عنوان ثابت)، العميل
+`PORTAL_LOGIN_RATE_LIMIT_MAX=30` (هاتف بشبكة متغيّرة). عدّاد في الذاكرة —
+يكفي لعامل uvicorn واحد؛ نشر متعدد العمّال يحتاج مخزناً مشتركاً (غير مطلوب
+في نشر AL SAHEM المخطَّط).
+
+### تعطيل مستخدم أو تغيير دوره
+
+`PATCH /users/{id}` (مدير فقط، مُسجَّل في `audit_log`). التعطيل يُبطل كل
+جلسات المستخدم فوراً؛ تغيير الدور يسري من الطلب التالي (`get_current_user`
+يقرأ `is_active`/`role` طازجَين كل طلب). المدير لا يعطّل نفسه ولا يخفض دوره.
