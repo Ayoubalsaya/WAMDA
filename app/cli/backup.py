@@ -1,21 +1,38 @@
 """نسخ احتياطي يومي مُشفَّر + رفع خارج السيرفر (§٩).
 
 pg_dump -Fc → تشفير Fernet → حذف النسخة غير المُشفَّرة فوراً (لا نسخة
-صريحة على القرص أبداً، حتى لحظياً بعد اكتمال التشفير) → رفع لوجهة خارجية
-إن أُعِدَّت (مجلد "خارج سيرفر" مُركَّب أو SFTP). وجهة الرفع النهائية قرار
-مالك معلَّق (انظر PROGRESS.md) — الآلية هنا عامة وتعمل بأي منهما، وتُحذِّر
-بوضوح بدل الفشل الصامت إن لم تُضبَط أي وجهة بعد.
+صريحة على القرص أبداً، حتى لحظياً بعد اكتمال التشفير) → نسخ إلى وجهة
+خارجية إن أُعِدَّت.
+
+**قرار المالك (٢٠٢٦-٠٩، المرحلة ١٢):** الوجهة الخارجية هي `BACKUP_OFFSITE_DIR`
+— مجلد محلي على السيرفر تُزامنه أداة سحابية (Google Drive / OneDrive أو
+مكافئ) إلى خارج السيرفر. لا SFTP ولا مزوّد إضافي: النسخة تُكتَب في المجلد
+وأداة المزامنة ترفعها. آلية SFTP (`BACKUP_SFTP_*`) تبقى في الكود كبديل
+شبكي مباشر غير مستخدَم.
+
+الاعتماد على أداة مزامنة خارج عمليتنا يعني أننا لا نملك تأكيداً برمجياً
+لحظياً أن الملف وصل السحابة فعلاً — لذلك:
+· `upload_offsite` **لا يُنشئ** المجلد تلقائياً؛ غيابه/تعذُّر الكتابة فيه
+  تحذير صريح لا فشل صامت (المجلد يجب أن يكون مجلد أداة المزامنة الحقيقي).
+· `check_offsite_freshness` (أمر `check-backup-freshness` المجدول) يفحص
+  أن أحدث نسخة في المجلد أُنشئت خلال ٤٨ ساعة — أي أطول ⇒ تنبيه critical
+  في لوحة التحكم بجانب تنبيه فحص السلامة.
+· تحقُّق يدوي شهري إلزامي أن الملفات تصل السحابة فعلاً — انظر README.
 """
 
 from __future__ import annotations
 
+import os
 import shutil
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.cli.pg_tools import PgToolError, connection_params, run_pg_dump
 from app.config import settings
+
+_BACKUP_GLOB = "wamda-*.dump.enc"
 
 
 class BackupError(Exception):
@@ -45,33 +62,51 @@ def decrypt_file(*, input_path: Path, output_path: Path) -> Path:
     return output_path
 
 
-def upload_offsite(*, file_path: Path) -> Optional[str]:
-    """يُعيد وصف الوجهة عند نجاح الرفع، أو None إن لم تُضبَط أي وجهة."""
+def upload_offsite(*, file_path: Path) -> dict:
+    """status: "ok" (رُفعت فعلاً) · "not_configured" (لا وجهة مضبوطة —
+    معلومة لا خطأ) · "failed" (وجهة مضبوطة لكن تعذَّر الوصول إليها — تحذير
+    حقيقي، **لا يُنشئ مجلداً بديلاً محلياً بصمت** حتى لا تبدو نسخة محلية
+    عارضة كأنها وصلت الوجهة الحقيقية)."""
     if settings.backup_offsite_dir:
         dest_dir = Path(settings.backup_offsite_dir)
-        dest_dir.mkdir(parents=True, exist_ok=True)
+        # لا mkdir هنا عمداً — هذا المجلد يجب أن يكون مجلد أداة المزامنة
+        # السحابية الحقيقي (Google Drive/OneDrive وما يعادلهما)، لا مساراً
+        # نُنشئه نحن. إن لم يكن موجوداً فهذا دليل أن أداة المزامنة غير
+        # مثبَّتة/تعمل أو أن المسار خطأ — إنشاؤه تلقائياً يُخفي هذه الحقيقة.
+        if not dest_dir.exists():
+            return {
+                "status": "failed",
+                "detail": (
+                    f"مجلد الرفع الخارجي غير موجود: {dest_dir} — تأكد أن أداة المزامنة "
+                    "السحابية مثبَّتة وتعمل فعلياً وأن BACKUP_OFFSITE_DIR يشير للمسار الصحيح"
+                ),
+            }
+        if not os.access(dest_dir, os.W_OK):
+            return {"status": "failed", "detail": f"مجلد الرفع الخارجي غير قابل للكتابة: {dest_dir}"}
         dest = dest_dir / file_path.name
         shutil.copy2(file_path, dest)
-        return f"offsite-dir:{dest}"
+        return {"status": "ok", "detail": f"offsite-dir:{dest}"}
     if settings.backup_sftp_host:
         import paramiko
 
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(
-            settings.backup_sftp_host, port=settings.backup_sftp_port, username=settings.backup_sftp_user,
-            key_filename=settings.backup_sftp_key_path,
-        )
         try:
+            ssh.connect(
+                settings.backup_sftp_host, port=settings.backup_sftp_port, username=settings.backup_sftp_user,
+                key_filename=settings.backup_sftp_key_path,
+            )
             sftp = ssh.open_sftp()
             remote_dir = (settings.backup_sftp_remote_dir or ".").rstrip("/")
             remote_path = f"{remote_dir}/{file_path.name}"
             sftp.put(str(file_path), remote_path)
             sftp.close()
+        except Exception as exc:  # noqa: BLE001 — أي فشل شبكة/مصادقة SFTP تحذير لا استثناء غير مُعالَج
+            return {"status": "failed", "detail": f"فشل رفع SFTP: {exc}"}
         finally:
             ssh.close()
-        return f"sftp:{settings.backup_sftp_host}:{remote_path}"
-    return None
+        return {"status": "ok", "detail": f"sftp:{settings.backup_sftp_host}:{remote_path}"}
+    return {"status": "not_configured", "detail": None}
 
 
 def run(*, dest_dir: Optional[Path] = None) -> dict:
@@ -96,12 +131,36 @@ def run(*, dest_dir: Optional[Path] = None) -> dict:
         if plain_path.exists():
             plain_path.unlink()
 
-    destination = upload_offsite(file_path=encrypted_path)
+    upload_result = upload_offsite(file_path=encrypted_path)
     return {
         "local_path": str(encrypted_path),
         "size_bytes": encrypted_path.stat().st_size,
-        "offsite_destination": destination,
+        "upload_status": upload_result["status"],
+        "upload_detail": upload_result["detail"],
         "timestamp": stamp,
+    }
+
+
+def check_offsite_freshness(*, max_age_hours: int = 48) -> dict:
+    """يفحص وجهة الرفع الخارجية **نفسها** (لا القرص المحلي) — نسخة احتياطية
+    محلية ناجحة لكن لم تصل الوجهة الحقيقية أخطر من نسخة لم تُنشأ إطلاقاً
+    (قد تُظَنّ آمنة بالخطأ). يدعم آلية المجلد المُركَّب فقط حالياً — SFTP
+    يحتاج اتصالاً حياً لفحص الطرف البعيد، غير مُنفَّذ بعد (فجوة موثَّقة)."""
+    if not settings.backup_offsite_dir:
+        return {"configured": False, "stale": True, "reason": "لا وجهة رفع خارجية مضبوطة (BACKUP_OFFSITE_DIR)"}
+    dest_dir = Path(settings.backup_offsite_dir)
+    if not dest_dir.exists():
+        return {"configured": True, "stale": True, "reason": f"مجلد الرفع الخارجي غير موجود: {dest_dir}"}
+    backups = sorted(dest_dir.glob(_BACKUP_GLOB), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not backups:
+        return {"configured": True, "stale": True, "reason": "لا نسخ احتياطية وصلت المجلد الخارجي إطلاقاً"}
+    newest = backups[0]
+    age_hours = (time.time() - newest.stat().st_mtime) / 3600
+    stale = age_hours > max_age_hours
+    return {
+        "configured": True, "stale": stale, "newest_file": newest.name,
+        "age_hours": round(age_hours, 1),
+        "reason": None if not stale else f"آخر نسخة وصلت المجلد الخارجي منذ {round(age_hours, 1)} ساعة (> {max_age_hours})",
     }
 
 
@@ -115,10 +174,52 @@ def cli_run() -> None:
         sys.exit(1)
 
     print(f"نسخة احتياطية مُشفَّرة: {result['local_path']} ({result['size_bytes']} بايت)")
-    if result["offsite_destination"]:
-        print(f"رُفعت إلى: {result['offsite_destination']}")
+    if result["upload_status"] == "ok":
+        print(f"رُفعت إلى: {result['upload_detail']}")
+    elif result["upload_status"] == "failed":
+        print(f"⚠ تحذير — تعذَّر الرفع الخارجي: {result['upload_detail']}")
+        print("النسخة محلية فقط على هذا السيرفر — راجع الوجهة المضبوطة فوراً.")
     else:
         print(
             "تحذير: لا وجهة رفع خارجية مضبوطة (BACKUP_OFFSITE_DIR/BACKUP_SFTP_*) — "
-            "النسخة محلية فقط على هذا السيرفر. قرار الوجهة لا يزال معلَّقاً عند المالك."
+            "النسخة محلية فقط على هذا السيرفر."
         )
+
+
+BACKUP_FRESHNESS_SETTING_KEY = "last_backup_freshness_check"
+
+
+def cli_check_freshness() -> None:
+    """يُشغَّل مجدولاً (مستقل عن `backup` نفسها عمداً — توقُّف مهمة النسخ
+    الاحتياطي كلياً عن العمل يجب أن يُكتشَف أيضاً، لا فقط فشل رفع نسخة
+    أُنشئت فعلاً). يحفظ النتيجة في `Setting` ليقرأها تنبيه لوحة التحكم —
+    نفس نمط `app.cli.integrity_check` تماماً، بجانبه لا بديلاً عنه."""
+    import sys
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.database import SessionLocal
+    from app.models import Setting
+
+    result = check_offsite_freshness()
+    # `checked_at` = متى جرى هذا الفحص المجدول نفسه (لا عمر أحدث ملف) —
+    # يسمح للتحقق الشهري اليدوي (انظر README) بمعرفة آخر مرة عمل فيها
+    # الفحص التلقائي أصلاً، تماماً كـ`last_integrity_check`.
+    stored = {**result, "checked_at": datetime.now(timezone.utc).isoformat()}
+    db = SessionLocal()
+    try:
+        row = db.execute(select(Setting).where(Setting.key == BACKUP_FRESHNESS_SETTING_KEY)).scalar_one_or_none()
+        if row is None:
+            db.add(Setting(key=BACKUP_FRESHNESS_SETTING_KEY, value=stored))
+        else:
+            row.value = stored
+        db.commit()
+    finally:
+        db.close()
+
+    if not result["stale"]:
+        print(f"فحص وصول النسخ الاحتياطية: سليم — آخر نسخة منذ {result['age_hours']} ساعة ({result['newest_file']}).")
+        sys.exit(0)
+    print(f"⚠ فحص وصول النسخ الاحتياطية: {result['reason']} — سيظهر تنبيه فوري في لوحة التحكم.")
+    sys.exit(1)

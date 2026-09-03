@@ -174,6 +174,50 @@ def test_dashboard_no_integrity_alert_when_last_check_ok(db, client):
     assert not any(a["code"] == "integrity_check_failed" for a in alerts)
 
 
+def _set_backup_freshness_setting(db, value: dict) -> None:
+    from sqlalchemy import select
+
+    from app.models import Setting
+
+    row = db.execute(select(Setting).where(Setting.key == "last_backup_freshness_check")).scalar_one_or_none()
+    if row is None:
+        db.add(Setting(key="last_backup_freshness_check", value=value))
+    else:
+        row.value = value
+    db.flush()
+
+
+def test_dashboard_alert_backup_not_arrived_is_critical(db, client):
+    """§٩ المرحلة ١٢ — نسخة لم تصل الوجهة الخارجية خلال ٤٨ ساعة: تنبيه
+    critical بجانب تنبيه فحص السلامة، قراءة رخيصة لـ`Setting`
+    key="last_backup_freshness_check" (يكتبه `check-backup-freshness`)."""
+    _login(db, client)
+    _set_backup_freshness_setting(db, {
+        "configured": True, "stale": True,
+        "reason": "آخر نسخة وصلت المجلد الخارجي منذ 61.0 ساعة (> 48)",
+        "checked_at": "2026-06-15T03:00:00+00:00",
+    })
+
+    resp = client.get("/dashboard/summary")
+    assert resp.status_code == 200
+    alerts = resp.json()["alerts"]
+    backup_alert = next(a for a in alerts if a["code"] == "backup_not_arrived")
+    assert backup_alert["severity"] == "critical"
+    assert "61.0" in backup_alert["message_ar"]
+
+
+def test_dashboard_no_backup_alert_when_fresh(db, client):
+    _login(db, client)
+    _set_backup_freshness_setting(db, {
+        "configured": True, "stale": False, "newest_file": "wamda-x.dump.enc",
+        "age_hours": 3.0, "reason": None, "checked_at": "2026-06-15T03:00:00+00:00",
+    })
+
+    resp = client.get("/dashboard/summary")
+    alerts = resp.json()["alerts"]
+    assert not any(a["code"] == "backup_not_arrived" for a in alerts)
+
+
 def test_liquidity_position_assets_vs_liabilities_per_location(db, client, now):
     _login(db, client)
     user = f.make_user(db)

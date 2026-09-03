@@ -39,5 +39,18 @@ class Settings(BaseSettings):
     # صرامة بفصل الصلاحيات.
     backup_admin_database_url: Optional[str] = None
 
+    # §٩ المرحلة ١٢ — تحديد معدل مسارات الدخول (لكل عنوان IP، نافذة منزلقة).
+    # الموظف: عنوان ثابت غالباً → حدّ أضيق. العميل: هاتف بشبكة متغيّرة →
+    # حدّ أوسع. يُطبَّق على تسجيل الدخول فقط، لا أي طلب قراءة.
+    login_rate_limit_max: int = 10
+    portal_login_rate_limit_max: int = 30
+    login_rate_limit_window_seconds: int = 300
+    # الثقة بترويسات الوكيل (`X-Real-IP`/`X-Forwarded-For`) لتحديد عنوان
+    # العميل. **يجب أن يبقى False محلياً**: الثقة العمياء تسمح لأي أحد
+    # بتزوير عنوانه وتجاوز الحدّ. يُفعَّل في `.env` على السيرفر **فقط** حين
+    # يكون خلف nginx يضبط هذه الترويسات فعلاً (انظر README). بلا تفعيله
+    # خلف nginx: كل الطلبات من 127.0.0.1 فيُقفَل الحدّ على الجميع.
+    trust_proxy_headers: bool = False
+
 
 settings = Settings()

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as OrmSession
 from app.database import get_db
 from app.engine.clock import system_clock
 from app.models import User
-from app.schemas.auth import CreateUserRequest, CreateUserResponse
+from app.schemas.auth import CreateUserRequest, CreateUserResponse, UpdateUserRequest
 from app.schemas.settings import UserListRow
 from app.security import user_management
 from app.security.deps import require_role, verify_csrf
@@ -58,3 +58,35 @@ def create_user(
 
     db.commit()
     return CreateUserResponse(id=user.id, username=user.username, role=user.role)
+
+
+@router.patch(
+    "/{user_id}", response_model=UserListRow,
+    dependencies=[Depends(verify_csrf)],
+)
+def update_user(
+    user_id: int,
+    payload: UpdateUserRequest,
+    db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> UserListRow:
+    """§٩ المرحلة ١٢ — تعطيل/تفعيل مستخدم أو تغيير دوره. مدير فقط.
+    التعطيل يُبطل كل جلسات المستخدم فوراً؛ تغيير الدور يسري من الطلب
+    التالي عبر إعادة فحص `role` في `get_current_user`."""
+    try:
+        user = user_management.update_user(
+            db, actor=current_user, user_id=user_id,
+            is_active=payload.is_active, role=payload.role,
+        )
+    except user_management.UserNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except user_management.InvalidRoleError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except (user_management.SelfLockoutError, user_management.LastAdminError) as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+    db.commit()
+    return UserListRow(**{c: getattr(user, c) for c in UserListRow.model_fields})

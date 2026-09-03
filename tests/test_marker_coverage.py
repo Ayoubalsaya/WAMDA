@@ -9,19 +9,26 @@
 
 from __future__ import annotations
 
-from tests.conftest import TOTAL_ACCEPTANCE_TESTS
+from tests.conftest import ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT, TOTAL_ACCEPTANCE_TESTS
 
 
 def test_all_fifty_acceptance_numbers_covered(request):
     coverage: dict[int, list[str]] = getattr(request.config, "_acceptance_coverage", {})
-    missing = sorted(set(range(1, TOTAL_ACCEPTANCE_TESTS + 1)) - set(coverage))
+    covered_or_playwright = set(coverage) | set(ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT)
+    missing = sorted(set(range(1, TOTAL_ACCEPTANCE_TESTS + 1)) - covered_or_playwright)
     duplicated = {n: ids for n, ids in coverage.items() if len(ids) > 1}
 
     print("\n=== تقرير تغطية اختبارات القبول (§١١) ===")
     for n in range(1, TOTAL_ACCEPTANCE_TESTS + 1):
         ids = coverage.get(n, [])
-        status = "OK" if ids else "MISSING"
-        print(f"  {n:>2}: {status:<8} {', '.join(ids)}")
+        if ids:
+            status = "OK"
+        elif n in ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT:
+            status = "PLAYWRIGHT"
+        else:
+            status = "MISSING"
+        detail = ", ".join(ids) or ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT.get(n, "")
+        print(f"  {n:>2}: {status:<10} {detail}")
 
     if duplicated:
         print("\n-- أرقام بأكثر من اختبار (قد يكون مقصوداً) --")

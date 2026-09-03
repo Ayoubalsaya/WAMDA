@@ -9,12 +9,41 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.config import settings as app_settings
 from app.documents import render as doc_render
 from app.routers import (
     audit, auth, clients, dashboard, documents, operations, partners, periods, portal, reconciliation, reference,
     reports, search, settings, users,
 )
 from app.security import csrf
+
+_IS_PRODUCTION = app_settings.app_env == "production"
+
+# §٩ — سياسة أمان المحتوى. صارمة على السكربت (`script-src 'self'` — لا inline،
+# لا CDN؛ بناء Vite يُخرج وحدات خارجية مبصومة فقط، تحقَّق أدناه ببناء فعلي).
+# `style-src 'unsafe-inline'` لازم: React يحقن أنماطاً سطرية. الخط مُستضاف
+# محلياً منذ المرحلة ١٢ فـ`font-src 'self'` يكفي (لا googleapis/gstatic).
+_CSP = "; ".join([
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self'",
+    "connect-src 'self'",
+])
+
+# كل ميزة متصفح لا يستخدمها النظام — تُعطَّل صراحةً
+_PERMISSIONS_POLICY = ", ".join(
+    f"{feature}=()" for feature in (
+        "accelerometer", "autoplay", "camera", "display-capture", "encrypted-media",
+        "fullscreen", "geolocation", "gyroscope", "magnetometer", "microphone",
+        "midi", "payment", "usb", "xr-spatial-tracking",
+    )
+)
 
 
 @asynccontextmanager
@@ -38,7 +67,15 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="ومضة", lifespan=_lifespan)
+app = FastAPI(
+    title="ومضة",
+    lifespan=_lifespan,
+    # §٩: واجهات التوثيق التفاعلية تُعطَّل في الإنتاج (تحمّل أصول من CDN
+    # خارجي وتكشف سطح الـAPI كاملاً) — `/openapi.json` يبقى للتحقق الآلي
+    # (`curl /openapi.json` قبل أي اختبار حيّ، قرار المرحلة ٧).
+    docs_url=None if _IS_PRODUCTION else "/docs",
+    redoc_url=None if _IS_PRODUCTION else "/redoc",
+)
 
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -89,11 +126,30 @@ async def ensure_csrf_cookie(request: Request, call_next):
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    """§٩: رؤوس أمان كاملة."""
+    """§٩: رؤوس أمان كاملة على كل رد.
+
+    - `Strict-Transport-Security`: إنتاج فقط (HSTS فوق HTTP يُتجاهَل، وإرساله
+      محلياً على http بلا معنى) — سنة كاملة + النطاقات الفرعية.
+    - `Content-Security-Policy` · `Permissions-Policy` · `Referrer-Policy` ·
+      `X-Content-Type-Options` · `X-Frame-Options` (مع `frame-ancestors 'none'`
+      في CSP كطبقة ثانية).
+    - إخفاء توقيع الخادم (`server_tokens off` نظيره): uvicorn يُشغَّل بـ
+      `--no-server-header` وnginx بـ`server_tokens off` — كلاهما إعداد نشر
+      (المرحلة ١٥، موثَّق في README)؛ لا يمكن حذف ترويسة يضيفها uvicorn
+      **بعد** هذه الطبقة من داخل التطبيق.
+    - `Cache-Control: no-store` على كل رد غير الأصول الثابتة — لا يُخزَّن
+      رد يحمل بيانات مالية/جلسة في وسيط أو قرص المتصفح.
+    """
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["Permissions-Policy"] = _PERMISSIONS_POLICY
+    if _IS_PRODUCTION:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if not request.url.path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "no-store")
     return response
 
 

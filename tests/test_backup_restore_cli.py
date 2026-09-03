@@ -86,14 +86,17 @@ def test_backup_run_creates_encrypted_file_deletes_plaintext_and_copies_offsite(
     plain_candidates = list(tmp_backup_dir.glob("*.dump"))
     assert plain_candidates == []
 
-    if settings.backup_offsite_dir:
+    if settings.backup_offsite_dir and Path(settings.backup_offsite_dir).is_dir():
         offsite_copy = Path(settings.backup_offsite_dir) / encrypted_path.name
         assert offsite_copy.exists()
         assert offsite_copy.read_bytes() == encrypted_path.read_bytes()
-        assert result["offsite_destination"] is not None
+        assert result["upload_status"] == "ok"
         offsite_copy.unlink()
+    elif settings.backup_offsite_dir:
+        # مضبوط لكن المجلد غير موجود — تحذير صريح لا فشل صامت، لا نسخة تُنشأ
+        assert result["upload_status"] == "failed"
     else:
-        assert result["offsite_destination"] is None
+        assert result["upload_status"] == "not_configured"
 
 
 def test_backup_fails_loudly_without_encryption_key(tmp_backup_dir, monkeypatch):

@@ -167,6 +167,16 @@ def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int
             ),
         ))
 
+    # ٠-ب) وصول النسخة الاحتياطية لوجهتها الخارجية خلال ٤٨ ساعة (§٩ المرحلة
+    # ١٢) — بجانب تنبيه فحص السلامة مباشرة، نفس الأولوية: نسخة لم تصل
+    # الوجهة الحقيقية أخطر من نسخة لم تُنشأ إطلاقاً (قد تُظَنّ آمنة خطأً).
+    freshness = db.execute(select(Setting).where(Setting.key == "last_backup_freshness_check")).scalar_one_or_none()
+    if freshness is not None and freshness.value.get("stale", False):
+        alerts.append(AlertRow(
+            severity="critical", code="backup_not_arrived",
+            message_ar=f"النسخة الاحتياطية: {freshness.value.get('reason', 'لم تصل الوجهة الخارجية خلال المهلة')} — يستحق فحصاً فورياً",
+        ))
+
     # ١) أرصدة سالبة — أصول الشركة/الشركاء غير حسابات المقاصة (§٥ قاعدة ٨:
     # قد تُصبح سالبة فعلياً بتجاوز مُصرَّح مُسجَّل، ليست علّة بالضرورة لكن
     # تستحق تنبيهاً دائماً).

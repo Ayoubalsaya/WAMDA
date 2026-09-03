@@ -38,7 +38,13 @@ from app.schemas.portal import (
     PortalRecoverStartResponse,
 )
 from app.security import csrf, passwords, portal_auth_service, portal_lockout, sessions
-from app.security.deps import PORTAL_SESSION_COOKIE_NAME, get_current_client, require_portal_password_changed, verify_csrf
+from app.security.deps import (
+    PORTAL_SESSION_COOKIE_NAME,
+    enforce_portal_login_rate_limit,
+    get_current_client,
+    require_portal_password_changed,
+    verify_csrf,
+)
 
 router = APIRouter(prefix="/portal", tags=["portal"])
 
@@ -71,7 +77,10 @@ def _ensure_csrf_cookie(request: Request, response: Response) -> None:
         )
 
 
-@router.post("/login", response_model=PortalLoginResponse)
+@router.post(
+    "/login", response_model=PortalLoginResponse,
+    dependencies=[Depends(enforce_portal_login_rate_limit)],
+)
 def portal_login(
     payload: PortalLoginRequest, request: Request, response: Response, db: OrmSession = Depends(get_db),
 ) -> PortalLoginResponse:

@@ -23,7 +23,8 @@ from app.documents.jinja import render_template
 from app.documents.qr import qr_data_uri
 from app.documents.render import render_pdf, render_png
 from app.engine.clock import system_clock
-from app.security.deps import require_password_changed
+from app.security.deps import require_password_changed, require_role
+from app.security.permissions import Action
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[Depends(require_password_changed)])
 
@@ -69,8 +70,10 @@ def receipt_png(entry_id: int, db: OrmSession = Depends(get_db)) -> Response:
     return Response(content=png_bytes, media_type="image/png")
 
 
-@router.get("/balance-card/{client_id}.png")
+@router.get("/balance-card/{client_id}.png", dependencies=[Depends(require_role(Action.POST_ENTRY))])
 def balance_card_png(client_id: int, db: OrmSession = Depends(get_db)) -> Response:
+    # §٩ المرحلة ١٢: بطاقة رصيد عميل (تُشارَك عبر واتساب) — نفس حاجز
+    # POST_ENTRY لبقية بيانات العميل المالية
     now = system_clock()
     ctx = balance_card_doc.build_balance_card_context(db, client_id=client_id, now=now, work_timezone=settings.work_timezone)
     ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
@@ -79,7 +82,7 @@ def balance_card_png(client_id: int, db: OrmSession = Depends(get_db)) -> Respon
     return Response(content=png_bytes, media_type="image/png")
 
 
-@router.get("/statement/client/{client_id}.pdf")
+@router.get("/statement/client/{client_id}.pdf", dependencies=[Depends(require_role(Action.POST_ENTRY))])
 def client_statement_pdf(
     client_id: int, currency: str, location: str,
     date_from: Optional[date] = None, date_to: Optional[date] = None,
