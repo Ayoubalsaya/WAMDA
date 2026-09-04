@@ -186,6 +186,12 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
             >
               طباعة PDF
             </a>
+            <a
+              href={`/documents/statement/client/${clientId}.xlsx?currency=${activeCcy}&location=${activeLocation}${dateFrom ? `&date_from=${dateFrom}` : ''}${dateTo ? `&date_to=${dateTo}` : ''}`}
+              target="_blank" rel="noreferrer" className="btn-text"
+            >
+              تنزيل Excel
+            </a>
           </div>
         </div>
         {statement && (

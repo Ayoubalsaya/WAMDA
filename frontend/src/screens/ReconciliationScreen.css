@@ -1,1 +1,25 @@
 .reconciliation-screen .acc-lot-row { cursor: pointer; }
+
+/* §٧-٩ العرض جنباً إلى جنب — كشف المراسل مقابل حركة دفترك */
+.recon-side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .recon-side-by-side { grid-template-columns: 1fr; }
+}
+.recon-col-head {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid var(--border, #e2e8f0);
+}
+.recon-open > td { background: rgba(234, 179, 8, 0.06); }
+
+/* الاتجاه الأخطر: قيد عندك بلا سطر في كشفهم — مالٌ تظنّه خرج ولم يخرج */
+.recon-danger { color: #b91c1c; font-weight: 600; }
+.recon-danger-row > td { background: rgba(220, 38, 38, 0.08); }
+.recon-diff-banner .recon-danger { font-size: inherit; }

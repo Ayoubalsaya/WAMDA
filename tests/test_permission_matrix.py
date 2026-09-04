@@ -145,6 +145,7 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /reconciliation/statements/{statement_id}/auto-match": ADMIN,
     "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/match": ADMIN,
     "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/resolve": ADMIN,
+    "POST /reconciliation/statements/{statement_id}/lines/{line_id}/adjust": ADMIN,
     # بوابة العميل فقط
     "GET /portal/me": PORTAL,
     "POST /portal/logout": PORTAL,

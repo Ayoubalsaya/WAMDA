@@ -218,6 +218,35 @@ def test_dashboard_no_backup_alert_when_fresh(db, client):
     assert not any(a["code"] == "backup_not_arrived" for a in alerts)
 
 
+def test_dashboard_alert_unresolved_reconciliation_difference_names_partner(db, client, now):
+    """§٧-٩ المرحلة ١٣ — فرق مطابقة غير مسوّى يظهر في لوحة التحكم لا في
+    شاشة المطابقة وحدها؛ التنبيه يذكر اسم المراسل والاتجاهين."""
+    user = _login(db, client)
+    from app.models import Partner, PartnerStatement, PartnerStatementLine
+    from app.models.enums import ReconciliationStatus
+
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    partner = db.get(Partner, partner_acct.partner_id)
+    partner.name_ar = "شركة اسطنبول للتحويلات"
+    funder = f.make_client(db)
+    f.fund_client(db, client=funder, currency_code="USD", location_code="TURKEY", amount=Decimal("500.00"),
+                  receiving_account_code=partner_acct.code, user=user, now=now)
+    stmt = PartnerStatement(partner_id=partner_acct.partner_id, period_from=now.date(), period_to=now.date())
+    db.add(stmt)
+    db.flush()
+    db.add(PartnerStatementLine(statement_id=stmt.id, value_date=now.date(), description="بلا مقابل",
+                                amount=Decimal("999.99"), status=ReconciliationStatus.OPEN))
+    db.flush()
+
+    alerts = client.get("/dashboard/summary").json()["alerts"]
+    recon = [a for a in alerts if a["code"] == "reconciliation_difference"]
+    assert len(recon) == 1
+    assert "شركة اسطنبول للتحويلات" in recon[0]["message_ar"]
+    assert "كشفهم بلا قيد عندك" in recon[0]["message_ar"]      # اتجاه ١
+    assert "قيد عندك بلا سطر في كشفهم" in recon[0]["message_ar"]  # اتجاه ٢ (أخطر)
+    assert recon[0]["severity"] == "warning"
+
+
 def test_liquidity_position_assets_vs_liabilities_per_location(db, client, now):
     _login(db, client)
     user = f.make_user(db)

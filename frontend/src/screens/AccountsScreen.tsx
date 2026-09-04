@@ -217,6 +217,16 @@ export function AccountsScreen() {
             تنزيل PDF
           </a>
         )}
+        {tab === 'boxes' && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <a href="/documents/reports/boxes-balances.xlsx" target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+              تنزيل Excel
+            </a>
+            <a href="/documents/reports/boxes-balances.pdf" target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+              تنزيل PDF
+            </a>
+          </div>
+        )}
       </div>
       <div className="op-tabs" style={{ marginBottom: 12 }}>
         {TABS.map((t) => (

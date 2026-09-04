@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { AutoMatchResponse, PartnerRow, PartnerStatementDetail, PartnerStatementSummary } from '../api/types'
+import type {
+  AutoMatchResponse, PartnerRow, PartnerStatementDetail, PartnerStatementSummary, StatementLineOut,
+} from '../api/types'
 import './ReconciliationScreen.css'
 
 interface NewLine { value_date: string; description: string; amount: string }
@@ -85,33 +87,34 @@ function NewStatementModal({
   )
 }
 
-function ManualMatchRow({
-  statementId, line, onChanged,
-}: { statementId: number; line: PartnerStatementDetail['lines'][number]; onChanged: () => void }) {
-  const [entryId, setEntryId] = useState('')
+function AdjustModal({
+  statementId, line, onClose, onDone,
+}: {
+  statementId: number
+  line: StatementLineOut
+  onClose: () => void
+  onDone: () => void
+}) {
+  const [accountCode, setAccountCode] = useState('')
+  const [currencyCode, setCurrencyCode] = useState('')
+  const [amount, setAmount] = useState(line.amount)
+  const [isDebit, setIsDebit] = useState(true)
+  const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function match() {
-    if (!entryId) return
-    setBusy(true)
-    setError(null)
-    try {
-      await api.patch(`/reconciliation/statements/${statementId}/lines/${line.id}/match`, { entry_id: Number(entryId) })
-      onChanged()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّرت المطابقة')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const reasonOk = reason.trim().length >= 3
 
-  async function resolveWithoutEntry() {
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!reasonOk) return // §٥-١٢: لا تسوية بلا سبب
     setBusy(true)
     setError(null)
     try {
-      await api.patch(`/reconciliation/statements/${statementId}/lines/${line.id}/resolve`, {})
-      onChanged()
+      await api.post(`/reconciliation/statements/${statementId}/lines/${line.id}/adjust`, {
+        account_code: accountCode, currency_code: currencyCode, amount, is_debit: isDebit, reason: reason.trim(),
+      })
+      onDone()
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'تعذّرت التسوية')
     } finally {
@@ -120,13 +123,84 @@ function ManualMatchRow({
   }
 
   return (
-    <div className="op-row" style={{ gap: 6, alignItems: 'center' }}>
+    <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
+      <form className="card new-op-panel" style={{ width: 460 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <h3 className="card-title" style={{ marginBottom: 4 }}>تسوية الفرق بقيد ADJUSTMENT</h3>
+        <div className="text-muted" style={{ fontSize: 12, marginBottom: 14 }}>
+          يُرحَّل قيد تسوية ويُربَط بهذا السطر مباشرة. السبب إلزامي (§٥-١٢).
+        </div>
+        <div className="op-row" style={{ marginBottom: 10 }}>
+          <div className="field" style={{ flex: 1.4 }}>
+            <label className="field-label" htmlFor="adj-acct">حساب المراسل</label>
+            <input id="adj-acct" value={accountCode} onChange={(e) => setAccountCode(e.target.value)} required />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label" htmlFor="adj-ccy">العملة</label>
+            <input id="adj-ccy" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value.toUpperCase())} placeholder="USD" required />
+          </div>
+        </div>
+        <div className="op-row" style={{ marginBottom: 10 }}>
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label" htmlFor="adj-amt">المبلغ</label>
+            <input id="adj-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+          </div>
+          <div className="field" style={{ flex: 1 }}>
+            <label className="field-label" htmlFor="adj-dir">الاتجاه</label>
+            <select id="adj-dir" value={isDebit ? 'debit' : 'credit'} onChange={(e) => setIsDebit(e.target.value === 'debit')}>
+              <option value="debit">زيادة رصيد الحساب</option>
+              <option value="credit">نقص رصيد الحساب</option>
+            </select>
+          </div>
+        </div>
+        <div className="field" style={{ marginBottom: 12 }}>
+          <label className="field-label" htmlFor="adj-reason">السبب (إلزامي)</label>
+          <textarea
+            id="adj-reason" value={reason} onChange={(e) => setReason(e.target.value)} rows={2} required
+            placeholder="مثلاً: فرق مؤكَّد مع الشركة عبر الهاتف — رسوم تحويل لم تُسجَّل"
+          />
+        </div>
+        {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
+        <div className="op-row">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
+          <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !reasonOk}>
+            ترحيل التسوية وربطها
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+function TheirLineActions({
+  statementId, line, onChanged, onAdjust,
+}: { statementId: number; line: StatementLineOut; onChanged: () => void; onAdjust: () => void }) {
+  const [entryId, setEntryId] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function call(fn: () => Promise<unknown>) {
+    setBusy(true)
+    setError(null)
+    try { await fn(); onChanged() } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّرت العملية')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 4 }}>
       <input
         placeholder="رقم القيد" value={entryId} onChange={(e) => setEntryId(e.target.value)}
-        style={{ width: 100 }} inputMode="numeric"
+        style={{ width: 92 }} inputMode="numeric"
       />
-      <button type="button" className="btn-text" disabled={busy || !entryId} onClick={() => void match()}>مطابقة يدوية</button>
-      <button type="button" className="btn-text" disabled={busy} onClick={() => void resolveWithoutEntry()}>تسوية بلا قيد</button>
+      <button type="button" className="btn-text" disabled={busy || !entryId}
+        onClick={() => void call(() => api.patch(`/reconciliation/statements/${statementId}/lines/${line.id}/match`, { entry_id: Number(entryId) }))}>
+        مطابقة يدوية
+      </button>
+      <button type="button" className="btn-text" disabled={busy} onClick={onAdjust}>تسوية بقيد ADJUSTMENT</button>
+      <button type="button" className="btn-text" disabled={busy}
+        onClick={() => void call(() => api.patch(`/reconciliation/statements/${statementId}/lines/${line.id}/resolve`, {}))}>
+        تسوية بلا قيد
+      </button>
       {error && <span style={{ color: 'var(--red-600, #dc2626)', fontSize: 12 }}>{error}</span>}
     </div>
   )
@@ -135,10 +209,10 @@ function ManualMatchRow({
 function StatementDetailView({ statementId, onBack }: { statementId: number; onBack: () => void }) {
   const [detail, setDetail] = useState<PartnerStatementDetail | null>(null)
   const [matching, setMatching] = useState(false)
+  const [adjustLine, setAdjustLine] = useState<StatementLineOut | null>(null)
 
   async function reload() {
-    const d = await api.get<PartnerStatementDetail>(`/reconciliation/statements/${statementId}`)
-    setDetail(d)
+    setDetail(await api.get<PartnerStatementDetail>(`/reconciliation/statements/${statementId}`))
   }
 
   useEffect(() => { void reload() }, [statementId])
@@ -146,8 +220,8 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
   async function runAutoMatch() {
     setMatching(true)
     try {
-      const result = await api.post<AutoMatchResponse>(`/reconciliation/statements/${statementId}/auto-match`)
-      setDetail(result.statement)
+      await api.post<AutoMatchResponse>(`/reconciliation/statements/${statementId}/auto-match`)
+      await reload()
     } finally {
       setMatching(false)
     }
@@ -157,7 +231,7 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
 
   return (
     <div className="card">
-      <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
           <button type="button" className="btn-text" onClick={onBack}>← رجوع للكشوفات</button>
           <div className="card-title" style={{ marginTop: 8 }}>{detail.partner_name_ar}</div>
@@ -167,21 +241,70 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
           {matching ? '...جارٍ المطابقة' : 'مطابقة تلقائية'}
         </button>
       </div>
-      <table className="data-table">
-        <thead><tr><th>التاريخ</th><th>الوصف</th><th>المبلغ</th><th>الحالة</th><th>القيد المطابق</th><th></th></tr></thead>
-        <tbody>
-          {detail.lines.map((l) => (
-            <tr key={l.id}>
-              <td className="num">{l.value_date}</td>
-              <td>{l.description ?? '—'}</td>
-              <td className="num" style={{ fontWeight: 600 }}>{l.amount}</td>
-              <td><span className={`badge ${l.status === 'RESOLVED' ? 'badge-status-posted' : 'badge-status-reversed'}`}>{l.status === 'RESOLVED' ? 'مُسوَّى' : 'مفتوح'}</span></td>
-              <td className="num text-muted">{l.matched_entry_no ?? '—'}</td>
-              <td>{l.status === 'OPEN' && <ManualMatchRow statementId={statementId} line={l} onChanged={() => void reload()} />}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      {(detail.unmatched_line_count > 0 || detail.unmatched_entry_count > 0) && (
+        <div className="alert alert-warning recon-diff-banner" style={{ marginBottom: 14 }}>
+          فروق غير مسوّاة:
+          {detail.unmatched_line_count > 0 && <> <b>{detail.unmatched_line_count}</b> في كشفهم بلا قيد عندك ·</>}
+          {detail.unmatched_entry_count > 0 && (
+            <> <b className="recon-danger">{detail.unmatched_entry_count}</b> قيد عندك بلا سطر في كشفهم
+              <span className="text-muted"> (سجّلتها ولم ينفّذوها)</span></>
+          )}
+        </div>
+      )}
+
+      <div className="recon-side-by-side">
+        <div className="recon-col">
+          <div className="recon-col-head">كشف المراسل ({detail.lines.length})</div>
+          <table className="data-table">
+            <thead><tr><th>التاريخ</th><th>الوصف</th><th>المبلغ</th><th>الحالة</th></tr></thead>
+            <tbody>
+              {detail.lines.map((l) => (
+                <tr key={l.id} className={l.status === 'OPEN' ? 'recon-open' : ''}>
+                  <td className="num">{l.value_date}</td>
+                  <td>
+                    {l.description ?? '—'}
+                    {l.status === 'OPEN' && (
+                      <TheirLineActions statementId={statementId} line={l}
+                        onChanged={() => void reload()} onAdjust={() => setAdjustLine(l)} />
+                    )}
+                    {l.matched_entry_no && <div className="text-muted" style={{ fontSize: 11 }}>↔ {l.matched_entry_no}</div>}
+                  </td>
+                  <td className="num" style={{ fontWeight: 600 }}>{l.amount}</td>
+                  <td><span className={`badge ${l.status === 'RESOLVED' ? 'badge-status-posted' : 'badge-status-reversed'}`}>{l.status === 'RESOLVED' ? 'مُسوَّى' : 'مفتوح'}</span></td>
+                </tr>
+              ))}
+              {detail.lines.length === 0 && <tr><td colSpan={4} className="text-muted">لا بنود</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="recon-col">
+          <div className="recon-col-head">دفترك — حركة حساب المراسل ({detail.your_entries.length})</div>
+          <table className="data-table">
+            <thead><tr><th>التاريخ</th><th>القيد</th><th>النوع</th><th>الأثر</th></tr></thead>
+            <tbody>
+              {detail.your_entries.map((e) => (
+                <tr key={e.entry_id} className={e.matched_line_id === null ? 'recon-danger-row' : ''}>
+                  <td className="num">{e.entry_date}</td>
+                  <td className="num">{e.entry_no}</td>
+                  <td>{e.operation_type}{e.matched_line_id === null && <div className="recon-danger" style={{ fontSize: 11 }}>لم ينفّذوها بعد</div>}</td>
+                  <td className="num" style={{ fontWeight: 600 }}>{e.amount}</td>
+                </tr>
+              ))}
+              {detail.your_entries.length === 0 && <tr><td colSpan={4} className="text-muted">لا حركة في دفترك لهذا المراسل ضمن الفترة</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {adjustLine && (
+        <AdjustModal
+          statementId={statementId} line={adjustLine}
+          onClose={() => setAdjustLine(null)}
+          onDone={() => { setAdjustLine(null); void reload() }}
+        />
+      )}
     </div>
   )
 }
