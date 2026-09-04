@@ -20,6 +20,9 @@ body {
 body { width: 74mm; font-size: 11px; }
 {% elif doc_size == "png" %}
 body { width: {{ png_width or 720 }}px; padding: 0; }
+{% elif landscape %}
+@page { size: A4 landscape; margin: 12mm 14mm; }
+body { font-size: 12.5px; }
 {% else %}
 @page { size: A4; margin: 14mm 16mm; }
 body { font-size: 13px; }

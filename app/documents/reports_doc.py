@@ -206,6 +206,7 @@ def build_liquidity_position_context(db: OrmSession, *, doc_size: str, now: date
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
         "doc_size": doc_size, "doc_title": "مركز السيولة", "doc_subtitle": None, "qr_data_uri": None,
+        "landscape": True,  # §٨: "PDF A4 أفقي" — تقرير عريض (عملة×موقع×٣ أعمدة)
         "columns": ["العملة", "الموقع", "الأصول", "الالتزامات", "الصافي"],
         "rows": [
             [r.currency_code, r.location_name_ar, format_amount(r.assets, r.currency_code, dec),
@@ -213,5 +214,24 @@ def build_liquidity_position_context(db: OrmSession, *, doc_size: str, now: date
             for r in rows
         ],
         "summary": None,
+    })
+    return ctx
+
+
+def build_boxes_balances_context(db: OrmSession, *, doc_size: str, now: datetime, work_timezone: str) -> dict:
+    """§٨ "كشف أرصدة الصناديق" — أبناء ١١٠٠ (نقدي/مصرفي محلي في ليبيا)."""
+    from app.routers.dashboard import accounts_boxes
+
+    body = accounts_boxes(db)
+    dec = currency_decimals_map(db)
+    ctx = base_context(db, now=now, work_timezone=work_timezone)
+    ctx.update({
+        "doc_size": doc_size, "doc_title": "أرصدة الصناديق", "doc_subtitle": None, "qr_data_uri": None,
+        "columns": ["الكود", "الصندوق", "العملة", "الرصيد"],
+        "rows": [
+            [a.code, a.name_ar, a.currency_code, format_amount(a.balance, a.currency_code, dec)]
+            for a in body.accounts
+        ],
+        "summary": [_amounts_summary_item("الإجمالي", body.totals, dec)],
     })
     return ctx

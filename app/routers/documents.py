@@ -22,6 +22,7 @@ from app.documents import statement as statement_doc
 from app.documents.jinja import render_template
 from app.documents.qr import qr_data_uri
 from app.documents.render import render_pdf, render_png
+from app.documents.xlsx import XLSX_MEDIA_TYPE, report_to_xlsx, statement_to_xlsx
 from app.engine.clock import system_clock
 from app.security.deps import require_password_changed, require_role
 from app.security.permissions import Action
@@ -37,7 +38,16 @@ _REPORT_BUILDERS = {
     "lot-profitability": reports_doc.build_lot_profitability_context,
     "liquidity-position": reports_doc.build_liquidity_position_context,
     "correspondent-balances": reports_doc.build_correspondent_balances_context,
+    "boxes-balances": reports_doc.build_boxes_balances_context,
 }
+
+# §٨ — التقارير التي تنص الوثيقة على صيغة Excel لها (جدول §٨ حرفياً:
+# تجاوزات الرصيد/قيود الطوارئ "PDF" فقط · بطاقة أرصدة المراسلين "PNG·PDF"
+# · كشف أرصدة الصناديق "PDF·Excel").
+_EXCEL_REPORT_KEYS = frozenset({
+    "trial-balance", "founding-reconciliation", "monthly-profit",
+    "lot-profitability", "liquidity-position", "boxes-balances",
+})
 
 
 def _verify_qr(entry_no: str) -> str:
@@ -70,16 +80,30 @@ def receipt_png(entry_id: int, db: OrmSession = Depends(get_db)) -> Response:
     return Response(content=png_bytes, media_type="image/png")
 
 
+def _balance_card_html(db: OrmSession, client_id: int, *, for_pdf: bool = False):
+    now = system_clock()
+    ctx = balance_card_doc.build_balance_card_context(db, client_id=client_id, now=now, work_timezone=settings.work_timezone)
+    ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
+    ctx["for_pdf"] = for_pdf
+    return render_template("balance_card.html", **ctx)
+
+
 @router.get("/balance-card/{client_id}.png", dependencies=[Depends(require_role(Action.POST_ENTRY))])
 def balance_card_png(client_id: int, db: OrmSession = Depends(get_db)) -> Response:
     # §٩ المرحلة ١٢: بطاقة رصيد عميل (تُشارَك عبر واتساب) — نفس حاجز
     # POST_ENTRY لبقية بيانات العميل المالية
-    now = system_clock()
-    ctx = balance_card_doc.build_balance_card_context(db, client_id=client_id, now=now, work_timezone=settings.work_timezone)
-    ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
-    html = render_template("balance_card.html", **ctx)
-    png_bytes = render_png(html, width=balance_card_doc.WHATSAPP_CARD_SIZE, height=balance_card_doc.WHATSAPP_CARD_SIZE)
+    png_bytes = render_png(
+        _balance_card_html(db, client_id),
+        width=balance_card_doc.WHATSAPP_CARD_SIZE, height=balance_card_doc.WHATSAPP_CARD_SIZE,
+    )
     return Response(content=png_bytes, media_type="image/png")
+
+
+@router.get("/balance-card/{client_id}.pdf", dependencies=[Depends(require_role(Action.POST_ENTRY))])
+def balance_card_pdf(client_id: int, db: OrmSession = Depends(get_db)) -> Response:
+    """§٨: بطاقة رصيد عميل — صيغة PDF بجانب PNG (نفس القالب)."""
+    pdf_bytes = render_pdf(_balance_card_html(db, client_id, for_pdf=True))
+    return Response(content=pdf_bytes, media_type="application/pdf")
 
 
 @router.get("/statement/client/{client_id}.pdf", dependencies=[Depends(require_role(Action.POST_ENTRY))])
@@ -98,6 +122,21 @@ def client_statement_pdf(
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 
+@router.get(
+    "/statement/client/{client_id}.xlsx", dependencies=[Depends(require_role(Action.POST_ENTRY))],
+)
+def client_statement_xlsx(
+    client_id: int, currency: str, location: str,
+    date_from: Optional[date] = None, date_to: Optional[date] = None, db: OrmSession = Depends(get_db),
+) -> Response:
+    """§٨: كشف حساب عميل — Excel (نفس دالة السياق التي تُغذّي PDF)."""
+    ctx = statement_doc.build_client_statement_context(
+        db, client_id=client_id, currency=currency, location=location, doc_size="a4",
+        date_from=date_from, date_to=date_to, now=system_clock(), work_timezone=settings.work_timezone,
+    )
+    return Response(content=statement_to_xlsx(ctx), media_type=XLSX_MEDIA_TYPE)
+
+
 @router.get("/statement/account/{account_code}.pdf")
 def account_statement_pdf(
     account_code: str, date_from: Optional[date] = None, date_to: Optional[date] = None,
@@ -113,6 +152,19 @@ def account_statement_pdf(
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 
+@router.get("/statement/account/{account_code}.xlsx")
+def account_statement_xlsx(
+    account_code: str, date_from: Optional[date] = None, date_to: Optional[date] = None,
+    db: OrmSession = Depends(get_db),
+) -> Response:
+    """§٨: كشف حساب أساسي (داخلي) — Excel."""
+    ctx = statement_doc.build_account_statement_context(
+        db, account_code=account_code, doc_size="a4", date_from=date_from, date_to=date_to,
+        now=system_clock(), work_timezone=settings.work_timezone,
+    )
+    return Response(content=statement_to_xlsx(ctx), media_type=XLSX_MEDIA_TYPE)
+
+
 @router.get("/chain-summary/{chain_ref}.pdf")
 def chain_summary_pdf(
     chain_ref: str, size: str = Query(default="a4", pattern="^(a4|thermal)$"), db: OrmSession = Depends(get_db),
@@ -124,6 +176,16 @@ def chain_summary_pdf(
     html = render_template("report_table.html", **ctx)
     pdf_bytes = render_pdf(html)
     return Response(content=pdf_bytes, media_type="application/pdf")
+
+
+@router.get("/chain-summary/{chain_ref}.png")
+def chain_summary_png(chain_ref: str, db: OrmSession = Depends(get_db)) -> Response:
+    """§٨: ملخص سلسلة CHN — صيغة PNG بجانب PDF."""
+    ctx = reports_doc.build_chain_summary_context(
+        db, chain_ref=chain_ref, doc_size="png", now=system_clock(), work_timezone=settings.work_timezone,
+    )
+    png_bytes = render_png(render_template("report_table.html", **ctx), width=900)
+    return Response(content=png_bytes, media_type="image/png")
 
 
 def _report_builder_or_404(report_key: str):
@@ -153,3 +215,13 @@ def report_png(report_key: str, db: OrmSession = Depends(get_db)) -> Response:
     html = render_template("report_table.html", **ctx)
     png_bytes = render_png(html, width=900)
     return Response(content=png_bytes, media_type="image/png")
+
+
+@router.get("/reports/{report_key}.xlsx")
+def report_xlsx(report_key: str, db: OrmSession = Depends(get_db)) -> Response:
+    """§٨: تصدير Excel للتقارير التي تنص الوثيقة على ذلك (`_EXCEL_REPORT_KEYS`)."""
+    if report_key not in _EXCEL_REPORT_KEYS:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا صيغة Excel للتقرير {report_key}")
+    builder = _report_builder_or_404(report_key)
+    ctx = builder(db, doc_size="a4", now=system_clock(), work_timezone=settings.work_timezone)
+    return Response(content=report_to_xlsx(ctx), media_type=XLSX_MEDIA_TYPE)
