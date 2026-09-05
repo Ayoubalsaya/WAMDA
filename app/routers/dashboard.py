@@ -231,6 +231,38 @@ def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int
             message_ar=f"{len(draft_count)} قيد بحالة مسودة لم يُرحَّل — يستحق فحصاً فورياً",
         ))
 
+    # ٤-ب) فروق مطابقة غير مسوّاة لدى مراسل (§٧-٩) — رصيدك لدى الشركات
+    # التركية هو المال الوحيد الذي ليس في يدك؛ فرق يبقى في شاشة المطابقة
+    # وحدها كأنه غير موجود. الاتجاهان: سطر كشفهم بلا قيدك · قيدك بلا
+    # سطرهم (الأخير أخطر — مالٌ تظنّه خرج ولم يخرج).
+    from app.engine import reconciliation as _recon
+    from app.models import Partner as _Partner, PartnerStatement as _Stmt
+
+    statements = db.execute(select(_Stmt)).scalars().all()
+    if statements:
+        partner_names = {
+            p.id: p.name_ar
+            for p in db.execute(select(_Partner).where(_Partner.id.in_({s.partner_id for s in statements}))).scalars().all()
+        }
+        diff_by_partner: dict[int, tuple[int, int]] = defaultdict(lambda: (0, 0))
+        for s in statements:
+            d = _recon.statement_diff(db, s)
+            prev = diff_by_partner[s.partner_id]
+            diff_by_partner[s.partner_id] = (prev[0] + d.unmatched_statement_lines, prev[1] + d.unmatched_ledger_entries)
+        for pid, (their_side, your_side) in diff_by_partner.items():
+            if their_side + your_side == 0:
+                continue
+            name = partner_names.get(pid, str(pid))
+            parts = []
+            if their_side:
+                parts.append(f"{their_side} في كشفهم بلا قيد عندك")
+            if your_side:
+                parts.append(f"{your_side} قيد عندك بلا سطر في كشفهم")
+            alerts.append(AlertRow(
+                severity="warning", code="reconciliation_difference",
+                message_ar=f"فروق مطابقة غير مسوّاة لدى {name}: " + " · ".join(parts),
+            ))
+
     # ٥) رصيد ٣٩٠٠ غير صفري — فروق تأسيسية تحت المصالحة.
     # ملاحظة: حسابات ٣٩٠٠ الفرعية لكل عملة تُرقَّم تسلسلياً (٣٩٠١، ٣٩٠٢...)
     # لا بادئة نصية "3900" — المطابقة عبر parent_id لا startswith.

@@ -80,6 +80,9 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /documents/receipt/{entry_id}.pdf": STAFF,
     "GET /documents/receipt/{entry_id}.png": STAFF,
     "GET /documents/statement/account/{account_code}.pdf": STAFF,  # حساب داخلي لا عميل
+    "GET /documents/statement/account/{account_code}.xlsx": STAFF,
+    "GET /documents/chain-summary/{chain_ref}.png": STAFF,
+    "GET /documents/reports/{report_key}.xlsx": STAFF,
     "GET /documents/chain-summary/{chain_ref}.pdf": STAFF,
     "GET /documents/reports/{report_key}.pdf": STAFF,
     "GET /documents/reports/{report_key}.png": STAFF,
@@ -101,7 +104,9 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /clients/{client_id}/beneficiaries": POST_ENTRY,
     "GET /clients/{client_id}/beneficiaries-full": POST_ENTRY,
     "GET /documents/balance-card/{client_id}.png": POST_ENTRY,
+    "GET /documents/balance-card/{client_id}.pdf": POST_ENTRY,
     "GET /documents/statement/client/{client_id}.pdf": POST_ENTRY,
+    "GET /documents/statement/client/{client_id}.xlsx": POST_ENTRY,
     "POST /clients/{client_id}/beneficiaries": POST_ENTRY,
     "GET /clients/{client_id}/statement": POST_ENTRY,
     "PATCH /beneficiaries/{beneficiary_id}": POST_ENTRY,
@@ -140,6 +145,7 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /reconciliation/statements/{statement_id}/auto-match": ADMIN,
     "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/match": ADMIN,
     "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/resolve": ADMIN,
+    "POST /reconciliation/statements/{statement_id}/lines/{line_id}/adjust": ADMIN,
     # بوابة العميل فقط
     "GET /portal/me": PORTAL,
     "POST /portal/logout": PORTAL,
@@ -265,7 +271,9 @@ def test_client_financial_reads_all_require_post_entry():
         "/clients/{client_id}/beneficiaries-full",
         "/clients/{client_id}/statement",
         "/documents/balance-card/{client_id}.png",
+        "/documents/balance-card/{client_id}.pdf",
         "/documents/statement/client/{client_id}.pdf",
+        "/documents/statement/client/{client_id}.xlsx",
     ):
         assert _A.POST_ENTRY in _route_required_actions(path, "GET"), (
             f"{path} لا يفرض POST_ENTRY صراحةً"

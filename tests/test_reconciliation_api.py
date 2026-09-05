@@ -159,3 +159,116 @@ def test_unknown_statement_404(db, client):
     _login(db, client)
     resp = client.get("/reconciliation/statements/999999999")
     assert resp.status_code == 404
+
+
+# ── §٧-٩ المرحلة ١٣: العرض جنباً إلى جنب (الاتجاهان) + التسوية بـADJUSTMENT ──
+
+
+def test_detail_shows_both_directions_of_difference(db, client, now):
+    """المطابقة تكشف حالتين: سطر كشفهم بلا قيدك · قيدك بلا سطرهم (أخطر)."""
+    user = _login(db, client)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    funder = f.make_client(db)
+    # قيد عندك يمسّ حساب المراسل — لن يكون له سطر في كشفهم
+    your_entry = f.fund_client(
+        db, client=funder, currency_code="USD", location_code="TURKEY", amount=Decimal("777.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    # كشفهم فيه سطر لا مقابل له عندك
+    stmt = client.post(
+        "/reconciliation/statements",
+        json={"partner_id": partner_acct.partner_id, "period_from": now.date().isoformat(),
+              "period_to": now.date().isoformat(),
+              "lines": [{"value_date": now.date().isoformat(), "description": "سجّلوها ولم تسجّلها", "amount": "12.34"}]},
+        headers=_headers(client),
+    ).json()
+
+    detail = client.get(f"/reconciliation/statements/{stmt['id']}").json()
+    # جانبهم: سطر مفتوح
+    assert detail["unmatched_line_count"] == 1
+    # جانبك: قيدك ظاهر وغير مطابق لأي سطر
+    your = [e for e in detail["your_entries"] if e["entry_id"] == your_entry.id]
+    assert len(your) == 1
+    assert your[0]["matched_line_id"] is None
+    assert detail["unmatched_entry_count"] >= 1
+
+
+def test_adjust_line_requires_reason(db, client, now):
+    _login(db, client)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    stmt = client.post(
+        "/reconciliation/statements",
+        json={"partner_id": partner_acct.partner_id, "period_from": now.date().isoformat(),
+              "period_to": now.date().isoformat(),
+              "lines": [{"value_date": now.date().isoformat(), "description": "فرق", "amount": "50.00"}]},
+        headers=_headers(client),
+    ).json()
+    line_id = stmt["lines"][0]["id"]
+
+    r = client.post(
+        f"/reconciliation/statements/{stmt['id']}/lines/{line_id}/adjust",
+        json={"account_code": partner_acct.code, "currency_code": "USD", "amount": "50.00", "is_debit": True, "reason": ""},
+        headers=_headers(client),
+    )
+    assert r.status_code == 422  # §٥-١٢: لا تسوية بلا سبب
+
+
+def test_adjust_line_posts_linked_adjustment_and_resolves(db, client, now):
+    user = _login(db, client)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    stmt = client.post(
+        "/reconciliation/statements",
+        json={"partner_id": partner_acct.partner_id, "period_from": now.date().isoformat(),
+              "period_to": now.date().isoformat(),
+              "lines": [{"value_date": now.date().isoformat(), "description": "فرق جرد", "amount": "50.00"}]},
+        headers=_headers(client),
+    ).json()
+    line_id = stmt["lines"][0]["id"]
+
+    r = client.post(
+        f"/reconciliation/statements/{stmt['id']}/lines/{line_id}/adjust",
+        json={"account_code": partner_acct.code, "currency_code": "USD", "amount": "50.00",
+              "is_debit": True, "reason": "فرق مؤكَّد مع الشركة عبر الهاتف"},
+        headers=_headers(client),
+    )
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "RESOLVED"
+    assert body["matched_entry_id"] is not None
+
+    from app.models import JournalEntry
+    from app.models.enums import OperationType
+
+    entry = db.get(JournalEntry, body["matched_entry_id"])
+    assert entry.operation_type == OperationType.ADJUSTMENT
+    assert entry.description == "فرق مؤكَّد مع الشركة عبر الهاتف"
+
+    # تسوية سطر مُسوّى مسبقاً مرفوضة
+    again = client.post(
+        f"/reconciliation/statements/{stmt['id']}/lines/{line_id}/adjust",
+        json={"account_code": partner_acct.code, "currency_code": "USD", "amount": "50.00",
+              "is_debit": True, "reason": "محاولة ثانية"},
+        headers=_headers(client),
+    )
+    assert again.status_code == 409
+
+
+def test_adjust_line_rejects_account_of_other_partner(db, client, now):
+    _login(db, client)
+    partner_a = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    partner_b = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    stmt = client.post(
+        "/reconciliation/statements",
+        json={"partner_id": partner_a.partner_id, "period_from": now.date().isoformat(),
+              "period_to": now.date().isoformat(),
+              "lines": [{"value_date": now.date().isoformat(), "description": "فرق", "amount": "50.00"}]},
+        headers=_headers(client),
+    ).json()
+    line_id = stmt["lines"][0]["id"]
+    r = client.post(
+        f"/reconciliation/statements/{stmt['id']}/lines/{line_id}/adjust",
+        json={"account_code": partner_b.code, "currency_code": "USD", "amount": "50.00",
+              "is_debit": True, "reason": "حساب مراسل آخر"},
+        headers=_headers(client),
+    )
+    assert r.status_code == 422

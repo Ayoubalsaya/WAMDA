@@ -398,20 +398,35 @@ const PDF_EXPORT_KEYS: Partial<Record<ReportId, string>> = {
   'lot-profitability': 'lot-profitability',
 }
 
+// §٨ — التقارير التي تنص الوثيقة على صيغة Excel لها (المرحلة ١٣)
+const EXCEL_EXPORT_KEYS: Partial<Record<ReportId, string>> = {
+  'trial-balance': 'trial-balance',
+  'founding-reconciliation': 'founding-reconciliation',
+  'lot-profitability': 'lot-profitability',
+}
+
 export function ReportsScreen() {
   const [report, setReport] = useState<ReportId>('debts')
   const { currencies } = useReferenceData()
   const exportKey = PDF_EXPORT_KEYS[report]
+  const excelKey = EXCEL_EXPORT_KEYS[report]
 
   return (
     <div className="journal-screen reports-screen">
       <div className="op-row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
         <h2 className="screen-title" style={{ margin: 0 }}>التقارير</h2>
-        {exportKey && (
-          <a href={`/documents/reports/${exportKey}.pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
-            تنزيل PDF
-          </a>
-        )}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {excelKey && (
+            <a href={`/documents/reports/${excelKey}.xlsx`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+              تنزيل Excel
+            </a>
+          )}
+          {exportKey && (
+            <a href={`/documents/reports/${exportKey}.pdf`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">
+              تنزيل PDF
+            </a>
+          )}
+        </div>
       </div>
       <div className="reports-layout">
         <div className="reports-nav">

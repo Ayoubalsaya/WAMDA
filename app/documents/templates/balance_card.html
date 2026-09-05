@@ -5,6 +5,7 @@
 <title>بطاقة رصيد</title>
 <style>
 {{ font_css | safe }}
+{% if for_pdf %}@page { size: 1080px 1080px; margin: 0; }{% endif %}
 * { box-sizing: border-box; }
 body {
   margin: 0; width: 1080px; height: 1080px; overflow: hidden;

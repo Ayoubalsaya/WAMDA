@@ -429,6 +429,16 @@ export interface PartnerStatementSummary {
   open_lines: number
 }
 
+export interface YourLedgerEntry {
+  entry_id: number
+  entry_no: string
+  entry_date: string
+  operation_type: string
+  description: string | null
+  amount: string
+  matched_line_id: number | null // null = سجّلتها ولم ينفّذوها (أخطر)
+}
+
 export interface PartnerStatementDetail {
   id: number
   partner_id: number
@@ -437,6 +447,9 @@ export interface PartnerStatementDetail {
   period_to: string
   imported_at: string
   lines: StatementLineOut[]
+  your_entries: YourLedgerEntry[]
+  unmatched_line_count: number
+  unmatched_entry_count: number
 }
 
 export interface AutoMatchResponse {
