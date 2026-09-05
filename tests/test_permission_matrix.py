@@ -133,6 +133,7 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /operations/adjustment": ADMIN,
     "POST /partners": ADMIN,
     "POST /partners/{partner_id}/accounts": ADMIN,
+    "GET /periods/opening-balances": ADMIN,
     "POST /periods/close": ADMIN,
     "POST /periods/reopen": ADMIN,
     "POST /periods/founding/close": ADMIN,

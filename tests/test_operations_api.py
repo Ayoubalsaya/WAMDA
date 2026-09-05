@@ -370,6 +370,38 @@ def test_opening_by_admin_succeeds(db, client):
     assert resp.status_code == 201, resp.text
 
 
+def test_opening_for_client_creates_account_lazily(db, client):
+    """§١٤ — رصيد افتتاحي لعميل: يمرَّر client_id + location_code، وحساب
+    2100-... يُنشَأ كسولاً (لم يكن قابلاً للإدخال عبر account_code وحده)."""
+    _login(db, client, role="ADMIN")
+    c = f.make_client(db, name="عميل رصيد افتتاحي")
+    resp = client.post(
+        "/operations/opening",
+        json={"client_id": c.id, "location_code": "TRIPOLI", "currency_code": "LYD",
+              "amount": "50000.000", "is_debit": True, "as_of_date": "2026-01-01",
+              "source_type": "RECONSTRUCTED", "confidence": "LOW", "source_note": "عميل مدين"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    from app.engine import accounts_repo
+    acct = accounts_repo.get_or_create_client_account(db, client=c, currency_code="LYD", location_code="TRIPOLI")
+    ob = client.get("/periods/opening-balances").json()
+    assert any(r["account_code"] == acct.code and r["contra_account_code"].startswith("39") for r in ob)
+
+
+def test_opening_rejects_both_account_and_client(db, client):
+    _login(db, client, role="ADMIN")
+    c = f.make_client(db, name="عميل تعارض")
+    resp = client.post(
+        "/operations/opening",
+        json={"account_code": "1101", "client_id": c.id, "location_code": "TRIPOLI", "currency_code": "LYD",
+              "amount": "1.000", "is_debit": True, "as_of_date": "2026-01-01",
+              "source_type": "VERIFIED", "confidence": "HIGH"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 422
+
+
 def test_adjustment_requires_admin_role(db, client):
     _login(db, client, role="ACCOUNTANT")
     resp = client.post(

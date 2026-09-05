@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -35,3 +35,18 @@ class FoundingPeriodStatus(BaseModel):
 
 class CloseFoundingPeriodRequest(BaseModel):
     acknowledged_remaining_suspense: bool = False
+
+
+class OpeningBalanceRow(BaseModel):
+    """سطر رصيد افتتاحي مُدخَل — لمراجعة التشغيل المتوازي (المرحلة ١٤)."""
+    id: int
+    account_code: str
+    account_name_ar: str
+    currency_code: str
+    amount: str
+    as_of_date: date
+    source_type: str      # VERIFIED · RECONSTRUCTED · KNOWN_BALANCE · ADJUSTMENT
+    confidence: str        # HIGH · MEDIUM · LOW
+    source_note: Optional[str] = None
+    contra_account_code: str  # ٣١٠٠.x (ثقة عالية) أو ٣٩٠٠.x (فروق تأسيسية)
+    approved_by_username: Optional[str] = None

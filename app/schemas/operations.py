@@ -12,7 +12,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.enums import ConfidenceLevel, OpeningSourceType
 
@@ -182,7 +182,12 @@ class ExpenseRequest(BaseModel):
 
 
 class OpeningRequest(BaseModel):
-    account_code: str
+    """رصيد افتتاحي — إمّا لحساب نظامي (`account_code`) أو لحساب عميل
+    (`client_id` + `location_code`، يُنشَأ كسولاً إن لم يوجد). أحدهما
+    فقط، لا كلاهما."""
+    account_code: Optional[str] = None
+    client_id: Optional[int] = None
+    location_code: Optional[str] = None
     currency_code: str
     amount: Decimal = Field(gt=0)
     is_debit: bool
@@ -190,6 +195,14 @@ class OpeningRequest(BaseModel):
     source_type: OpeningSourceType
     confidence: ConfidenceLevel
     source_note: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_target(self):
+        if bool(self.account_code) == bool(self.client_id):
+            raise ValueError("مرّر account_code أو client_id (مع location_code)، لا كليهما ولا أياً منهما")
+        if self.client_id and not self.location_code:
+            raise ValueError("رصيد افتتاحي لعميل يتطلب location_code")
+        return self
 
 
 class AdjustmentRequest(BaseModel):

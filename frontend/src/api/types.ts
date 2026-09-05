@@ -510,6 +510,21 @@ export interface FoundingPeriodStatus {
   suspense_balance_by_currency: Record<string, string>
 }
 
+// §١٤ التشغيل المتوازي — الأرصدة الافتتاحية المُدخَلة
+export interface OpeningBalanceRow {
+  id: number
+  account_code: string
+  account_name_ar: string
+  currency_code: string
+  amount: string
+  as_of_date: string
+  source_type: string
+  confidence: string
+  source_note: string | null
+  contra_account_code: string
+  approved_by_username: string | null
+}
+
 // §٩ المرحلة ١١ — سجل التدقيق
 export interface AuditLogRow {
   id: number

@@ -436,8 +436,15 @@ def create_opening(
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
     now = system_clock()
+    if payload.client_id is not None:
+        client = _get_client(db, payload.client_id)
+        target_code = get_or_create_client_account(
+            db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
+        ).code
+    else:
+        target_code = payload.account_code
     entry = _run(lambda: opening_op.execute(
-        db, account_code=payload.account_code, currency_code=payload.currency_code, amount=payload.amount,
+        db, account_code=target_code, currency_code=payload.currency_code, amount=payload.amount,
         is_debit=payload.is_debit, as_of_date=payload.as_of_date, source_type=payload.source_type,
         confidence=payload.confidence, approved_by=current_user.id, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, source_note=payload.source_note,
