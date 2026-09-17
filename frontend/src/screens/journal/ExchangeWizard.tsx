@@ -31,6 +31,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [step2Cost, setStep2Cost] = useState('')
   const [step2Client, setStep2Client] = useState('')
   const [step2Reason, setStep2Reason] = useState('')
+  const [note, setNote] = useState('')
 
   const step1FromLocations = useMemo(() => locationsForCurrency(fromCurrency), [fromCurrency, locationsForCurrency])
   const step1ToLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
@@ -69,6 +70,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
           to_currency: toCurrency, to_location_code: step2ToLocation, cost_rate: step2Cost,
           client_rate: step2Client, negative_margin_reason: step2Reason || undefined,
         },
+        note: note || undefined,
       }, idemKey)
       setResult(res)
       onPosted(res)
@@ -194,6 +196,10 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step2Reason} onChange={(e) => setStep2Reason(e.target.value)} /></div>
             )}
+            <div className="field">
+              <label className="field-label" htmlFor="chain-note">ملاحظة (اختياري)</label>
+              <textarea id="chain-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
+            </div>
             {error && <div className="alert alert-critical">{error}</div>}
             {result ? (
               <>

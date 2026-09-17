@@ -12,8 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings as app_settings
 from app.documents import render as doc_render
 from app.routers import (
-    audit, auth, clients, dashboard, documents, operations, partners, periods, portal, reconciliation, reference,
-    reports, search, settings, users,
+    audit, auth, clients, dashboard, documents, entry_actions, operations, partners, periods, portal, reconciliation,
+    reference, reports, search, settings, users,
 )
 from app.security import csrf
 
@@ -80,6 +80,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(operations.router)
+app.include_router(entry_actions.router)
 app.include_router(reference.router)
 app.include_router(clients.router)
 app.include_router(dashboard.router)

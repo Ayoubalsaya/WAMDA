@@ -12,9 +12,14 @@
   </div>
 </div>
 
+{% set col_count = 9 if show_cost_rate else 8 %}
 <table class="doc-table">
   <thead>
-    <tr><th>التاريخ</th><th>رقم القيد</th><th>النوع</th><th>الوصف</th><th>مدين</th><th>دائن</th><th>الرصيد</th></tr>
+    <tr>
+      <th>التاريخ</th><th>رقم القيد</th><th>النوع</th><th>الوصف</th><th>السعر</th>
+      {% if show_cost_rate %}<th>سعر التكلفة</th>{% endif %}
+      <th>مدين</th><th>دائن</th><th>الرصيد</th>
+    </tr>
   </thead>
   <tbody>
     {% for r in rows %}
@@ -22,14 +27,16 @@
       <td class="num">{{ r.entry_date }}</td>
       <td class="num">{{ r.entry_no }}</td>
       <td>{{ r.operation_type }}</td>
-      <td>{{ r.description or "—" }}</td>
+      <td>{{ r.description or "—" }}{% if r.note %}<br><span style="color:#8a9aa1;font-size:11px;">{{ r.note }}</span>{% endif %}</td>
+      <td class="num">{{ r.client_rate or "—" }}</td>
+      {% if show_cost_rate %}<td class="num">{{ r.cost_rate or "—" }}</td>{% endif %}
       <td class="num">{{ r.debit }}</td>
       <td class="num">{{ r.credit }}</td>
       <td class="num" style="font-weight:700;">{{ r.running }}</td>
     </tr>
     {% endfor %}
     {% if rows|length == 0 %}
-    <tr><td colspan="7" style="text-align:center;color:#8a9aa1;">لا حركة في هذه الفترة</td></tr>
+    <tr><td colspan="{{ col_count }}" style="text-align:center;color:#8a9aa1;">لا حركة في هذه الفترة</td></tr>
     {% endif %}
   </tbody>
 </table>

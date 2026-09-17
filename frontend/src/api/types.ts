@@ -80,11 +80,41 @@ export interface JournalEntryOut {
   operation_type: string
   status: string
   description: string | null
+  note: string | null
+  replaces_entry_id: number | null
   client_name_ar: string | null
   profit_amount: string | null
   profit_currency: string | null
   chain_ref: string | null
   lines: JournalLineOut[]
+}
+
+export interface CommentOut {
+  id: number
+  entry_id: number
+  body: string
+  created_by: number
+  created_by_name: string
+  created_at: string
+}
+
+export interface CancelResponse {
+  cancelled_entry_ids: number[]
+  chain_cascade: boolean
+}
+
+export interface HistoryStep {
+  entry_id: number
+  entry_no: string
+  kind: 'original' | 'reversal' | 'replacement'
+  status: string
+  created_by_name: string
+  created_at: string
+  reason: string | null
+}
+
+export interface HistoryResponse {
+  steps: HistoryStep[]
 }
 
 export interface EntryResponse {
@@ -147,6 +177,10 @@ export interface StatementRow {
   debit: string
   credit: string
   running_balance: string
+  status: string
+  note: string | null
+  replaces_entry_id: number | null
+  client_rate: string | null
 }
 
 export interface StatementResponse {

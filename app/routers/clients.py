@@ -17,6 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
+from app.documents.formatting import format_rate
 from app.engine.clock import system_clock
 from app.models import (
     Account,
@@ -245,7 +246,7 @@ def set_credit_limit(
 
 def compute_client_statement(
     db: OrmSession, *, client_id: int, currency: str, location: str,
-    date_from: Optional[date], date_to: Optional[date],
+    date_from: Optional[date], date_to: Optional[date], include_reversed: bool = False,
 ) -> StatementResponse:
     """كشف حساب برصيد متحرك — حساب واحد محدَّد (عملة×موقع)، لا مزج بين
     مواقع مختلفة في نفس الرصيد المتحرك (القاعدة الفاصلة §٢-٢). دالة مشتركة
@@ -297,12 +298,20 @@ def compute_client_statement(
     running = opening_balance
     statement_rows: list[StatementRow] = []
     for entry, line in db.execute(rows_query).all():
+        # الرصيد المتحرك يشمل كل سطر حقيقي دائماً — القيد المعكوس وعكسه
+        # كلاهما سطر حسابي فعلي وإلا فسد الرصيد لأي فترة تشمل إلغاءً.
+        # `include_reversed` يتحكّم بعرض الصف فقط، لا بحسابه.
         running = running + line.credit - line.debit
+        is_cancelled_pair = entry.status == EntryStatus.REVERSED or entry.reverses_entry_id is not None
+        if is_cancelled_pair and not include_reversed:
+            continue
         statement_rows.append(
             StatementRow(
                 entry_id=entry.id, entry_no=entry.entry_no, entry_date=entry.entry_date,
                 operation_type=entry.operation_type.value, description=entry.description,
                 debit=line.debit, credit=line.credit, running_balance=running,
+                status=entry.status.value, note=entry.note, replaces_entry_id=entry.replaces_entry_id,
+                client_rate=format_rate(entry.client_rate) if entry.client_rate is not None else None,
             )
         )
 
@@ -320,11 +329,13 @@ def client_statement(
     client_id: int, currency: str = Query(...), location: str = Query(...),
     date_from: Optional[date] = Query(default=None, alias="from"),
     date_to: Optional[date] = Query(default=None, alias="to"),
+    include_reversed: bool = Query(default=False),
     db: OrmSession = Depends(get_db),
 ) -> StatementResponse:
     _get_client_or_404(db, client_id)
     return compute_client_statement(
         db, client_id=client_id, currency=currency, location=location, date_from=date_from, date_to=date_to,
+        include_reversed=include_reversed,
     )
 
 

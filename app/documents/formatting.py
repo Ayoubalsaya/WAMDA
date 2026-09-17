@@ -23,3 +23,12 @@ def format_amount(value: Optional[Decimal], currency_code: Optional[str], decima
         return "—"
     decimals = decimals_map.get(currency_code, 2) if currency_code else 2
     return f"{value:.{decimals}f}"
+
+
+def format_rate(value: Optional[Decimal]) -> str:
+    """سعر صرف — أصفار زائدة مُزالة (مطابق لـ`formatRate` بالواجهة)، لا
+    خانات عشرية ثابتة كالمبالغ (الأسعار مُخزَّنة `Numeric(20,10)`)."""
+    if value is None:
+        return "—"
+    s = f"{value:.6f}".rstrip("0").rstrip(".")
+    return s or "0"

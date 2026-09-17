@@ -186,11 +186,15 @@ def _purge(db: Session) -> dict[str, list[str]]:
     entries = _demo_entry_ids_cte()
     accounts = _demo_account_ids_cte()
 
-    # ١) فكّ أي إشارة عكس/معكوسية قبل الحذف (ذاتية الإشارة على journal_entries)
+    # ١) فكّ أي إشارة عكس/معكوسية/استبدال قبل الحذف (ذاتية الإشارة على
+    # journal_entries — إضافة replaces_entry_id هنا إلزامية مع كل عمود
+    # ذاتي الإشارة جديد، وإلا فشل الحذف بانتهاك مفتاح أجنبي بصمت لاحقاً)
     db.execute(text(f"UPDATE journal_entries SET reversed_by_entry_id = NULL WHERE reversed_by_entry_id IN {entries}"))
     db.execute(text(f"UPDATE journal_entries SET reverses_entry_id = NULL WHERE reverses_entry_id IN {entries}"))
+    db.execute(text(f"UPDATE journal_entries SET replaces_entry_id = NULL WHERE replaces_entry_id IN {entries}"))
 
     # ٢) الجداول التابعة للقيود
+    db.execute(text(f"DELETE FROM entry_comments WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM lot_consumptions WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM remit_out_destinations WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM idempotency_keys WHERE entry_id IN {entries}"))

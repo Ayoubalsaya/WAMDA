@@ -27,6 +27,7 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
   const [wizardOpen, setWizardOpen] = useState(false)
   const [unsupportedNotice, setUnsupportedNotice] = useState<string | null>(null)
   const [balanceRefreshToken, setBalanceRefreshToken] = useState(0)
+  const [includeReversed, setIncludeReversed] = useState(false)
 
   useEffect(() => {
     if (!requestedOpType) return
@@ -38,10 +39,10 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
 
   const reloadEntries = useCallback(async () => {
     setLoadingEntries(true)
-    const rows = await api.get<JournalEntryOut[]>('/journal/entries')
+    const rows = await api.get<JournalEntryOut[]>(`/journal/entries?include_reversed=${includeReversed}`)
     setEntries(rows)
     setLoadingEntries(false)
-  }, [])
+  }, [includeReversed])
 
   useEffect(() => {
     void reloadEntries()
@@ -66,7 +67,10 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
           onOpenWizard={() => setWizardOpen(true)}
           requestedTab={requestedOpType && SUPPORTED_TABS.has(requestedOpType) ? requestedOpType : null}
         />
-        <OperationsList entries={entries} loading={loadingEntries} />
+        <OperationsList
+          entries={entries} loading={loadingEntries} onEntryChanged={reloadEntries}
+          includeReversed={includeReversed} onIncludeReversedChange={setIncludeReversed}
+        />
       </div>
       {wizardOpen && (
         <ExchangeWizard

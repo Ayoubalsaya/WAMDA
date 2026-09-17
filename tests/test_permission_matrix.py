@@ -122,6 +122,10 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /operations/swift-in": POST_ENTRY,
     "POST /operations/swift-return": POST_ENTRY,
     "POST /operations/expense": POST_ENTRY,
+    # المرحلة ١٤ب — تعليقات على أي قيد (مدير/محاسب، مثل الإدخال العادي)
+    "GET /operations/{entry_id}/comments": POST_ENTRY,
+    "POST /operations/{entry_id}/comments": POST_ENTRY,
+    "GET /operations/{entry_id}/history": POST_ENTRY,
     # مدير فقط
     "PATCH /clients/{client_id}/credit-allowed": ADMIN,
     "PUT /clients/{client_id}/credit-limits/{currency_code}": ADMIN,
@@ -131,6 +135,9 @@ ROUTE_AUTH: dict[str, str] = {
     "PATCH /users/{user_id}": ADMIN,
     "POST /operations/opening": ADMIN,
     "POST /operations/adjustment": ADMIN,
+    # المرحلة ١٤ب — §٥ قاعدة ٢: تعديل/إلغاء قيد مُرحّل = EDIT_POSTED_ENTRY، مدير حصراً
+    "POST /operations/{entry_id}/cancel": ADMIN,
+    "POST /operations/{entry_id}/edit": ADMIN,
     "POST /partners": ADMIN,
     "POST /partners/{partner_id}/accounts": ADMIN,
     "GET /periods/opening-balances": ADMIN,

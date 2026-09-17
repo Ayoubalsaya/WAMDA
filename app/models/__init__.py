@@ -10,7 +10,7 @@ from app.models.partners import (
     Partner,
     RemitOutDestination,
 )
-from app.models.journal import JournalEntry, JournalLine
+from app.models.journal import EntryComment, JournalEntry, JournalLine
 from app.models.swift import SwiftMovement
 from app.models.lots import CurrencyLot, LotConsumption
 from app.models.opening import OpeningBalance, OpeningReconciliation
@@ -43,6 +43,7 @@ __all__ = [
     "ClientCreditLimit",
     "Partner",
     "RemitOutDestination",
+    "EntryComment",
     "JournalEntry",
     "JournalLine",
     "SwiftMovement",

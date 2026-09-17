@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.documents.common import base_context
+from app.documents.formatting import format_rate
 from app.models import Account, Client, JournalEntry, JournalLine, Location, RemitOutDestination
 from app.models.enums import EntryStatus
 
@@ -104,6 +105,10 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
         "client_name": client.name_ar if client else "",
         "client_code": client.code if client else "",
         "description": entry.description,
+        "note": entry.note,
+        # سعر العميل فقط — cost_rate لا يُقرأ هنا إطلاقاً (انظر تعليق أعلى
+        # الملف)، فلا حاجة لأي حجب لاحق مهما تغيّر هذا القالب مستقبلاً.
+        "client_rate": format_rate(entry.client_rate) if entry.client_rate is not None else None,
         "balances": balances,
         "destination": destination,
     })

@@ -10,6 +10,16 @@
     <span>الوصف</span><span>{{ description }}</span>
   </div>
   {% endif %}
+  {% if client_rate %}
+  <div class="row" style="display:flex;justify-content:space-between;margin-top:4px;">
+    <span>سعر الصرف</span><span class="num">{{ client_rate }}</span>
+  </div>
+  {% endif %}
+  {% if note %}
+  <div class="row" style="display:flex;justify-content:space-between;margin-top:4px;">
+    <span>ملاحظة</span><span>{{ note }}</span>
+  </div>
+  {% endif %}
 </div>
 
 <table class="doc-table">

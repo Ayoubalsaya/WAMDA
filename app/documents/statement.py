@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.documents.common import base_context
-from app.documents.formatting import currency_decimals_map, format_amount
+from app.documents.formatting import currency_decimals_map, format_amount, format_rate
 from app.models import Account, Client, JournalEntry, JournalLine, Location
 from app.models.enums import EntryStatus
 
@@ -27,7 +27,13 @@ _OP_LABELS_AR: dict[str, str] = {
 
 def _running_balance(
     db: OrmSession, *, account: Account, date_from: Optional[date], date_to: Optional[date],
+    show_cost_rate: bool = False,
 ) -> tuple[Decimal, list[dict], Decimal]:
+    """`show_cost_rate=False` (كشف حساب عميل — العميل يرى سعره فقط، أبداً
+    التكلفة) يستبعد cost_rate من الصف نفسه لا في القالب فقط — نفس مبدأ
+    `receipt.py`: يُحجب عند مصدر البيانات، لا عرضاً مشروطاً لاحقاً قابلاً
+    للكسر بتعديل قالب مستقبلي. `show_cost_rate=True` حصراً لكشف الحساب
+    الأساسي/كشف المراسل (داخلي، لا يصل عميلاً)."""
     if date_from is not None:
         opening = db.execute(
             select(JournalLine.credit, JournalLine.debit)
@@ -57,11 +63,16 @@ def _running_balance(
     rows = []
     for entry, line in db.execute(query).all():
         running = running + line.credit - line.debit
-        rows.append({
+        row = {
             "entry_no": entry.entry_no, "entry_date": entry.entry_date.isoformat(),
             "operation_type": _OP_LABELS_AR.get(entry.operation_type.value, entry.operation_type.value),
             "description": entry.description, "debit": line.debit, "credit": line.credit, "running": running,
-        })
+            "note": entry.note,
+            "client_rate": format_rate(entry.client_rate) if entry.client_rate is not None else None,
+        }
+        if show_cost_rate:
+            row["cost_rate"] = format_rate(entry.cost_rate) if entry.cost_rate is not None else None
+        rows.append(row)
     return opening_balance, rows, running
 
 
@@ -87,7 +98,7 @@ def build_client_statement_context(
         "doc_size": doc_size, "doc_title": "كشف حساب عميل",
         "doc_subtitle": f"{client.name_ar} — {currency} — {location_row.name_ar}", "qr_data_uri": None,
         "opening_balance": format_amount(Decimal("0"), currency, dec), "closing_balance": format_amount(Decimal("0"), currency, dec),
-        "rows": [],
+        "rows": [], "show_cost_rate": False,
     })
     if account is None:
         return ctx
@@ -112,7 +123,8 @@ def build_account_statement_context(
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا حساب بالكود {account_code}")
     dec = currency_decimals_map(db)
-    opening, rows, closing = _running_balance(db, account=account, date_from=date_from, date_to=date_to)
+    # داخلي دائماً (حساب نظامي/مراسل، لا عميل) — سعر التكلفة مسموح هنا.
+    opening, rows, closing = _running_balance(db, account=account, date_from=date_from, date_to=date_to, show_cost_rate=True)
 
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
@@ -120,6 +132,7 @@ def build_account_statement_context(
         "doc_subtitle": f"{account.name_ar} ({account.code})", "qr_data_uri": None,
         "opening_balance": format_amount(opening, account.currency_code, dec),
         "closing_balance": format_amount(closing, account.currency_code, dec),
+        "show_cost_rate": True,
         "rows": [
             {**r, "debit": format_amount(r["debit"], account.currency_code, dec) if r["debit"] else "—",
              "credit": format_amount(r["credit"], account.currency_code, dec) if r["credit"] else "—",

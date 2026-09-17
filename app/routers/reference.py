@@ -34,7 +34,7 @@ from app.models import (
     SwiftMovement,
     User,
 )
-from app.models.enums import SwiftStatus
+from app.models.enums import EntryStatus, SwiftStatus
 from app.schemas.reference import (
     AccountOut,
     BeneficiaryOut,
@@ -243,13 +243,20 @@ def list_accounts_for_operation(
 def list_journal_entries(
     entry_date_filter: Optional[date] = Query(default=None, alias="date"),
     limit: int = Query(default=30, le=100),
+    include_reversed: bool = Query(default=False, description="أظهر الملغاة (REVERSED) — مخفية افتراضياً"),
     db: OrmSession = Depends(get_db),
 ) -> list[JournalEntryOut]:
-    """عمود دفتر اليومية اليسار (ح-٢): عمليات اليوم افتراضياً، أو تاريخ محدَّد."""
+    """عمود دفتر اليومية اليسار (ح-٢): عمليات اليوم افتراضياً، أو تاريخ محدَّد.
+
+    افتراضياً: لا قيود ملغاة (`REVERSED`) ولا قيود العكس الداخلية نفسها
+    (`reverses_entry_id` غير فارغ) — كلاهما ضجيج محاسبي لا عملية يومية
+    حقيقية. `include_reversed=true` يعيدهما لمن يحتاج الأرشيف الكامل.
+    """
     target_date = entry_date_filter or local_entry_date(system_clock(), settings.work_timezone)
-    entries = db.execute(
-        select(JournalEntry).where(JournalEntry.entry_date == target_date).order_by(JournalEntry.id.desc()).limit(limit)
-    ).scalars().all()
+    query = select(JournalEntry).where(JournalEntry.entry_date == target_date)
+    if not include_reversed:
+        query = query.where(JournalEntry.status != EntryStatus.REVERSED, JournalEntry.reverses_entry_id.is_(None))
+    entries = db.execute(query.order_by(JournalEntry.id.desc()).limit(limit)).scalars().all()
     if not entries:
         return []
 
@@ -270,7 +277,7 @@ def list_journal_entries(
         result.append(
             JournalEntryOut(
                 id=e.id, entry_no=e.entry_no, entry_date=e.entry_date, operation_type=e.operation_type.value,
-                status=e.status.value, description=e.description,
+                status=e.status.value, description=e.description, note=e.note, replaces_entry_id=e.replaces_entry_id,
                 client_name_ar=clients[e.client_id].name_ar if e.client_id in clients else None,
                 profit_amount=e.profit_amount, profit_currency=e.profit_currency, chain_ref=e.chain_ref,
                 lines=[

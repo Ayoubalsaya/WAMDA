@@ -149,6 +149,7 @@ def create_receipt(
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, payment_method=payload.payment_method, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -171,6 +172,7 @@ def create_payment(
         idempotency_key=idempotency_key, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -191,6 +193,7 @@ def create_exchange(
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -209,6 +212,7 @@ def create_exchange_from_lot(
         amount=payload.amount, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -272,6 +276,8 @@ def create_exchange_chain(
     result = _run(lambda: chain.execute_two_step_chain(
         db, entry_date=_clock.local_entry_date(now, settings.work_timezone), step1=_step1, step2=_step2
     ))
+    result.step1_entry.note = payload.note
+    result.step2_entry.note = payload.note
     db.commit()
     return ExchangeChainResponse(
         chain_ref=result.chain_ref,
@@ -300,6 +306,7 @@ def create_cash_transfer(
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -318,6 +325,7 @@ def create_local_move(
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, fee_amount=payload.fee_amount,
         description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -340,6 +348,7 @@ def create_remit_out(
         now=now, idempotency_key=idempotency_key, purpose=payload.purpose, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
     ))
+    entry.note = payload.note
     db.commit()
     response = _entry_response(entry)
     destination = db.execute(
@@ -365,6 +374,7 @@ def create_swift_out(
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, external_ref=payload.external_ref, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -384,6 +394,7 @@ def create_swift_in(
         idempotency_key=idempotency_key, bank_conversion_rate=payload.bank_conversion_rate,
         description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -403,6 +414,7 @@ def create_swift_return(
         return_fee_amount=payload.return_fee_amount, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -424,6 +436,7 @@ def create_expense(
         idempotency_key=idempotency_key, allow_negative=payload.allow_negative,
         override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -449,6 +462,7 @@ def create_opening(
         confidence=payload.confidence, approved_by=current_user.id, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, source_note=payload.source_note,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -467,5 +481,6 @@ def create_adjustment(
         created_by=current_user.id, now=now, idempotency_key=idempotency_key,
         allow_negative=payload.allow_negative,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)

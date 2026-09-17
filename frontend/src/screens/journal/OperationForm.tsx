@@ -275,18 +275,18 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
       if (tab === 'RECEIPT') {
         entry = await api.post<EntryResponse>('/operations/receipt', {
           client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
-          amount, receiving_account_code: accountCode,
+          amount, receiving_account_code: accountCode, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'PAYMENT') {
         entry = await api.post<EntryResponse>('/operations/payment', {
           client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
-          amount, paying_account_code: accountCode,
+          amount, paying_account_code: accountCode, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'EXCHANGE') {
         entry = await api.post<EntryResponse>('/operations/exchange', {
           client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
           to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
-          client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined,
+          client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'CASH_TRANSFER') {
         entry = await api.post<EntryResponse>('/operations/cash-transfer', {
@@ -294,53 +294,53 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
           to_location_code: toLocationCt, amount, source_account_code: sourceAccount,
           execution_account_code: executionAccount, collection_account_code: collectionAccount,
           commission_currency: commissionCurrency, client_commission_amount: clientCommission,
-          cost_commission_amount: costCommission, cost_correspondent_account_code: costCorrespondentAccount,
+          cost_commission_amount: costCommission, cost_correspondent_account_code: costCorrespondentAccount, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'REMIT_OUT') {
         entry = await api.post<EntryResponse>('/operations/remit-out', {
           client_id: client!.id, from_location_code: fields.from_location_code,
           partner_account_code: fields.partner_account_code, beneficiary_id: Number(fields.beneficiary_id),
           beneficiary_amount: fields.beneficiary_amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
-          purpose: fields.purpose || undefined, negative_margin_reason: fields.negative_margin_reason || undefined,
+          purpose: fields.purpose || undefined, negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'EXPENSE') {
         entry = await api.post<EntryResponse>('/operations/expense', {
           expense_account_code: fields.expense_account_code, currency_code: fields.currency_code,
-          paying_account_code: fields.paying_account_code, amount: fields.amount, description: fields.description,
+          paying_account_code: fields.paying_account_code, amount: fields.amount, description: fields.description, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'SWIFT_OUT') {
         entry = await api.post<EntryResponse>('/operations/swift-out', {
           partner_account_code: fields.partner_account_code, amount: fields.amount,
-          external_ref: fields.external_ref || undefined, description: fields.description || undefined,
+          external_ref: fields.external_ref || undefined, description: fields.description || undefined, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'SWIFT_IN') {
         entry = await api.post<EntryResponse>('/operations/swift-in', {
           swift_movement_id: Number(fields.swift_movement_id), total_amount: fields.total_amount,
           fee_amount: fields.fee_amount || '0', receiving_account_code: fields.receiving_account_code,
-          bank_conversion_rate: fields.bank_conversion_rate || undefined,
+          bank_conversion_rate: fields.bank_conversion_rate || undefined, note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'SWIFT_RETURN') {
         // partner_account_code مُشتقّ من الحركة نفسها — لا اختيار يدوي (انظر التعليق في JSX)
         entry = await api.post<EntryResponse>('/operations/swift-return', {
           swift_movement_id: Number(fields.swift_movement_id), partner_account_code: selectedReturnMovement?.partner_account_code,
           total_amount: fields.total_amount, client_id: client!.id, client_location_code: fields.client_location_code,
-          return_fee_amount: fields.return_fee_amount || '0',
+          return_fee_amount: fields.return_fee_amount || '0', note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'LOCAL_MOVE') {
         entry = await api.post<EntryResponse>('/operations/local-move', {
           currency_code: fields.currency_code, from_account_code: fields.from_account_code,
-          to_account_code: fields.to_account_code, amount: fields.amount, fee_amount: fields.fee_amount || '0',
+          to_account_code: fields.to_account_code, amount: fields.amount, fee_amount: fields.fee_amount || '0', note: fields.note || undefined,
         }, idemKey)
       } else if (tab === 'OPENING') {
         entry = await api.post<EntryResponse>('/operations/opening', {
           account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
           is_debit: fields.is_debit === 'true', as_of_date: fields.as_of_date, source_type: fields.source_type,
-          confidence: fields.confidence, source_note: fields.source_note || undefined,
+          confidence: fields.confidence, source_note: fields.source_note || undefined, note: fields.note || undefined,
         }, idemKey)
       } else {
         entry = await api.post<EntryResponse>('/operations/adjustment', {
           account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
-          is_debit: fields.is_debit === 'true', reason: fields.reason,
+          is_debit: fields.is_debit === 'true', reason: fields.reason, note: fields.note || undefined,
         }, idemKey)
       }
       resetForm()
@@ -851,6 +851,14 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
             <input value={negativeMarginReason} onChange={(e) => setNegativeMarginReason(e.target.value)} />
           </div>
         )}
+
+        <div className="field">
+          <label className="field-label" htmlFor="op-note">ملاحظة (اختياري)</label>
+          <textarea
+            id="op-note" value={fields.note ?? ''} onChange={(e) => setField('note', e.target.value)}
+            rows={2} placeholder="تظهر في الإيصال وكشف الحساب"
+          />
+        </div>
 
         {error && <div className="alert alert-critical">{error}</div>}
         {success && (

@@ -83,6 +83,10 @@ class StatementRow(BaseModel):
     debit: Decimal
     credit: Decimal
     running_balance: Decimal
+    status: str
+    note: Optional[str] = None
+    replaces_entry_id: Optional[int] = None
+    client_rate: Optional[str] = None
 
 
 class StatementResponse(BaseModel):

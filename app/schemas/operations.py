@@ -8,7 +8,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -40,6 +40,7 @@ class ReceiptRequest(BaseModel):
     receiving_account_code: str
     payment_method: Optional[str] = None
     description: Optional[str] = None
+    note: Optional[str] = None  # ملاحظة وقت الإدخال — تظهر في الإيصال/كشف الحساب، بخلاف description
 
 
 class PaymentRequest(BaseModel):
@@ -49,6 +50,7 @@ class PaymentRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     paying_account_code: str
     description: Optional[str] = None
+    note: Optional[str] = None
     allow_negative: bool = False
     override_reason: Optional[str] = None
 
@@ -63,6 +65,7 @@ class ExchangeRatesRequest(BaseModel):
     cost_rate: Decimal = Field(gt=0)
     client_rate: Decimal = Field(gt=0)
     description: Optional[str] = None
+    note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
 
 
@@ -73,6 +76,7 @@ class ExchangeLotRequest(BaseModel):
     amount: Decimal = Field(gt=0)  # بالدولار
     client_rate: Decimal = Field(gt=0)
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ExchangeChainStep1(BaseModel):
@@ -99,6 +103,7 @@ class ExchangeChainRequest(BaseModel):
     step1: ExchangeChainStep1
     step2: ExchangeChainStep2
     description: Optional[str] = None
+    note: Optional[str] = None  # يُنسَخ لكلا قيدي الخطوتين
 
 
 class ExchangeChainResponse(BaseModel):
@@ -121,6 +126,7 @@ class CashTransferRequest(BaseModel):
     cost_commission_amount: Decimal = Field(ge=0)
     cost_correspondent_account_code: str
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class LocalMoveRequest(BaseModel):
@@ -130,6 +136,7 @@ class LocalMoveRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     fee_amount: Decimal = Field(default=Decimal("0"), ge=0)
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class RemitOutRequest(BaseModel):
@@ -142,6 +149,7 @@ class RemitOutRequest(BaseModel):
     client_rate: Decimal = Field(gt=0)
     purpose: Optional[str] = None
     description: Optional[str] = None
+    note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
 
 
@@ -150,6 +158,7 @@ class SwiftOutRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     external_ref: Optional[str] = None
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class SwiftInRequest(BaseModel):
@@ -159,6 +168,7 @@ class SwiftInRequest(BaseModel):
     receiving_account_code: str
     bank_conversion_rate: Optional[Decimal] = Field(default=None, gt=0)
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class SwiftReturnRequest(BaseModel):
@@ -169,6 +179,7 @@ class SwiftReturnRequest(BaseModel):
     client_location_code: str
     return_fee_amount: Decimal = Field(default=Decimal("0"), ge=0)
     description: Optional[str] = None
+    note: Optional[str] = None
 
 
 class ExpenseRequest(BaseModel):
@@ -177,6 +188,7 @@ class ExpenseRequest(BaseModel):
     paying_account_code: str
     amount: Decimal = Field(gt=0)
     description: str
+    note: Optional[str] = None
     allow_negative: bool = False
     override_reason: Optional[str] = None
 
@@ -195,6 +207,7 @@ class OpeningRequest(BaseModel):
     source_type: OpeningSourceType
     confidence: ConfidenceLevel
     source_note: Optional[str] = None
+    note: Optional[str] = None
 
     @model_validator(mode="after")
     def _one_target(self):
@@ -211,4 +224,55 @@ class AdjustmentRequest(BaseModel):
     amount: Decimal = Field(gt=0)
     is_debit: bool
     reason: str
+    note: Optional[str] = None
     allow_negative: bool = False
+
+
+class CommentCreate(BaseModel):
+    body: str = Field(min_length=1)
+
+
+class CommentOut(BaseModel):
+    id: int
+    entry_id: int
+    body: str
+    created_by: int
+    created_by_name: str
+    created_at: datetime
+
+
+class CancelRequest(BaseModel):
+    reason: str = Field(min_length=1)
+
+
+class CancelResponse(BaseModel):
+    cancelled_entry_ids: list[int]
+    chain_cascade: bool
+
+
+class EditRequest(BaseModel):
+    """طلب تعديل عام لأي عملية — عكس الأصل + إنشاء بديل بنفس نوع العملية
+    بقيم جديدة، ذرّياً. `operation` نفس بنية طلب الإنشاء الأصلي لذلك النوع
+    (§٤) بحقل إضافي `reason` إلزامي؛ يُوجَّه داخلياً لنفس دالة `operations/*`
+    المستخدَمة عند الإنشاء الأول — لا منطق محاسبي مكرَّر هنا."""
+    reason: str = Field(min_length=1)
+    operation: dict
+
+
+class EditResponse(BaseModel):
+    reversed_entry_id: int
+    new_entry: EntryResponse
+
+
+class HistoryStep(BaseModel):
+    entry_id: int
+    entry_no: str
+    kind: str  # original | reversal | replacement
+    status: str
+    created_by_name: str
+    created_at: datetime
+    reason: Optional[str] = None
+
+
+class HistoryResponse(BaseModel):
+    steps: list[HistoryStep]

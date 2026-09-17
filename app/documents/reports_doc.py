@@ -12,7 +12,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session as OrmSession
 
 from app.documents.common import base_context
-from app.documents.formatting import currency_decimals_map, format_amount
+from app.documents.formatting import currency_decimals_map, format_amount, format_rate
 
 _OP_LABELS_AR: dict[str, str] = {
     "RECEIPT": "قبض", "PAYMENT": "صرف", "EXCHANGE": "صرافة", "CASH_TRANSFER": "تحويل بعمولة",
@@ -138,10 +138,15 @@ def build_lot_profitability_context(db: OrmSession, *, doc_size: str, now: datet
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
         "doc_size": doc_size, "doc_title": "ربحية الدفعات", "doc_subtitle": None, "qr_data_uri": None,
-        "columns": ["الدفعة", "مرجع السويفت", "تاريخ الوصول", "الأصلية", "المتبقي", "عدد المبيعات", "الربح", "الحالة"],
+        "columns": [
+            "الدفعة", "مرجع السويفت", "تاريخ الوصول", "الأصلية", "سعر التكلفة", "المتبقي",
+            "عدد المبيعات", "متوسط سعر البيع", "الربح", "الحالة",
+        ],
         "rows": [
             [r.lot_no, r.swift_external_ref or "—", r.arrival_date.isoformat(),
-             format_amount(r.original_qty, "CNY", dec), format_amount(r.remaining_qty, "CNY", dec), str(r.num_sales),
+             format_amount(r.original_qty, "CNY", dec), format_rate(r.cost_rate),
+             format_amount(r.remaining_qty, "CNY", dec), str(r.num_sales),
+             format_rate(r.weighted_avg_sale_rate) if r.weighted_avg_sale_rate is not None else "—",
              (format_amount(r.total_profit, r.profit_currency, dec) + " " + r.profit_currency) if r.profit_currency else "—",
              r.status]
             for r in rows
@@ -186,10 +191,13 @@ def build_chain_summary_context(db: OrmSession, *, chain_ref: str, doc_size: str
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
         "doc_size": doc_size, "doc_title": "ملخص سلسلة", "doc_subtitle": chain_ref, "qr_data_uri": None,
-        "columns": ["الخطوة", "رقم القيد", "التاريخ", "النوع", "الحالة", "الربح"],
+        # السعران منفصلان دائماً — لا سعر مركّب لسلسلة (§٢-٩: كل خطوة ربح
+        # قائم بذاته)؛ مستند داخلي (لا يصل عميلاً) فعرض سعر التكلفة آمن هنا.
+        "columns": ["الخطوة", "رقم القيد", "التاريخ", "النوع", "الحالة", "سعر العميل", "سعر التكلفة", "الربح"],
         "rows": [
             [f"{e.chain_seq}/{e.chain_total}" if e.chain_seq else "—", e.entry_no, e.entry_date.isoformat(),
              _OP_LABELS_AR.get(e.operation_type.value, e.operation_type.value), e.status.value,
+             format_rate(e.client_rate), format_rate(e.cost_rate),
              (format_amount(e.profit_amount, e.profit_currency, dec) + " " + e.profit_currency) if e.profit_amount else "—"]
             for e in entries
         ],

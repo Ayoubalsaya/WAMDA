@@ -5,6 +5,7 @@ import { api, ApiError } from '../../api/client'
 import type { ClientDetail, StatementResponse } from '../../api/types'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
+import { CancelButton, EditedBadge } from '../../components/EntryActions'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { BeneficiariesPanel } from './BeneficiariesPanel'
 
@@ -25,6 +26,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
   const [editing, setEditing] = useState(false)
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
+  const [includeReversed, setIncludeReversed] = useState(false)
 
   async function reloadDetail() {
     const data = await api.get<ClientDetail>(`/clients/${clientId}`)
@@ -53,6 +55,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
     const params = new URLSearchParams({ currency: activeCcy, location: activeLocation })
     if (dateFrom) params.set('from', dateFrom)
     if (dateTo) params.set('to', dateTo)
+    if (includeReversed) params.set('include_reversed', 'true')
     const data = await api.get<StatementResponse>(`/clients/${clientId}/statement?${params.toString()}`)
     setStatement(data)
   }
@@ -60,7 +63,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
   useEffect(() => {
     void loadStatement()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCcy, activeLocation])
+  }, [activeCcy, activeLocation, includeReversed])
 
   async function saveEdit() {
     const updated = await api.patch<ClientDetail>(`/clients/${clientId}`, { name_ar: editName, phone: editPhone })
@@ -179,6 +182,10 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             <span className="text-muted">إلى</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={includeReversed} onChange={(e) => setIncludeReversed(e.target.checked)} />
+              إظهار الملغاة
+            </label>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void loadStatement()}>تصفية</button>
             <a
               href={`/documents/statement/client/${clientId}.pdf?currency=${activeCcy}&location=${activeLocation}${dateFrom ? `&date_from=${dateFrom}` : ''}${dateTo ? `&date_to=${dateTo}` : ''}`}
@@ -199,28 +206,35 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>التاريخ</th><th>القيد</th><th>العملية</th><th>البيان</th>
-                  <th>مدين</th><th>دائن</th><th>الرصيد المتحرك</th>
+                  <th>التاريخ</th><th>القيد</th><th>العملية</th><th>البيان</th><th>السعر</th>
+                  <th>مدين</th><th>دائن</th><th>الرصيد المتحرك</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td colSpan={6} className="text-muted">الرصيد الافتتاحي</td>
+                  <td colSpan={7} className="text-muted">الرصيد الافتتاحي</td>
                   <td className="num">{new Decimal(statement.opening_balance).toFixed(decimals)}</td>
+                  <td></td>
                 </tr>
                 {statement.rows.map((r) => (
-                  <tr key={r.entry_id}>
+                  <tr key={r.entry_id} style={r.status === 'REVERSED' ? { opacity: 0.55 } : undefined}>
                     <td className="num">{r.entry_date}</td>
                     <td className="num">{r.entry_no}</td>
-                    <td>{r.operation_type}</td>
-                    <td>{r.description}</td>
+                    <td style={r.status === 'REVERSED' ? { textDecoration: 'line-through' } : undefined}>{r.operation_type}</td>
+                    <td>{r.description}{r.note && <div className="text-muted" style={{ fontSize: 11 }}>{r.note}</div>}</td>
+                    <td className="num">{r.client_rate ?? '—'}</td>
                     <td className="num">{new Decimal(r.debit).toFixed(decimals)}</td>
                     <td className="num">{new Decimal(r.credit).toFixed(decimals)}</td>
                     <td className="num" style={{ fontWeight: 600 }}>{new Decimal(r.running_balance).toFixed(decimals)}</td>
+                    <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      {r.status === 'REVERSED' && <span className="badge badge-status-reversed">ملغاة</span>}
+                      {r.replaces_entry_id && <EditedBadge entryId={r.entry_id} />}
+                      {r.status === 'POSTED' && <CancelButton entryId={r.entry_id} onCancelled={() => void loadStatement()} />}
+                    </td>
                   </tr>
                 ))}
                 {statement.rows.length === 0 && (
-                  <tr><td colSpan={7} className="text-muted">لا حركة في هذا النطاق</td></tr>
+                  <tr><td colSpan={9} className="text-muted">لا حركة في هذا النطاق</td></tr>
                 )}
               </tbody>
             </table>
