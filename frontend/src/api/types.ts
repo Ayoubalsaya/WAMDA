@@ -82,6 +82,7 @@ export interface JournalEntryOut {
   description: string | null
   note: string | null
   replaces_entry_id: number | null
+  client_id: number | null
   client_name_ar: string | null
   profit_amount: string | null
   profit_currency: string | null
@@ -101,6 +102,11 @@ export interface CommentOut {
 export interface CancelResponse {
   cancelled_entry_ids: number[]
   chain_cascade: boolean
+}
+
+export interface EditResponse {
+  reversed_entry_id: number
+  new_entry: EntryResponse
 }
 
 export interface HistoryStep {
@@ -181,6 +187,7 @@ export interface StatementRow {
   note: string | null
   replaces_entry_id: number | null
   client_rate: string | null
+  chain_ref: string | null
 }
 
 export interface StatementResponse {

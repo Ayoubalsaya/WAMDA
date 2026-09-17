@@ -42,6 +42,8 @@ def execute(
     purpose: Optional[str] = None,
     description: Optional[str] = None,
     negative_margin_reason: Optional[str] = None,
+    allow_negative: bool = False,
+    override_reason: Optional[str] = None,
 ):
     if beneficiary is None:
         raise BeneficiaryRequiredError("REMIT_OUT يتطلب مستفيداً مسجّلاً — لا وجهة غير مسجّلة")
@@ -96,7 +98,10 @@ def execute(
 
         draft.entry.profit_amount = diff
         draft.entry.profit_currency = pivot.code
-        entry = posting.post_entry(db, draft, posted_by=created_by, now=now)
+        entry = posting.post_entry(
+            db, draft, posted_by=created_by, now=now,
+            allow_negative=allow_negative, override_reason=override_reason,
+        )
 
         db.add(
             RemitOutDestination(

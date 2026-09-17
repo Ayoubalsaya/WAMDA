@@ -29,6 +29,8 @@ def execute(
     idempotency_key: str,
     fee_amount: Decimal = Decimal("0"),
     description: Optional[str] = None,
+    allow_negative: bool = False,
+    override_reason: Optional[str] = None,
 ):
     entry_date = clock.local_entry_date(now, work_timezone)
 
@@ -51,7 +53,10 @@ def execute(
             draft.add(account_id=fee_account.id, currency_code=currency_code, debit=fee_amount)
             draft.add(account_id=from_account.id, currency_code=currency_code, credit=fee_amount)
 
-        return posting.post_entry(db, draft, posted_by=created_by, now=now)
+        return posting.post_entry(
+            db, draft, posted_by=created_by, now=now,
+            allow_negative=allow_negative, override_reason=override_reason,
+        )
 
     return posting.execute_idempotent(
         db,

@@ -293,6 +293,8 @@ def create_cash_transfer(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     client = _get_client(db, payload.client_id)
     now = system_clock()
     entry = _run(lambda: cash_transfer_op.execute(
@@ -305,6 +307,7 @@ def create_cash_transfer(
         cost_correspondent_account_code=payload.cost_correspondent_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
     db.commit()
@@ -318,12 +321,15 @@ def create_local_move(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     now = system_clock()
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=payload.currency_code, from_account_code=payload.from_account_code,
         to_account_code=payload.to_account_code, amount=payload.amount, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, fee_amount=payload.fee_amount,
         description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
     db.commit()
@@ -337,6 +343,8 @@ def create_remit_out(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     client = _get_client(db, payload.client_id)
     beneficiary = _get_beneficiary(db, payload.beneficiary_id, client_id=client.id)
     now = system_clock()
@@ -347,6 +355,7 @@ def create_remit_out(
         client_rate=payload.client_rate, work_timezone=settings.work_timezone, created_by=current_user.id,
         now=now, idempotency_key=idempotency_key, purpose=payload.purpose, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
     db.commit()
@@ -368,11 +377,14 @@ def create_swift_out(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     now = system_clock()
     entry = _run(lambda: swift_out_op.execute(
         db, partner_account_code=payload.partner_account_code, amount=payload.amount,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, external_ref=payload.external_ref, description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
     db.commit()

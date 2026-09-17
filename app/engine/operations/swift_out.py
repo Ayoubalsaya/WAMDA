@@ -31,6 +31,8 @@ def execute(
     idempotency_key: str,
     external_ref: Optional[str] = None,
     description: Optional[str] = None,
+    allow_negative: bool = False,
+    override_reason: Optional[str] = None,
 ):
     entry_date = clock.local_entry_date(now, work_timezone)
 
@@ -50,7 +52,10 @@ def execute(
         )
         draft.add(account_id=in_transit.id, currency_code=pivot.code, debit=amount)
         draft.add(account_id=partner_account.id, currency_code=pivot.code, credit=amount)
-        entry = posting.post_entry(db, draft, posted_by=created_by, now=now)
+        entry = posting.post_entry(
+            db, draft, posted_by=created_by, now=now,
+            allow_negative=allow_negative, override_reason=override_reason,
+        )
 
         db.add(
             SwiftMovement(

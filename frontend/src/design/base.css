@@ -83,30 +83,50 @@ button, input, select, textarea { font-family: inherit; }
 .btn-secondary:hover:not(:disabled) { background: var(--sky-50); }
 .btn-muted { background: var(--sky-50); color: var(--sky-700); border-color: var(--border); }
 .btn-danger { background: #fff; color: var(--money-out-text); border-color: var(--money-out-text); }
-.btn-text { background: transparent; color: var(--sky-700); height: auto; padding: 0; }
+.btn-text {
+  background: transparent; color: var(--sky-700); height: auto; padding: 0;
+  border: none; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn-text:hover:not(:disabled) { text-decoration: underline; }
+.btn-text:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
 
-/* ── حقول (هـ-١) ───────────────────────────────────────────────────── */
+/* ── حقول (هـ-١) ───────────────────────────────────────────────────────
+   القاعدة تسري على كل عنصر إدخال أصلي (input/select/textarea) بلا شرط
+   الانتماء لـ.field — عدم تغليف حقل بـ.field أو نسيان تصنيف عنصر كان
+   يُخرجه من نظام التصميم كلياً (بلا حد ولا خلفية ولا امتداد — HTML خام)،
+   وتكرّر ذلك في عدة شاشات (مراجعة ما بعد المرحلة ١٤ب). checkbox/radio
+   مُستثناة عمداً — تبقى بمظهرها الأصلي الصغير. ─────────────────────── */
 .field {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
 }
-.field input, .field select {
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
   height: 44px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--sky-50);
   padding: 0 var(--space-4);
   font-size: 15px;
+  font-family: inherit;
   color: var(--text-primary);
   width: 100%;
 }
-.field input:focus, .field select:focus {
+textarea {
+  height: auto;
+  min-height: 44px;
+  padding: var(--space-3) var(--space-4);
+  line-height: 1.5;
+  resize: vertical;
+}
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--sky-500);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(66, 176, 213, .14);
 }
+input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
+input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
 .field-amount input {
   height: 52px;
   font-size: 20px;

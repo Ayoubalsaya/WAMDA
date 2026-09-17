@@ -145,6 +145,7 @@ def _create_cash_transfer(db: OrmSession, op: CashTransferRequest, user: User, n
         cost_correspondent_account_code=op.cost_correspondent_account_code,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
         idempotency_key=idem, description=op.description,
+        allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     entry.note = op.note
     return entry
@@ -156,6 +157,7 @@ def _create_local_move(db: OrmSession, op: LocalMoveRequest, user: User, now: da
         to_account_code=op.to_account_code, amount=op.amount, work_timezone=settings.work_timezone,
         created_by=user.id, now=now, idempotency_key=idem, fee_amount=op.fee_amount,
         description=op.description,
+        allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     entry.note = op.note
     return entry
@@ -171,6 +173,7 @@ def _create_remit_out(db: OrmSession, op: RemitOutRequest, user: User, now: date
         client_rate=op.client_rate, work_timezone=settings.work_timezone, created_by=user.id,
         now=now, idempotency_key=idem, purpose=op.purpose, description=op.description,
         negative_margin_reason=op.negative_margin_reason,
+        allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     entry.note = op.note
     return entry
@@ -181,6 +184,7 @@ def _create_swift_out(db: OrmSession, op: SwiftOutRequest, user: User, now: date
         db, partner_account_code=op.partner_account_code, amount=op.amount,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
         idempotency_key=idem, external_ref=op.external_ref, description=op.description,
+        allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     entry.note = op.note
     return entry

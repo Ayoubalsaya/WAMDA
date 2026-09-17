@@ -127,6 +127,8 @@ class CashTransferRequest(BaseModel):
     cost_correspondent_account_code: str
     description: Optional[str] = None
     note: Optional[str] = None
+    allow_negative: bool = False
+    override_reason: Optional[str] = None
 
 
 class LocalMoveRequest(BaseModel):
@@ -137,6 +139,8 @@ class LocalMoveRequest(BaseModel):
     fee_amount: Decimal = Field(default=Decimal("0"), ge=0)
     description: Optional[str] = None
     note: Optional[str] = None
+    allow_negative: bool = False
+    override_reason: Optional[str] = None
 
 
 class RemitOutRequest(BaseModel):
@@ -151,6 +155,8 @@ class RemitOutRequest(BaseModel):
     description: Optional[str] = None
     note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
+    allow_negative: bool = False
+    override_reason: Optional[str] = None
 
 
 class SwiftOutRequest(BaseModel):
@@ -159,6 +165,8 @@ class SwiftOutRequest(BaseModel):
     external_ref: Optional[str] = None
     description: Optional[str] = None
     note: Optional[str] = None
+    allow_negative: bool = False
+    override_reason: Optional[str] = None
 
 
 class SwiftInRequest(BaseModel):

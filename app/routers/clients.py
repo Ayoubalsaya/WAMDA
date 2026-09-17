@@ -312,6 +312,7 @@ def compute_client_statement(
                 debit=line.debit, credit=line.credit, running_balance=running,
                 status=entry.status.value, note=entry.note, replaces_entry_id=entry.replaces_entry_id,
                 client_rate=format_rate(entry.client_rate) if entry.client_rate is not None else None,
+                chain_ref=entry.chain_ref,
             )
         )
 

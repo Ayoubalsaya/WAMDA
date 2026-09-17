@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type {
-  AccountRef, Beneficiary, ClientBalance, ClientSearchResult, Currency, EntryResponse, Location,
+  AccountRef, Beneficiary, ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
 import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
@@ -74,16 +74,32 @@ interface OperationFormProps {
   onPosted: (entry: EntryResponse) => void
   onOpenWizard: () => void
   requestedTab?: string | null
+  // أ: وضع التعديل — نفس النموذج حرفياً، نوع العملية مثبَّت (لا تبويبات ولا
+  // معالج خطوتين)، حقل سبب إضافي، والإرسال يذهب لـ/operations/{id}/edit
+  // بدل مسار الإنشاء. مكوّن واحد مشترك بين الإنشاء والتعديل — لا نسخة ثانية.
+  mode?: 'create' | 'edit'
+  editEntryId?: number
+  onEdited?: (result: EditResponse) => void
+  onCancelEdit?: () => void
 }
 
-export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard, requestedTab }: OperationFormProps) {
+export function OperationForm({
+  client, currentUserRole, onPosted, onOpenWizard, requestedTab,
+  mode = 'create', editEntryId, onEdited, onCancelEdit,
+}: OperationFormProps) {
   const { currencies, accounts, locationsForCurrency } = useReferenceData()
   const [tab, setTab] = useState<OpTab>('RECEIPT')
   const [moreOpen, setMoreOpen] = useState(false)
   const [idemKey, setIdemKey] = useState(newIdempotencyKey())
+  const [editReason, setEditReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<EntryResponse | null>(null)
+  // ب: رصيد صندوق/مراسل سيصبح سالباً — الخادم يرفض بـ٤٠٩ فور المحاولة
+  // العادية؛ هذا يحفظ نفس الطلب لإعادة إرساله بعد إدخال سبب إلزامي
+  // (allow_negative+override_reason)، بدل رفض تام بلا أي وسيلة تجاوز.
+  const [negOverride, setNegOverride] = useState<{ url: string; retryPayload: (reason: string) => Record<string, unknown> } | null>(null)
+  const [negReason, setNegReason] = useState('')
 
   // حقول العمليات الأربع الأصلية (المرحلة ٥) — بلا تغيير
   const [currencyCode, setCurrencyCode] = useState('')
@@ -125,6 +141,8 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
     setOpeningAccountMode('system')
     setIdemKey(newIdempotencyKey())
     setSuccess(null)
+    setNegOverride(null)
+    setNegReason('')
   }
 
   useEffect(() => { resetForm() }, [tab])
@@ -262,102 +280,161 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
     return { clientAmt, costAmt, diff: clientAmt.minus(costAmt) }
   }, [tab, selectedBeneficiary, fields.beneficiary_amount, fields.client_rate, fields.cost_rate, currencies])
 
+  // ب: يبني {url, payload} فقط — لا يرسل — كي يُعاد استخدام نفس الجسم عند
+  // إعادة المحاولة بعد تجاوز رصيد سالب (allow_negative+override_reason
+  // يُضافان لاحقاً بلا تكرار كل هذا التفريع من جديد).
+  function buildRequest(): { url: string; payload: Record<string, unknown> } | null {
+    if (tab === 'RECEIPT') {
+      return { url: '/operations/receipt', payload: {
+        client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
+        amount, receiving_account_code: accountCode, note: fields.note || undefined,
+      } }
+    } else if (tab === 'PAYMENT') {
+      return { url: '/operations/payment', payload: {
+        client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
+        amount, paying_account_code: accountCode, note: fields.note || undefined,
+      } }
+    } else if (tab === 'EXCHANGE') {
+      return { url: '/operations/exchange', payload: {
+        client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
+        to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
+        client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
+      } }
+    } else if (tab === 'CASH_TRANSFER') {
+      return { url: '/operations/cash-transfer', payload: {
+        client_id: client!.id, currency_code: currencyCode, from_location_code: fromLocation,
+        to_location_code: toLocationCt, amount, source_account_code: sourceAccount,
+        execution_account_code: executionAccount, collection_account_code: collectionAccount,
+        commission_currency: commissionCurrency, client_commission_amount: clientCommission,
+        cost_commission_amount: costCommission, cost_correspondent_account_code: costCorrespondentAccount, note: fields.note || undefined,
+      } }
+    } else if (tab === 'REMIT_OUT') {
+      return { url: '/operations/remit-out', payload: {
+        client_id: client!.id, from_location_code: fields.from_location_code,
+        partner_account_code: fields.partner_account_code, beneficiary_id: Number(fields.beneficiary_id),
+        beneficiary_amount: fields.beneficiary_amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
+        purpose: fields.purpose || undefined, negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
+      } }
+    } else if (tab === 'EXPENSE') {
+      return { url: '/operations/expense', payload: {
+        expense_account_code: fields.expense_account_code, currency_code: fields.currency_code,
+        paying_account_code: fields.paying_account_code, amount: fields.amount, description: fields.description, note: fields.note || undefined,
+      } }
+    } else if (tab === 'SWIFT_OUT') {
+      return { url: '/operations/swift-out', payload: {
+        partner_account_code: fields.partner_account_code, amount: fields.amount,
+        external_ref: fields.external_ref || undefined, description: fields.description || undefined, note: fields.note || undefined,
+      } }
+    } else if (tab === 'SWIFT_IN') {
+      return { url: '/operations/swift-in', payload: {
+        swift_movement_id: Number(fields.swift_movement_id), total_amount: fields.total_amount,
+        fee_amount: fields.fee_amount || '0', receiving_account_code: fields.receiving_account_code,
+        bank_conversion_rate: fields.bank_conversion_rate || undefined, note: fields.note || undefined,
+      } }
+    } else if (tab === 'SWIFT_RETURN') {
+      // partner_account_code مُشتقّ من الحركة نفسها — لا اختيار يدوي (انظر التعليق في JSX)
+      return { url: '/operations/swift-return', payload: {
+        swift_movement_id: Number(fields.swift_movement_id), partner_account_code: selectedReturnMovement?.partner_account_code,
+        total_amount: fields.total_amount, client_id: client!.id, client_location_code: fields.client_location_code,
+        return_fee_amount: fields.return_fee_amount || '0', note: fields.note || undefined,
+      } }
+    } else if (tab === 'LOCAL_MOVE') {
+      return { url: '/operations/local-move', payload: {
+        currency_code: fields.currency_code, from_account_code: fields.from_account_code,
+        to_account_code: fields.to_account_code, amount: fields.amount, fee_amount: fields.fee_amount || '0', note: fields.note || undefined,
+      } }
+    } else if (tab === 'OPENING') {
+      return { url: '/operations/opening', payload: {
+        account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
+        is_debit: fields.is_debit === 'true', as_of_date: fields.as_of_date, source_type: fields.source_type,
+        confidence: fields.confidence, source_note: fields.source_note || undefined, note: fields.note || undefined,
+      } }
+    }
+    // ADJUSTMENT: السبب إلزامي أصلاً في الحقل أدناه ويُعاد استخدامه داخل
+    // المحرك نفسه كـoverride_reason (app/engine/operations/adjustment.py) —
+    // allow_negative صريحة هنا مباشرة، بلا حاجة لجولة تجاوز إضافية لأن
+    // الإقرار موجود سلفاً قبل الإرسال.
+    return { url: '/operations/adjustment', payload: {
+      account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
+      is_debit: fields.is_debit === 'true', reason: fields.reason, note: fields.note || undefined,
+      allow_negative: true,
+    } }
+  }
+
+  // mode='edit': يُرسِل إلى /operations/{id}/edit بجسم {reason, operation}
+  // بدل مسار الإنشاء المباشر — retryPayload يبني جسم إعادة المحاولة الصحيح
+  // لكلا الوضعين (تعديل يحتاج تغليف operation من جديد، إنشاء لا).
+  async function doSubmit(
+    url: string, payload: Record<string, unknown>, printAfter: boolean,
+    retryPayload: (reason: string) => Record<string, unknown>,
+  ) {
+    setBusy(true)
+    setError(null)
+    try {
+      if (mode === 'edit') {
+        const result = await api.post<EditResponse>(url, payload)
+        onEdited?.(result)
+      } else {
+        const entry = await api.post<EntryResponse>(url, payload, idemKey)
+        resetForm()
+        setSuccess(entry)
+        onPosted(entry)
+        if (printAfter) window.print()
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.message.includes('سيصبح سالباً')) {
+        setNegOverride({ url, retryPayload })
+        setNegReason('')
+      } else {
+        setError(err instanceof ApiError ? err.message : (mode === 'edit' ? 'تعذّر التعديل' : 'تعذّر الترحيل'))
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submit(printAfter = false) {
     const needsClient = REQUIRES_CLIENT.has(tab)
     if (needsClient && !client) {
       setError('اختر عميلاً أولاً')
       return
     }
-    setBusy(true)
-    setError(null)
-    try {
-      let entry: EntryResponse
-      if (tab === 'RECEIPT') {
-        entry = await api.post<EntryResponse>('/operations/receipt', {
-          client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
-          amount, receiving_account_code: accountCode, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'PAYMENT') {
-        entry = await api.post<EntryResponse>('/operations/payment', {
-          client_id: client!.id, currency_code: currencyCode, location_code: locationCode,
-          amount, paying_account_code: accountCode, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'EXCHANGE') {
-        entry = await api.post<EntryResponse>('/operations/exchange', {
-          client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
-          to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
-          client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'CASH_TRANSFER') {
-        entry = await api.post<EntryResponse>('/operations/cash-transfer', {
-          client_id: client!.id, currency_code: currencyCode, from_location_code: fromLocation,
-          to_location_code: toLocationCt, amount, source_account_code: sourceAccount,
-          execution_account_code: executionAccount, collection_account_code: collectionAccount,
-          commission_currency: commissionCurrency, client_commission_amount: clientCommission,
-          cost_commission_amount: costCommission, cost_correspondent_account_code: costCorrespondentAccount, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'REMIT_OUT') {
-        entry = await api.post<EntryResponse>('/operations/remit-out', {
-          client_id: client!.id, from_location_code: fields.from_location_code,
-          partner_account_code: fields.partner_account_code, beneficiary_id: Number(fields.beneficiary_id),
-          beneficiary_amount: fields.beneficiary_amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
-          purpose: fields.purpose || undefined, negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'EXPENSE') {
-        entry = await api.post<EntryResponse>('/operations/expense', {
-          expense_account_code: fields.expense_account_code, currency_code: fields.currency_code,
-          paying_account_code: fields.paying_account_code, amount: fields.amount, description: fields.description, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'SWIFT_OUT') {
-        entry = await api.post<EntryResponse>('/operations/swift-out', {
-          partner_account_code: fields.partner_account_code, amount: fields.amount,
-          external_ref: fields.external_ref || undefined, description: fields.description || undefined, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'SWIFT_IN') {
-        entry = await api.post<EntryResponse>('/operations/swift-in', {
-          swift_movement_id: Number(fields.swift_movement_id), total_amount: fields.total_amount,
-          fee_amount: fields.fee_amount || '0', receiving_account_code: fields.receiving_account_code,
-          bank_conversion_rate: fields.bank_conversion_rate || undefined, note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'SWIFT_RETURN') {
-        // partner_account_code مُشتقّ من الحركة نفسها — لا اختيار يدوي (انظر التعليق في JSX)
-        entry = await api.post<EntryResponse>('/operations/swift-return', {
-          swift_movement_id: Number(fields.swift_movement_id), partner_account_code: selectedReturnMovement?.partner_account_code,
-          total_amount: fields.total_amount, client_id: client!.id, client_location_code: fields.client_location_code,
-          return_fee_amount: fields.return_fee_amount || '0', note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'LOCAL_MOVE') {
-        entry = await api.post<EntryResponse>('/operations/local-move', {
-          currency_code: fields.currency_code, from_account_code: fields.from_account_code,
-          to_account_code: fields.to_account_code, amount: fields.amount, fee_amount: fields.fee_amount || '0', note: fields.note || undefined,
-        }, idemKey)
-      } else if (tab === 'OPENING') {
-        entry = await api.post<EntryResponse>('/operations/opening', {
-          account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
-          is_debit: fields.is_debit === 'true', as_of_date: fields.as_of_date, source_type: fields.source_type,
-          confidence: fields.confidence, source_note: fields.source_note || undefined, note: fields.note || undefined,
-        }, idemKey)
-      } else {
-        entry = await api.post<EntryResponse>('/operations/adjustment', {
-          account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
-          is_debit: fields.is_debit === 'true', reason: fields.reason, note: fields.note || undefined,
-        }, idemKey)
+    const req = buildRequest()
+    if (!req) return
+    if (mode === 'edit') {
+      if (!editReason.trim()) {
+        setError('سبب التعديل إلزامي')
+        return
       }
-      resetForm()
-      setSuccess(entry)
-      onPosted(entry)
-      if (printAfter) window.print()
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر الترحيل')
-    } finally {
-      setBusy(false)
+      const url = `/operations/${editEntryId}/edit`
+      const body = { reason: editReason.trim(), operation: req.payload }
+      await doSubmit(url, body, false, (reason) => ({
+        reason: editReason.trim(),
+        operation: { ...req.payload, allow_negative: true, override_reason: reason },
+      }))
+      return
     }
+    await doSubmit(req.url, req.payload, printAfter, (reason) => ({
+      ...req.payload, allow_negative: true, override_reason: reason,
+    }))
+  }
+
+  // ب: تأكيد صريح بعد إدخال سبب — الطلب نفسه يُعاد بـallow_negative+
+  // override_reason مُضافين؛ الخادم يفرض ADMIN فقط بصرف النظر عن هذا
+  // (Action.OVERRIDE_CREDIT_OR_BALANCE)، فلا حاجة لفحص دور إضافي هنا.
+  async function confirmNegativeOverride() {
+    if (!negOverride || !negReason.trim()) return
+    const { url, retryPayload } = negOverride
+    const body = retryPayload(negReason.trim())
+    setNegOverride(null)
+    await doSubmit(url, body, false, retryPayload)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     if (e.key === 'Escape') {
       e.preventDefault()
-      resetForm()
+      if (mode === 'edit') onCancelEdit?.()
+      else resetForm()
     } else if (e.key === 'Enter') {
       e.preventDefault()
       if (!busy) void submit(e.ctrlKey)
@@ -366,24 +443,27 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
 
   const needsClient = REQUIRES_CLIENT.has(tab)
   const adminBlocked = ADMIN_ONLY_TABS.has(tab) && currentUserRole !== 'ADMIN'
+  const isEdit = mode === 'edit'
 
   return (
     <section className="journal-col journal-col-center">
-      <div className="op-tabs">
-        {LEVEL1.map((t) => (
-          <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => { setTab(t.id); setMoreOpen(false) }}>
-            {t.label}
+      {!isEdit && (
+        <div className="op-tabs">
+          {LEVEL1.map((t) => (
+            <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => { setTab(t.id); setMoreOpen(false) }}>
+              {t.label}
+            </button>
+          ))}
+          <button type="button" className={`op-tab${moreOpen ? ' is-active' : ''}`} onClick={() => setMoreOpen((v) => !v)}>
+            المزيد
           </button>
-        ))}
-        <button type="button" className={`op-tab${moreOpen ? ' is-active' : ''}`} onClick={() => setMoreOpen((v) => !v)}>
-          المزيد
-        </button>
-        <button type="button" className="btn-text" style={{ marginInlineStart: 'auto' }} onClick={onOpenWizard}>
-          معالج الخطوتين (دينار → دولار → رمبي)
-        </button>
-      </div>
+          <button type="button" className="btn-text" style={{ marginInlineStart: 'auto' }} onClick={onOpenWizard}>
+            معالج الخطوتين (دينار → دولار → رمبي)
+          </button>
+        </div>
+      )}
 
-      {moreOpen && (
+      {!isEdit && moreOpen && (
         <div className="op-tabs" style={{ marginBottom: 12 }}>
           {LEVEL2.map((t) => (
             <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
@@ -394,6 +474,10 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
       )}
 
       <div className="card op-form-card" onKeyDown={handleKeyDown}>
+        {isEdit && <div className="alert alert-warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — أدخل القيم الكاملة للعملية.</div>}
+        {isEdit && client && (
+          <div className="text-muted" style={{ fontSize: 13 }}>العميل: {client.name_ar} ({client.code})</div>
+        )}
         {needsClient && !client && <div className="alert alert-info">اختر عميلاً من العمود الأيمن أولاً</div>}
         {adminBlocked && <div className="alert alert-warning">هذه العملية تتطلب صلاحية مدير — لن يقبلها الخادم لدورك الحالي.</div>}
 
@@ -860,8 +944,36 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
           />
         </div>
 
+        {isEdit && (
+          <div className="field">
+            <label className="field-label" htmlFor="edit-reason">سبب التعديل (إلزامي)</label>
+            <textarea
+              id="edit-reason" value={editReason} onChange={(e) => setEditReason(e.target.value)}
+              rows={2} placeholder="لماذا يُعدَّل هذا القيد؟"
+            />
+          </div>
+        )}
+
         {error && <div className="alert alert-critical">{error}</div>}
-        {success && (
+        {negOverride && (
+          <div className="alert alert-warning" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div>سيصبح رصيد الحساب سالباً — هذا مسموح لكن يتطلب سبباً مكتوباً (مدير فقط، يُسجَّل في تقرير تجاوزات الرصيد).</div>
+            <textarea
+              value={negReason} onChange={(e) => setNegReason(e.target.value)} rows={2} autoFocus
+              placeholder="سبب تجاوز الرصيد — مثلاً: صرف عاجل قبل تغطية الصندوق"
+            />
+            <div className="op-row">
+              <button type="button" className="btn btn-secondary" onClick={() => setNegOverride(null)}>تراجع</button>
+              <button
+                type="button" className="btn btn-primary" style={{ flex: 1 }}
+                disabled={busy || !negReason.trim()} onClick={() => void confirmNegativeOverride()}
+              >
+                تأكيد الترحيل رغم الرصيد السالب
+              </button>
+            </div>
+          </div>
+        )}
+        {!isEdit && success && (
           <div className="alert alert-info">
             تم الترحيل — {success.entry_no}
             {success.profit_amount && ` — ربح ${success.profit_amount} ${success.profit_currency}`}
@@ -876,17 +988,23 @@ export function OperationForm({ client, currentUserRole, onPosted, onOpenWizard,
         )}
 
         <div className="op-shortcuts">
-          <span className="kbd-chip">Enter حفظ وترحيل</span>
-          <span className="kbd-chip">Ctrl+Enter حفظ وطباعة</span>
+          <span className="kbd-chip">{isEdit ? 'Enter ترحيل التعديل' : 'Enter حفظ وترحيل'}</span>
+          {!isEdit && <span className="kbd-chip">Ctrl+Enter حفظ وطباعة</span>}
           <span className="kbd-chip">Esc إلغاء</span>
         </div>
 
-        <button
-          type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }}
-          disabled={busy || (needsClient && !client) || adminBlocked} onClick={() => submit()}
-        >
-          حفظ وترحيل
-        </button>
+        <div className="op-row">
+          {isEdit && (
+            <button type="button" className="btn btn-secondary" onClick={onCancelEdit} disabled={busy}>تراجع</button>
+          )}
+          <button
+            type="button" className="btn btn-primary btn-lg" style={{ width: '100%', flex: 1 }}
+            disabled={busy || (needsClient && !client) || adminBlocked || (isEdit && !editReason.trim())}
+            onClick={() => submit()}
+          >
+            {isEdit ? 'ترحيل التعديل' : 'حفظ وترحيل'}
+          </button>
+        </div>
       </div>
     </section>
   )

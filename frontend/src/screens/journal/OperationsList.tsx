@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Eye } from 'lucide-react'
 import type { JournalEntryOut } from '../../api/types'
-import { CancelButton, CommentsPanel, EditedBadge } from '../../components/EntryActions'
+import { CommentsPanel, EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 
 const OP_LABELS: Record<string, string> = {
   RECEIPT: 'قبض', PAYMENT: 'صرف', EXCHANGE: 'صرافة', CASH_TRANSFER: 'تحويل بعمولة',
@@ -15,9 +15,10 @@ interface OperationsListProps {
   onEntryChanged: () => void
   includeReversed: boolean
   onIncludeReversedChange: (v: boolean) => void
+  currentUserRole: 'ADMIN' | 'ACCOUNTANT'
 }
 
-export function OperationsList({ entries, loading, onEntryChanged, includeReversed, onIncludeReversedChange }: OperationsListProps) {
+export function OperationsList({ entries, loading, onEntryChanged, includeReversed, onIncludeReversedChange, currentUserRole }: OperationsListProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
 
   return (
@@ -90,7 +91,7 @@ export function OperationsList({ entries, loading, onEntryChanged, includeRevers
                 )}
                 {entry.status === 'POSTED' && (
                   <div className="today-op-print-row">
-                    <CancelButton entryId={entry.id} chainRef={entry.chain_ref} onCancelled={onEntryChanged} />
+                    <EntryActionsBar entry={entry} currentUserRole={currentUserRole} onChanged={onEntryChanged} />
                   </div>
                 )}
                 <CommentsPanel entryId={entry.id} />

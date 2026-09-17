@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { CancelResponse, CommentOut, HistoryResponse } from '../api/types'
+import { EditEntryModal } from './EditEntryModal'
 
 // ═══ إلغاء ═══
 
@@ -67,6 +68,43 @@ export function CancelButton({ entryId, chainRef, onCancelled, className }: Canc
             </div>
           </form>
         </div>
+      )}
+    </>
+  )
+}
+
+// ═══ تعديل + إلغاء معاً — مكوّن واحد مشترك يُستخدم في كل مكان يعرض عملية:
+// عمليات اليوم (دفتر اليومية) · كشف حساب العميل · نتائج البحث الذكي ·
+// شاشة تفاصيل القيد (نافذة التعديل نفسها). لا أربع نسخ منفصلة. ═══
+
+interface EntryActionsBarProps {
+  entry: { id: number; status: string; chain_ref?: string | null; operation_type: string; client_id?: number | null }
+  currentUserRole: 'ADMIN' | 'ACCOUNTANT'
+  onChanged: () => void
+  className?: string
+}
+
+export function EntryActionsBar({ entry, currentUserRole, onChanged, className }: EntryActionsBarProps) {
+  const [editing, setEditing] = useState(false)
+  if (entry.status !== 'POSTED') return null
+  // الإلغاء والتعديل كلاهما ADMIN حصراً (Action.EDIT_POSTED_ENTRY على
+  // الخادم) — الزرّان يُخفيان كاملاً لمحاسب لا مجرد تعطيل بصري، نفس مبدأ
+  // إخفاء عنصري التحكم الائتماني عن المحاسب في شاشة العميل (المرحلة ٦).
+  // سلسلة خطوتين لا تُعدَّل مباشرة (٤٠٩ من الخادم أصلاً لهذا تحديداً).
+  if (currentUserRole !== 'ADMIN') return null
+  const canEdit = !entry.chain_ref
+  return (
+    <>
+      {canEdit && (
+        <button type="button" className={className ?? 'btn-text'} onClick={() => setEditing(true)}>تعديل</button>
+      )}
+      <CancelButton entryId={entry.id} chainRef={entry.chain_ref} onCancelled={onChanged} className={className} />
+      {editing && (
+        <EditEntryModal
+          entryId={entry.id} operationType={entry.operation_type} clientId={entry.client_id ?? null}
+          onClose={() => setEditing(false)}
+          onSaved={() => { setEditing(false); onChanged() }}
+        />
       )}
     </>
   )

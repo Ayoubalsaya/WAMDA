@@ -39,6 +39,8 @@ def execute(
     now: datetime,
     idempotency_key: str,
     description: Optional[str] = None,
+    allow_negative: bool = False,
+    override_reason: Optional[str] = None,
 ):
     entry_date = clock.local_entry_date(now, work_timezone)
 
@@ -81,7 +83,10 @@ def execute(
 
         draft.entry.profit_amount = client_commission_amount - cost_commission_amount
         draft.entry.profit_currency = commission_currency
-        return posting.post_entry(db, draft, posted_by=created_by, now=now)
+        return posting.post_entry(
+            db, draft, posted_by=created_by, now=now,
+            allow_negative=allow_negative, override_reason=override_reason,
+        )
 
     return posting.execute_idempotent(
         db,

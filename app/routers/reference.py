@@ -278,6 +278,7 @@ def list_journal_entries(
             JournalEntryOut(
                 id=e.id, entry_no=e.entry_no, entry_date=e.entry_date, operation_type=e.operation_type.value,
                 status=e.status.value, description=e.description, note=e.note, replaces_entry_id=e.replaces_entry_id,
+                client_id=e.client_id,
                 client_name_ar=clients[e.client_id].name_ar if e.client_id in clients else None,
                 profit_amount=e.profit_amount, profit_currency=e.profit_currency, chain_ref=e.chain_ref,
                 lines=[

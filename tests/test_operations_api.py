@@ -238,11 +238,21 @@ def test_cash_transfer_generates_commission_profit(db, client, now):
     assert Decimal(body["profit_amount"]) == Decimal("300.000")
 
 
-def test_local_move_between_company_accounts(db, client):
+def test_local_move_between_company_accounts(db, client, now):
+    # حسابات اختبار طازجة لا "1101"/"1102" الحقيقيان — رصيدهما الفعلي في
+    # قاعدة التطوير المشتركة متغيّر (قد يكون صفراً) فيجعل الاختبار هشّاً
+    # بلا صلة بما يُختبَر فعلياً (نقل بين حسابين — انظر بند (ب) أعلاه).
     _login(db, client)
+    box_from = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    box_to = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("200.000"),
+        receiving_account_code=box_from.code, user=f.make_user(db), now=now,
+    )
     resp = client.post(
         "/operations/local-move",
-        json={"currency_code": "LYD", "from_account_code": "1101", "to_account_code": "1102", "amount": "50.000"},
+        json={"currency_code": "LYD", "from_account_code": box_from.code, "to_account_code": box_to.code, "amount": "50.000"},
         headers=_headers(client),
     )
     assert resp.status_code == 201, resp.text
@@ -310,6 +320,154 @@ def test_swift_out_then_swift_in(db, client, now):
     assert db.get(AccountBalance, accounts_repo.get_account_by_code(db, "1501").id).balance == Decimal("0.00")
 
 
+# ═══ بند (ب): رصيد سالب للصناديق/المراسلين — تحذير + سبب إلزامي، مدير
+# فقط، بلا حد مبلغ — عبر عمليات لم تكن تملك أي مسار تجاوز إطلاقاً قبل
+# هذا (كانت تُرفض رفضاً تاماً بـ٤٠٩ بلا أي وسيلة تجاوز). حسابات اختبار
+# طازجة (make_bank_account/make_correspondent_account) لا تمسّ أرصدة
+# حقيقية في قاعدة التطوير المشتركة. ═══════════════════════════════════
+
+def test_local_move_negative_balance_rejected_without_override(db, client):
+    _login(db, client)
+    box = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    resp = client.post(
+        "/operations/local-move",
+        json={"currency_code": "LYD", "from_account_code": box.code, "to_account_code": "1101", "amount": "50.000"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 409
+
+
+def test_local_move_allow_negative_admin_succeeds(db, client):
+    _login(db, client, role="ADMIN")
+    box = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    resp = client.post(
+        "/operations/local-move",
+        json={"currency_code": "LYD", "from_account_code": box.code, "to_account_code": "1101", "amount": "50.000",
+              "allow_negative": True, "override_reason": "تحقّق آلي — نقص جرد مؤقت"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    assert db.get(AccountBalance, box.id).balance == Decimal("-50.000")
+
+
+def test_cash_transfer_negative_balance_rejected_without_override(db, client, now):
+    _login(db, client)
+    user = f.make_user(db)
+    c = f.make_client(db)
+    source = f.make_bank_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1400")
+    exec_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    cost_correspondent = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"),
+        receiving_account_code=cost_correspondent.code, user=user, now=now,
+    )
+    resp = client.post(
+        "/operations/cash-transfer",
+        json={"client_id": c.id, "currency_code": "USD", "from_location_code": "TRIPOLI",
+              "to_location_code": "TURKEY", "amount": "10000.00", "source_account_code": source.code,
+              "execution_account_code": exec_acct.code, "collection_account_code": "1101",
+              "commission_currency": "LYD", "client_commission_amount": "800.000",
+              "cost_commission_amount": "500.000", "cost_correspondent_account_code": cost_correspondent.code},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 409
+
+
+def test_cash_transfer_allow_negative_admin_succeeds(db, client, now):
+    _login(db, client, role="ADMIN")
+    user = f.make_user(db)
+    c = f.make_client(db, credit_allowed=True)  # نختبر تجاوز رصيد الصندوق لا حد ائتمان العميل
+    source = f.make_bank_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1400")
+    exec_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    cost_correspondent = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"),
+        receiving_account_code=cost_correspondent.code, user=user, now=now,
+    )
+    resp = client.post(
+        "/operations/cash-transfer",
+        json={"client_id": c.id, "currency_code": "USD", "from_location_code": "TRIPOLI",
+              "to_location_code": "TURKEY", "amount": "10000.00", "source_account_code": source.code,
+              "execution_account_code": exec_acct.code, "collection_account_code": "1101",
+              "commission_currency": "LYD", "client_commission_amount": "800.000",
+              "cost_commission_amount": "500.000", "cost_correspondent_account_code": cost_correspondent.code,
+              "allow_negative": True, "override_reason": "تحقّق آلي — تحويل عاجل قبل تغطية الصندوق"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    assert db.get(AccountBalance, source.id).balance == Decimal("-10000.00")
+
+
+def test_swift_out_negative_balance_rejected_without_override(db, client):
+    _login(db, client)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    resp = client.post(
+        "/operations/swift-out",
+        json={"partner_account_code": partner_acct.code, "amount": "10000.00"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 409
+
+
+def test_swift_out_allow_negative_admin_succeeds_no_amount_cap(db, client):
+    _login(db, client, role="ADMIN")
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    resp = client.post(
+        "/operations/swift-out",
+        # مبلغ كبير جداً عمداً — لا حد مبلغ على تجاوز رصيد مراسل (بخلاف حد
+        # الائتمان لحساب عميل الذي له حدّ مضبوط لكل عملة).
+        json={"partner_account_code": partner_acct.code, "amount": "5000000.00",
+              "allow_negative": True, "override_reason": "تحقّق آلي — إرسال طارئ قبل التغطية من المراسل"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    assert db.get(AccountBalance, partner_acct.id).balance == Decimal("-5000000.00")
+
+
+def test_swift_out_allow_negative_requires_admin_not_just_accountant(db, client):
+    _login(db, client, role="ACCOUNTANT")
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    resp = client.post(
+        "/operations/swift-out",
+        json={"partner_account_code": partner_acct.code, "amount": "10000.00",
+              "allow_negative": True, "override_reason": "محاولة محاسب — يجب أن تُرفض"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 403
+
+
+def test_remit_out_negative_balance_rejected_without_override(db, client):
+    _login(db, client)
+    c = f.make_client(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
+    resp = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
+              "beneficiary_id": beneficiary.id, "beneficiary_amount": "69000.00", "cost_rate": "6.90",
+              "client_rate": "6.80"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 409
+
+
+def test_remit_out_allow_negative_admin_succeeds(db, client):
+    _login(db, client, role="ADMIN")
+    c = f.make_client(db, credit_allowed=True)  # نختبر تجاوز رصيد المراسل لا حد ائتمان العميل
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
+    resp = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
+              "beneficiary_id": beneficiary.id, "beneficiary_amount": "69000.00", "cost_rate": "6.90",
+              "client_rate": "6.80", "allow_negative": True,
+              "override_reason": "تحقّق آلي — إرسال قبل تغطية حساب المراسل"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    assert db.get(AccountBalance, partner_acct.id).balance < Decimal("0")
+
+
 def test_swift_return(db, client, now):
     _login(db, client)
     user = f.make_user(db)
@@ -336,12 +494,19 @@ def test_swift_return(db, client, now):
     assert resp.status_code == 201, resp.text
 
 
-def test_expense(db, client):
+def test_expense(db, client, now):
+    # حساب صندوق طازج لا "1101" الحقيقي — نفس سبب test_local_move أعلاه.
     _login(db, client)
+    box = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("500.000"),
+        receiving_account_code=box.code, user=f.make_user(db), now=now,
+    )
     expense_acct = accounts_repo.get_currency_subaccount(db, "5200", "LYD")
     resp = client.post(
         "/operations/expense",
-        json={"expense_account_code": expense_acct.code, "currency_code": "LYD", "paying_account_code": "1101",
+        json={"expense_account_code": expense_acct.code, "currency_code": "LYD", "paying_account_code": box.code,
               "amount": "150.000", "description": "إيجار المكتب"},
         headers=_headers(client),
     )

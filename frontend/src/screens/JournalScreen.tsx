@@ -70,6 +70,7 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
         <OperationsList
           entries={entries} loading={loadingEntries} onEntryChanged={reloadEntries}
           includeReversed={includeReversed} onIncludeReversedChange={setIncludeReversed}
+          currentUserRole={currentUserRole}
         />
       </div>
       {wizardOpen && (

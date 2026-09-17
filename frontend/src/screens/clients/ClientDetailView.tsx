@@ -5,7 +5,7 @@ import { api, ApiError } from '../../api/client'
 import type { ClientDetail, StatementResponse } from '../../api/types'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
-import { CancelButton, EditedBadge } from '../../components/EntryActions'
+import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { BeneficiariesPanel } from './BeneficiariesPanel'
 
@@ -229,7 +229,10 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
                     <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {r.status === 'REVERSED' && <span className="badge badge-status-reversed">ملغاة</span>}
                       {r.replaces_entry_id && <EditedBadge entryId={r.entry_id} />}
-                      {r.status === 'POSTED' && <CancelButton entryId={r.entry_id} onCancelled={() => void loadStatement()} />}
+                      <EntryActionsBar
+                        entry={{ id: r.entry_id, status: r.status, chain_ref: r.chain_ref, operation_type: r.operation_type, client_id: clientId }}
+                        currentUserRole={currentUserRole} onChanged={() => void loadStatement()}
+                      />
                     </td>
                   </tr>
                 ))}

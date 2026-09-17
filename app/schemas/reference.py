@@ -94,6 +94,7 @@ class JournalEntryOut(BaseModel):
     description: Optional[str] = None
     note: Optional[str] = None
     replaces_entry_id: Optional[int] = None
+    client_id: Optional[int] = None
     client_name_ar: Optional[str] = None
     profit_amount: Optional[Decimal] = None
     profit_currency: Optional[str] = None

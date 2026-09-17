@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 import { api } from '../api/client'
 import type { JournalEntryOut } from '../api/types'
 import { type SearchChip, chipsToParams } from '../lib/parseSearchQuery'
-import { CancelButton, EditedBadge } from './EntryActions'
+import { EditedBadge, EntryActionsBar } from './EntryActions'
 import './SearchResultsPanel.css'
 
 const OP_LABELS: Record<string, string> = {
@@ -16,9 +16,10 @@ interface SearchResultsPanelProps {
   chips: SearchChip[]
   onRemoveChip: (id: string) => void
   onClose: () => void
+  currentUserRole: 'ADMIN' | 'ACCOUNTANT'
 }
 
-export function SearchResultsPanel({ chips, onRemoveChip, onClose }: SearchResultsPanelProps) {
+export function SearchResultsPanel({ chips, onRemoveChip, onClose, currentUserRole }: SearchResultsPanelProps) {
   const [results, setResults] = useState<JournalEntryOut[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [includeReversed, setIncludeReversed] = useState(false)
@@ -83,7 +84,7 @@ export function SearchResultsPanel({ chips, onRemoveChip, onClose }: SearchResul
                     <td style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {r.status === 'REVERSED' && <span className="badge badge-status-reversed">ملغاة</span>}
                       {r.replaces_entry_id && <EditedBadge entryId={r.id} />}
-                      {r.status === 'POSTED' && <CancelButton entryId={r.id} chainRef={r.chain_ref} onCancelled={reload} />}
+                      <EntryActionsBar entry={r} currentUserRole={currentUserRole} onChanged={reload} />
                     </td>
                   </tr>
                 ))}

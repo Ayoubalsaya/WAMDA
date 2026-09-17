@@ -87,6 +87,7 @@ class StatementRow(BaseModel):
     note: Optional[str] = None
     replaces_entry_id: Optional[int] = None
     client_rate: Optional[str] = None
+    chain_ref: Optional[str] = None
 
 
 class StatementResponse(BaseModel):
