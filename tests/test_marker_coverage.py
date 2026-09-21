@@ -9,13 +9,13 @@
 
 from __future__ import annotations
 
-from tests.conftest import ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT, TOTAL_ACCEPTANCE_TESTS
+from tests.conftest import ACCEPTANCE_CANCELLED, ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT, TOTAL_ACCEPTANCE_TESTS
 
 
 def test_all_fifty_acceptance_numbers_covered(request):
     coverage: dict[int, list[str]] = getattr(request.config, "_acceptance_coverage", {})
-    covered_or_playwright = set(coverage) | set(ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT)
-    missing = sorted(set(range(1, TOTAL_ACCEPTANCE_TESTS + 1)) - covered_or_playwright)
+    covered_or_excused = set(coverage) | set(ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT) | set(ACCEPTANCE_CANCELLED)
+    missing = sorted(set(range(1, TOTAL_ACCEPTANCE_TESTS + 1)) - covered_or_excused)
     duplicated = {n: ids for n, ids in coverage.items() if len(ids) > 1}
 
     print("\n=== تقرير تغطية اختبارات القبول (§١١) ===")
@@ -25,9 +25,11 @@ def test_all_fifty_acceptance_numbers_covered(request):
             status = "OK"
         elif n in ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT:
             status = "PLAYWRIGHT"
+        elif n in ACCEPTANCE_CANCELLED:
+            status = "CANCELLED"
         else:
             status = "MISSING"
-        detail = ", ".join(ids) or ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT.get(n, "")
+        detail = ", ".join(ids) or ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT.get(n, "") or ACCEPTANCE_CANCELLED.get(n, "")
         print(f"  {n:>2}: {status:<10} {detail}")
 
     if duplicated:

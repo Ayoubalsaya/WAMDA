@@ -39,7 +39,6 @@ from app.engine.operations import (
     swift_out as swift_out_op,
     swift_return as swift_return_op,
 )
-from app.engine.operations.remit_out import BeneficiaryRequiredError
 from app.engine.operations.swift_in import SwiftInAlreadyConsumedError
 from app.engine.operations.swift_out import SwiftOutAlreadyProgressedError
 from app.engine.posting import (
@@ -54,7 +53,7 @@ from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
 from app.models import EntryComment, JournalEntry, User
 from app.models.enums import EntryStatus, OperationType, SessionSubjectType
-from app.routers.operations import _entry_response, _get_beneficiary, _get_client, _run
+from app.routers.operations import _entry_response, _get_client, _run
 from app.schemas.operations import (
     AdjustmentRequest,
     CancelRequest,
@@ -165,13 +164,12 @@ def _create_local_move(db: OrmSession, op: LocalMoveRequest, user: User, now: da
 
 def _create_remit_out(db: OrmSession, op: RemitOutRequest, user: User, now: datetime, idem: str) -> JournalEntry:
     client = _get_client(db, op.client_id)
-    beneficiary = _get_beneficiary(db, op.beneficiary_id, client_id=client.id)
     entry = _run(lambda: remit_out_op.execute(
         db, client=client, from_location_code=op.from_location_code,
-        partner_account_code=op.partner_account_code, beneficiary=beneficiary,
-        beneficiary_amount=op.beneficiary_amount, cost_rate=op.cost_rate,
+        partner_account_code=op.partner_account_code, currency_code=op.currency_code,
+        amount=op.amount, cost_rate=op.cost_rate,
         client_rate=op.client_rate, work_timezone=settings.work_timezone, created_by=user.id,
-        now=now, idempotency_key=idem, purpose=op.purpose, description=op.description,
+        now=now, idempotency_key=idem, description=op.description,
         negative_margin_reason=op.negative_margin_reason,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))

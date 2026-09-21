@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type {
-  AccountRef, Beneficiary, ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
+  AccountRef, ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
 import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
@@ -126,7 +126,6 @@ export function OperationForm({
   const [fields, setFields] = useState<Record<string, string>>({})
   const setField = (key: string, value: string) => setFields((f) => ({ ...f, [key]: value }))
 
-  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([])
   const [pendingSwift, setPendingSwift] = useState<PendingSwiftMovement[]>([])
   const [openingAccountMode, setOpeningAccountMode] = useState<'system' | 'client'>('system')
   const [clientBalancesForOpening, setClientBalancesForOpening] = useState<ClientBalance[]>([])
@@ -154,18 +153,6 @@ export function OperationForm({
     }
   }, [requestedTab])
 
-  // مستفيدو العميل النشطون — لازمون لـREMIT_OUT
-  useEffect(() => {
-    if (tab !== 'REMIT_OUT' || !client) {
-      setBeneficiaries([])
-      return
-    }
-    let cancelled = false
-    void api.get<Beneficiary[]>(`/clients/${client.id}/beneficiaries`).then((rows) => {
-      if (!cancelled) setBeneficiaries(rows)
-    })
-    return () => { cancelled = true }
-  }, [tab, client])
 
   // حركات سويفت معلَّقة — لازمة لـSWIFT_IN/SWIFT_RETURN
   useEffect(() => {
@@ -253,7 +240,6 @@ export function OperationForm({
     tab === 'EXPENSE' ? { operationType: 'EXPENSE', field: 'paying', currencyCode: fields.currency_code ?? '' } : null
   const { accounts: expensePayingAccounts } = useAccountsForOperation(expensePayingSpec)
 
-  const selectedBeneficiary = beneficiaries.find((b) => b.id === Number(fields.beneficiary_id))
   const selectedReturnMovement = pendingSwift.find((m) => m.id === Number(fields.swift_movement_id))
 
   // معاينة فورية — decimal.js في المتصفح فقط، السيرفر يعيد الحساب ويحسم
@@ -270,15 +256,15 @@ export function OperationForm({
 
   // §٤ رقم ٩: موجب = ربح (العميل دفع أكثر من التكلفة) — عكس إشارة الصرافة تماماً
   const remitPreview = useMemo(() => {
-    if (tab !== 'REMIT_OUT' || !selectedBeneficiary || !fields.beneficiary_amount) return null
+    if (tab !== 'REMIT_OUT' || !fields.currency_code || !fields.amount) return null
     const usd = currencies.find((c) => c.code === PIVOT_CODE)
     if (!usd) return null
-    const clientRaw = convertPreview(fields.beneficiary_amount, fields.client_rate ?? '', selectedBeneficiary.currency_code)
-    const costRaw = convertPreview(fields.beneficiary_amount, fields.cost_rate ?? '', selectedBeneficiary.currency_code)
+    const clientRaw = convertPreview(fields.amount, fields.client_rate ?? '', fields.currency_code)
+    const costRaw = convertPreview(fields.amount, fields.cost_rate ?? '', fields.currency_code)
     const clientAmt = roundCollectedFromClient(clientRaw, usd.decimals)
     const costAmt = roundInternal(costRaw, usd.decimals)
     return { clientAmt, costAmt, diff: clientAmt.minus(costAmt) }
-  }, [tab, selectedBeneficiary, fields.beneficiary_amount, fields.client_rate, fields.cost_rate, currencies])
+  }, [tab, fields.currency_code, fields.amount, fields.client_rate, fields.cost_rate, currencies])
 
   // ب: يبني {url, payload} فقط — لا يرسل — كي يُعاد استخدام نفس الجسم عند
   // إعادة المحاولة بعد تجاوز رصيد سالب (allow_negative+override_reason
@@ -311,9 +297,9 @@ export function OperationForm({
     } else if (tab === 'REMIT_OUT') {
       return { url: '/operations/remit-out', payload: {
         client_id: client!.id, from_location_code: fields.from_location_code,
-        partner_account_code: fields.partner_account_code, beneficiary_id: Number(fields.beneficiary_id),
-        beneficiary_amount: fields.beneficiary_amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
-        purpose: fields.purpose || undefined, negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
+        partner_account_code: fields.partner_account_code, currency_code: fields.currency_code,
+        amount: fields.amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
+        negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
       } }
     } else if (tab === 'EXPENSE') {
       return { url: '/operations/expense', payload: {
@@ -581,23 +567,17 @@ export function OperationForm({
                 emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
               />
             </div>
-            <div className="field">
-              <label className="field-label">المستفيد (من السجل — إلزامي)</label>
-              <select value={fields.beneficiary_id ?? ''} onChange={(e) => setField('beneficiary_id', e.target.value)}>
-                <option value="" disabled>{client ? 'اختر مستفيداً' : 'اختر عميلاً أولاً'}</option>
-                {beneficiaries.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name} — {b.account_number} ({b.currency_code})</option>
-                ))}
-              </select>
-              {client && beneficiaries.length === 0 && (
-                <span className="rate-hint">لا مستفيدون نشطون لهذا العميل — أضِف مستفيداً من صفحة العميل أولاً</span>
-              )}
+            <div className="op-row">
+              <div className="field">
+                <label className="field-label">عملة المبلغ المُرسَل</label>
+                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+              </div>
+              <div className="field field-amount">
+                <label className="field-label">المبلغ ({fields.currency_code || '—'})</label>
+                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
+              </div>
             </div>
             <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">مبلغ المستفيد ({selectedBeneficiary?.currency_code ?? '—'})</label>
-                <input className="num" value={fields.beneficiary_amount ?? ''} onChange={(e) => setField('beneficiary_amount', e.target.value)} />
-              </div>
               <div className="field field-rate">
                 <label className="field-label">سعر العميل</label>
                 <input className="num" value={fields.client_rate ?? ''} onChange={(e) => setField('client_rate', e.target.value)} />
@@ -607,10 +587,6 @@ export function OperationForm({
                 <input className="num" value={fields.cost_rate ?? ''} onChange={(e) => setField('cost_rate', e.target.value)} />
                 <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
               </div>
-            </div>
-            <div className="field">
-              <label className="field-label">الغرض (اختياري)</label>
-              <input value={fields.purpose ?? ''} onChange={(e) => setField('purpose', e.target.value)} />
             </div>
             {remitPreview && (
               <div className="result-card">
@@ -977,13 +953,6 @@ export function OperationForm({
           <div className="alert alert-info">
             تم الترحيل — {success.entry_no}
             {success.profit_amount && ` — ربح ${success.profit_amount} ${success.profit_currency}`}
-            {success.beneficiary_name_snapshot && (
-              <div style={{ marginTop: 6 }}>
-                أُرسل إلى: {success.beneficiary_name_snapshot} — {success.account_number_snapshot}
-                {success.bank_name_snapshot && ` (${success.bank_name_snapshot})`}
-                <span className="text-muted"> — لقطة وقت الترحيل، لا تتأثر بتعديل المستفيد لاحقاً</span>
-              </div>
-            )}
           </div>
         )}
 

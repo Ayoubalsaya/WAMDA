@@ -258,7 +258,9 @@ def test_local_move_between_company_accounts(db, client, now):
     assert resp.status_code == 201, resp.text
 
 
-def test_remit_out_requires_registered_beneficiary(db, client, now):
+def test_remit_out_direct_currency_amount_no_beneficiary(db, client, now):
+    """سجل المستفيدين أُلغي بالكامل (قرار مالك ٢٠٢٦-٠٩-٢٢) — العملة/المبلغ
+    يُدخَلان مباشرة، لا ربط بمستفيد ولا رقم حساب مسجَّل مسبقاً."""
     _login(db, client)
     user = f.make_user(db)
     c = f.make_client(db)
@@ -267,27 +269,15 @@ def test_remit_out_requires_registered_beneficiary(db, client, now):
         db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
-    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
     resp = client.post(
         "/operations/remit-out",
         json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "beneficiary_id": beneficiary.id, "beneficiary_amount": "69000.00", "cost_rate": "6.90",
+              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
               "client_rate": "6.80"},
         headers=_headers(client),
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["profit_amount"] == "147.060000"
-
-    # مستفيد يخص عميلاً آخر → ٤٠٤ (لا وجهة غير مسجّلة لهذا العميل)
-    other_client = f.make_client(db)
-    resp2 = client.post(
-        "/operations/remit-out",
-        json={"client_id": other_client.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "beneficiary_id": beneficiary.id, "beneficiary_amount": "1000.00", "cost_rate": "6.90",
-              "client_rate": "6.80"},
-        headers=_headers(client),
-    )
-    assert resp2.status_code == 404
 
 
 def test_swift_out_then_swift_in(db, client, now):
@@ -440,11 +430,10 @@ def test_remit_out_negative_balance_rejected_without_override(db, client):
     _login(db, client)
     c = f.make_client(db)
     partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
     resp = client.post(
         "/operations/remit-out",
         json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "beneficiary_id": beneficiary.id, "beneficiary_amount": "69000.00", "cost_rate": "6.90",
+              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
               "client_rate": "6.80"},
         headers=_headers(client),
     )
@@ -455,11 +444,10 @@ def test_remit_out_allow_negative_admin_succeeds(db, client):
     _login(db, client, role="ADMIN")
     c = f.make_client(db, credit_allowed=True)  # نختبر تجاوز رصيد المراسل لا حد ائتمان العميل
     partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
     resp = client.post(
         "/operations/remit-out",
         json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "beneficiary_id": beneficiary.id, "beneficiary_amount": "69000.00", "cost_rate": "6.90",
+              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
               "client_rate": "6.80", "allow_negative": True,
               "override_reason": "تحقّق آلي — إرسال قبل تغطية حساب المراسل"},
         headers=_headers(client),
@@ -701,8 +689,6 @@ def test_cost_rate_absent_from_every_response_body_reachable_today(db, client, n
         db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
-    ben = f.make_beneficiary(db, c, currency_code="CNY")
-
     responses = []
     exch = client.post(
         "/operations/exchange",
@@ -717,7 +703,7 @@ def test_cost_rate_absent_from_every_response_body_reachable_today(db, client, n
     remit = client.post(
         "/operations/remit-out",
         json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "beneficiary_id": ben.id, "beneficiary_amount": "100.00", "cost_rate": "7.2", "client_rate": "7.1"},
+              "currency_code": "CNY", "amount": "100.00", "cost_rate": "7.2", "client_rate": "7.1"},
         headers=_headers(client),
     )
     assert remit.status_code == 201, remit.text

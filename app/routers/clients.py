@@ -1,5 +1,5 @@
 """شاشات العملاء (§٧-٥): قائمة · صفحة عميل · كشف حساب برصيد متحرك ·
-إدارة المستفيدين · إنشاء/تعديل عميل وحدود ائتمانه.
+إنشاء/تعديل عميل وحدود ائتمانه.
 
 لا منطق محاسبي هنا — كتابة القيود حصراً عبر `app/routers/operations.py`.
 هذا الملف بيانات وصفية (عميل · مستفيد · حد ائتمان) وقراءة مُشتقّة من
@@ -22,7 +22,6 @@ from app.engine.clock import system_clock
 from app.models import (
     Account,
     AccountBalance,
-    Beneficiary,
     Client,
     ClientCreditLimit,
     Currency,
@@ -33,14 +32,11 @@ from app.models import (
 )
 from app.models.enums import EntryStatus, SessionSubjectType
 from app.schemas.clients import (
-    BeneficiaryDetail,
     ClientBalanceRow,
     ClientDetail,
     ClientListRow,
-    CreateBeneficiaryRequest,
     CreateClientRequest,
     CreditLimitOut,
-    SetBeneficiaryActiveRequest,
     SetCreditAllowedRequest,
     SetCreditLimitRequest,
     StatementResponse,
@@ -338,81 +334,6 @@ def client_statement(
         db, client_id=client_id, currency=currency, location=location, date_from=date_from, date_to=date_to,
         include_reversed=include_reversed,
     )
-
-
-@router.get(
-    "/clients/{client_id}/beneficiaries-full", response_model=list[BeneficiaryDetail],
-    dependencies=[Depends(require_role(Action.POST_ENTRY))],
-)
-def list_beneficiaries_full(client_id: int, db: OrmSession = Depends(get_db)) -> list[BeneficiaryDetail]:
-    """نسخة كاملة (تشمل المُعطَّلين) لشاشة إدارة المستفيدين — بخلاف
-    `GET /clients/{id}/beneficiaries` في reference.py (نشطون فقط، لاختيار
-    المستفيد في REMIT_OUT)."""
-    _get_client_or_404(db, client_id)
-    rows = db.execute(
-        select(Beneficiary).where(Beneficiary.client_id == client_id).order_by(Beneficiary.name)
-    ).scalars().all()
-    return [
-        BeneficiaryDetail(
-            id=b.id, name=b.name, account_number=b.account_number, bank_name=b.bank_name,
-            currency_code=b.currency_code, purpose=b.purpose, notes=b.notes, is_active=b.is_active,
-        )
-        for b in rows
-    ]
-
-
-@router.post(
-    "/clients/{client_id}/beneficiaries", response_model=BeneficiaryDetail, status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(verify_csrf)],
-)
-def create_beneficiary(
-    client_id: int, payload: CreateBeneficiaryRequest, db: OrmSession = Depends(get_db),
-    current_user: User = Depends(require_role(Action.POST_ENTRY)),
-) -> BeneficiaryDetail:
-    client = _get_client_or_404(db, client_id)
-    if db.get(Currency, payload.currency_code) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {payload.currency_code}")
-    beneficiary = Beneficiary(
-        client_id=client.id, name=payload.name, account_number=payload.account_number,
-        bank_name=payload.bank_name, currency_code=payload.currency_code, purpose=payload.purpose,
-        notes=payload.notes, is_active=True,
-    )
-    db.add(beneficiary)
-    db.flush()
-    audit.log_write(
-        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="BENEFICIARY_CREATED",
-        entity="beneficiaries", entity_id=beneficiary.id,
-        after={"client_id": client.id, "name": beneficiary.name, "account_number": beneficiary.account_number},
-    )
-    db.commit()
-    return BeneficiaryDetail(
-        id=beneficiary.id, name=beneficiary.name, account_number=beneficiary.account_number,
-        bank_name=beneficiary.bank_name, currency_code=beneficiary.currency_code, purpose=beneficiary.purpose,
-        notes=beneficiary.notes, is_active=beneficiary.is_active,
-    )
-
-
-@router.patch(
-    "/beneficiaries/{beneficiary_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
-    dependencies=[Depends(verify_csrf)],
-)
-def set_beneficiary_active(
-    beneficiary_id: int, payload: SetBeneficiaryActiveRequest, db: OrmSession = Depends(get_db),
-    current_user: User = Depends(require_role(Action.POST_ENTRY)),
-) -> None:
-    """تعطيل/إعادة تفعيل فقط — لا حذف نهائي أبداً (§٣-٣)."""
-    beneficiary = db.get(Beneficiary, beneficiary_id)
-    if beneficiary is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا مستفيد بالمعرّف {beneficiary_id}")
-    before = beneficiary.is_active
-    beneficiary.is_active = payload.is_active
-    audit.log_write(
-        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id,
-        action="BENEFICIARY_DISABLED" if not payload.is_active else "BENEFICIARY_ENABLED",
-        entity="beneficiaries", entity_id=beneficiary.id,
-        before={"is_active": before}, after={"is_active": payload.is_active},
-    )
-    db.commit()
 
 
 @router.put(

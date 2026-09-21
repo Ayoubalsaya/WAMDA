@@ -135,10 +135,9 @@ def test_correspondent_statement_shows_cost_rate(db, client, now):
         db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
-    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
     remit_out_op.execute(
-        db, client=c, from_location_code="TURKEY", partner_account_code=partner_acct.code, beneficiary=beneficiary,
-        beneficiary_amount=Decimal("500.00"), cost_rate=Decimal("7.088"), client_rate=Decimal("7.133"),
+        db, client=c, from_location_code="TURKEY", partner_account_code=partner_acct.code,
+        currency_code="CNY", amount=Decimal("500.00"), cost_rate=Decimal("7.088"), client_rate=Decimal("7.133"),
         work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(), negative_margin_reason="اختبار",
     )
     resp = client.get(f"/documents/statement/account/{partner_acct.code}.pdf")

@@ -99,25 +99,3 @@ class StatementResponse(BaseModel):
     rows: list[StatementRow]
 
 
-class CreateBeneficiaryRequest(BaseModel):
-    name: str = Field(min_length=1)
-    account_number: str = Field(min_length=1)
-    bank_name: Optional[str] = None
-    currency_code: str
-    purpose: Optional[str] = None
-    notes: Optional[str] = None
-
-
-class BeneficiaryDetail(BaseModel):
-    id: int
-    name: str
-    account_number: str
-    bank_name: Optional[str] = None
-    currency_code: str
-    purpose: Optional[str] = None
-    notes: Optional[str] = None
-    is_active: bool
-
-
-class SetBeneficiaryActiveRequest(BaseModel):
-    is_active: bool

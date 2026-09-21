@@ -89,7 +89,6 @@ def _cleanup_real_commits(conc_engine):
                 {"e": eids},
             )
             session.execute(text("DELETE FROM currency_lots WHERE source_entry_id = ANY(:e)"), {"e": eids})
-            session.execute(text("DELETE FROM remit_out_destinations WHERE entry_id = ANY(:e)"), {"e": eids})
             session.execute(text("UPDATE swift_movements SET out_entry_id = NULL WHERE out_entry_id = ANY(:e)"), {"e": eids})
             session.execute(text("UPDATE swift_movements SET in_entry_id = NULL WHERE in_entry_id = ANY(:e)"), {"e": eids})
             session.execute(
@@ -117,7 +116,6 @@ def _cleanup_real_commits(conc_engine):
         ]
         if client_ids:
             session.execute(text("DELETE FROM client_credit_limits WHERE client_id = ANY(:c)"), {"c": client_ids})
-            session.execute(text("DELETE FROM beneficiaries WHERE client_id = ANY(:c)"), {"c": client_ids})
             session.execute(text("DELETE FROM clients WHERE id = ANY(:c)"), {"c": client_ids})
 
         user_ids = [

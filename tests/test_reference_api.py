@@ -123,15 +123,6 @@ def test_client_balances_unknown_client_404(db, client):
     assert resp.status_code == 404
 
 
-def test_client_beneficiaries(db, client):
-    _login(db, client)
-    c = f.make_client(db)
-    b = f.make_beneficiary(db, c, currency_code="CNY")
-    resp = client.get(f"/clients/{c.id}/beneficiaries")
-    assert resp.status_code == 200
-    assert any(row["id"] == b.id for row in resp.json())
-
-
 def test_pending_swift_movements_lists_sent_excludes_received(db, client, now):
     from app.engine.operations import swift_in as swift_in_op, swift_out as swift_out_op
 

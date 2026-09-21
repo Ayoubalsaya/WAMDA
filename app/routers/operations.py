@@ -66,7 +66,6 @@ from app.security.permissions import Action, PermissionDeniedError, require_perm
 router = APIRouter(prefix="/operations", tags=["operations"], dependencies=[Depends(verify_csrf)])
 
 _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
-    (BeneficiaryRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (NegativeMarginReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (OverrideReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidClientLocationError, status.HTTP_422_UNPROCESSABLE_ENTITY),
@@ -101,13 +100,6 @@ def _get_client(db: OrmSession, client_id: int) -> Client:
     if client is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
     return client
-
-
-def _get_beneficiary(db: OrmSession, beneficiary_id: int, *, client_id: int) -> Beneficiary:
-    beneficiary = db.get(Beneficiary, beneficiary_id)
-    if beneficiary is None or beneficiary.client_id != client_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا مستفيد بالمعرّف {beneficiary_id} لهذا العميل")
-    return beneficiary
 
 
 def _require_override_permission(current_user: User) -> None:
@@ -344,28 +336,19 @@ def create_remit_out(
     if payload.allow_negative:
         _require_override_permission(current_user)
     client = _get_client(db, payload.client_id)
-    beneficiary = _get_beneficiary(db, payload.beneficiary_id, client_id=client.id)
     now = system_clock()
     entry = _run(lambda: remit_out_op.execute(
         db, client=client, from_location_code=payload.from_location_code,
-        partner_account_code=payload.partner_account_code, beneficiary=beneficiary,
-        beneficiary_amount=payload.beneficiary_amount, cost_rate=payload.cost_rate,
+        partner_account_code=payload.partner_account_code, currency_code=payload.currency_code,
+        amount=payload.amount, cost_rate=payload.cost_rate,
         client_rate=payload.client_rate, work_timezone=settings.work_timezone, created_by=current_user.id,
-        now=now, idempotency_key=idempotency_key, purpose=payload.purpose, description=payload.description,
+        now=now, idempotency_key=idempotency_key, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
     db.commit()
-    response = _entry_response(entry)
-    destination = db.execute(
-        select(RemitOutDestination).where(RemitOutDestination.entry_id == entry.id)
-    ).scalar_one_or_none()
-    if destination is not None:
-        response.beneficiary_name_snapshot = destination.beneficiary_name_snapshot
-        response.account_number_snapshot = destination.account_number_snapshot
-        response.bank_name_snapshot = destination.bank_name_snapshot
-    return response
+    return _entry_response(entry)
 
 
 @router.post("/swift-out", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)

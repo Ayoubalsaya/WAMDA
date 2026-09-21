@@ -7,7 +7,6 @@ import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { useReferenceData } from '../../hooks/useReferenceData'
-import { BeneficiariesPanel } from './BeneficiariesPanel'
 
 interface ClientDetailViewProps {
   clientId: number
@@ -244,8 +243,6 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
           </div>
         )}
       </div>
-
-      <BeneficiariesPanel clientId={clientId} currencies={currencies} />
     </div>
   )
 }

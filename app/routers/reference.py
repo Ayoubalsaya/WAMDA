@@ -23,7 +23,6 @@ from app.config import settings
 from app.models import (
     Account,
     AccountBalance,
-    Beneficiary,
     Client,
     ClientCurrencyLocation,
     Currency,
@@ -37,7 +36,6 @@ from app.models import (
 from app.models.enums import EntryStatus, SwiftStatus
 from app.schemas.reference import (
     AccountOut,
-    BeneficiaryOut,
     ClientBalanceOut,
     ClientCurrencyLocationOut,
     ClientSearchResultOut,
@@ -141,23 +139,6 @@ def client_balances(client_id: int, db: OrmSession = Depends(get_db)) -> list[Cl
             location_code=locations.get(acc.location_id) if acc.location_id else None, balance=bal.balance,
         )
         for acc, bal in rows
-    ]
-
-
-@router.get(
-    "/clients/{client_id}/beneficiaries", response_model=list[BeneficiaryOut],
-    dependencies=[Depends(require_role(Action.POST_ENTRY))],
-)
-def client_beneficiaries(client_id: int, db: OrmSession = Depends(get_db)) -> list[BeneficiaryOut]:
-    # §٩ المرحلة ١٢: نفس حاجز POST_ENTRY لبقية مسارات بيانات العميل
-    if db.get(Client, client_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
-    rows = db.execute(
-        select(Beneficiary).where(Beneficiary.client_id == client_id, Beneficiary.is_active.is_(True)).order_by(Beneficiary.name)
-    ).scalars().all()
-    return [
-        BeneficiaryOut(id=b.id, name=b.name, account_number=b.account_number, bank_name=b.bank_name, currency_code=b.currency_code)
-        for b in rows
     ]
 
 

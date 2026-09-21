@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.engine import accounts_repo
 from app.engine.operations import receipt as receipt_op
-from app.models import Account, Beneficiary, Client, ClientCreditLimit, Partner, User
+from app.models import Account, Client, ClientCreditLimit, Partner, User
 from app.models.enums import AccountForm, AccountType
 
 
@@ -47,19 +47,6 @@ def make_client(
 def set_credit_limit(db: Session, client: Client, currency_code: str, amount: Decimal) -> None:
     db.add(ClientCreditLimit(client_id=client.id, currency_code=currency_code, limit_amount=amount))
     db.flush()
-
-
-def make_beneficiary(db: Session, client: Client, *, currency_code: str = "CNY") -> Beneficiary:
-    beneficiary = Beneficiary(
-        client_id=client.id,
-        name="مستفيد اختبار",
-        account_number=f"ACC-{uid()}",
-        bank_name="بنك اختبار",
-        currency_code=currency_code,
-    )
-    db.add(beneficiary)
-    db.flush()
-    return beneficiary
 
 
 def make_correspondent_account(

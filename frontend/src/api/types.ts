@@ -56,14 +56,6 @@ export interface ClientBalance {
   balance: string
 }
 
-export interface Beneficiary {
-  id: number
-  name: string
-  account_number: string
-  bank_name: string | null
-  currency_code: string
-}
-
 export interface JournalLineOut {
   account_code: string
   account_name_ar: string
@@ -132,9 +124,6 @@ export interface EntryResponse {
   chain_ref: string | null
   chain_seq: number | null
   chain_total: number | null
-  beneficiary_name_snapshot: string | null
-  account_number_snapshot: string | null
-  bank_name_snapshot: string | null
 }
 
 export interface ExchangeChainResponse {
@@ -197,17 +186,6 @@ export interface StatementResponse {
   opening_balance: string
   closing_balance: string
   rows: StatementRow[]
-}
-
-export interface BeneficiaryFull {
-  id: number
-  name: string
-  account_number: string
-  bank_name: string | null
-  currency_code: string
-  purpose: string | null
-  notes: string | null
-  is_active: boolean
 }
 
 export interface PendingSwiftMovement {

@@ -52,14 +52,6 @@ class ClientBalanceOut(BaseModel):
     balance: Decimal
 
 
-class BeneficiaryOut(BaseModel):
-    id: int
-    name: str
-    account_number: str
-    bank_name: Optional[str] = None
-    currency_code: str
-
-
 class JournalLineOut(BaseModel):
     account_code: str
     account_name_ar: str
