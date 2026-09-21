@@ -7,7 +7,7 @@
   <div class="balances-box">
     <div class="lbl">{{ s.label }}</div>
     {% for item in s.lines %}
-    <div class="row"><span>{{ item.k }}</span><span class="num">{{ item.v }}</span></div>
+    <div class="kv-row"><span class="k">{{ item.k }}</span><span class="v num">{{ item.v }}</span></div>
     {% endfor %}
   </div>
   {% endfor %}

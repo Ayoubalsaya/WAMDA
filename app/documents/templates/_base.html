@@ -28,8 +28,13 @@ body { font-size: 12.5px; }
 body { font-size: 13px; }
 {% endif %}
 
+.doc-top {
+  display: flex; align-items: stretch; gap: 10px;
+  margin-bottom: {% if doc_size == "thermal" %}8px{% else %}18px{% endif %};
+}
 .doc-header {
   display: flex; align-items: center; justify-content: space-between;
+  flex: 1; min-width: 0;
   padding: {% if doc_size == "thermal" %}0 0 6px 0{% else %}10px 16px{% endif %};
   {% if doc_size != "thermal" %}
   background: linear-gradient(140deg, #42B0D5 0%, #1A7B9E 55%, #10455B 100%);
@@ -37,17 +42,20 @@ body { font-size: 13px; }
   {% else %}
   border-bottom: 1px dashed #000; color: #000;
   {% endif %}
-  margin-bottom: {% if doc_size == "thermal" %}8px{% else %}18px{% endif %};
 }
-.doc-header-brand { display: flex; align-items: center; gap: 10px; }
+.doc-header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .doc-header-logo { flex-shrink: 0; }
 .doc-header-name { font-weight: 700; font-size: {% if doc_size == "thermal" %}14px{% else %}17px{% endif %}; }
-.doc-header-title { text-align: left; }
+.doc-header-title { text-align: left; min-width: 0; }
 .doc-header-title .t1 { font-weight: 700; font-size: {% if doc_size == "thermal" %}13px{% else %}15px{% endif %}; }
 .doc-header-title .t2 { font-size: {% if doc_size == "thermal" %}10px{% else %}11.5px{% endif %}; opacity: .85; }
 
-.doc-qr { position: absolute; top: {% if doc_size == "a4" %}18mm{% else %}6px{% endif %}; left: {% if doc_size == "a4" %}18mm{% else %}6px{% endif %}; }
-.doc-qr img { width: {% if doc_size == "thermal" %}42px{% else %}64px{% endif %}; height: auto; display: block; }
+.doc-qr-col {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: {% if doc_size == "png" %}84px{% else %}76px{% endif %};
+  background: #fff; border: 1px solid #dbeaf1; border-radius: 10px; padding: 6px;
+}
+.doc-qr-col img { width: 100%; height: auto; display: block; }
 
 .balances-strip {
   display: flex; gap: 10px; margin: 10px 0;
@@ -59,7 +67,23 @@ body { font-size: 13px; }
   background: {% if doc_size == "thermal" %}#fff{% else %}#f4fbfd{% endif %};
 }
 .balances-box .lbl { font-size: {% if doc_size == "thermal" %}9px{% else %}11px{% endif %}; color: {% if doc_size == "thermal" %}#000{% else %}#5b7480{% endif %}; margin-bottom: 3px; }
-.balances-box .row { display: flex; justify-content: space-between; font-size: {% if doc_size == "thermal" %}10.5px{% else %}12.5px{% endif %}; margin-bottom: 2px; }
+.balances-box .row { display: flex; gap: 8px; font-size: {% if doc_size == "thermal" %}10.5px{% else %}12.5px{% endif %}; margin-bottom: 2px; }
+.balances-box .row > span { flex: 0 0 auto; }
+.balances-box .row > span:last-child { font-weight: 600; }
+
+/* تسمية/قيمة متلاصقتان بعرض تسمية ثابت — بدل التباعد بمسافة فارغة ضخمة
+   لعرض المستند كاملاً (كان `justify-content: space-between` على عرض
+   الصفحة الكامل). */
+.kv-row {
+  display: flex; gap: {% if doc_size == "thermal" %}6px{% else %}10px{% endif %};
+  font-size: inherit; margin-top: {% if doc_size == "thermal" %}2px{% else %}4px{% endif %};
+}
+.kv-row:first-child { margin-top: 0; }
+.kv-row .k {
+  flex: 0 0 {% if doc_size == "thermal" %}44px{% else %}92px{% endif %};
+  color: {% if doc_size == "thermal" %}#000{% else %}#5b7480{% endif %};
+}
+.kv-row .v { flex: 1; font-weight: 600; min-width: 0; }
 
 table.doc-table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: inherit; }
 table.doc-table th, table.doc-table td { padding: {% if doc_size == "thermal" %}3px 2px{% else %}7px 8px{% endif %}; text-align: right; }
@@ -92,27 +116,28 @@ table.doc-table td { border-bottom: 1px solid {% if doc_size == "thermal" %}#000
 </head>
 <body>
 
-{% if qr_data_uri and doc_size != "thermal" %}
-<div class="doc-qr"><img src="{{ qr_data_uri }}" alt="QR"></div>
-{% endif %}
-
-<div class="doc-header">
-  <div class="doc-header-brand">
-    <span class="doc-header-logo">
-      {% if company_logo_data_uri %}
-      <img src="{{ company_logo_data_uri }}" alt="" style="width:{% if doc_size == 'thermal' %}22{% else %}32{% endif %}px;height:auto;">
-      {% else %}
-      <svg width="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" height="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" viewBox="0 0 24 24" fill="none">
-        <path d="M13.2 2 4.8 13.4h5.6L10 22l9-11.6h-5.9L13.2 2Z" fill="{% if doc_size == 'thermal' %}#000{% else %}#fff{% endif %}"/>
-      </svg>
-      {% endif %}
-    </span>
-    <span class="doc-header-name">{{ company_name }}</span>
+<div class="doc-top">
+  <div class="doc-header">
+    <div class="doc-header-brand">
+      <span class="doc-header-logo">
+        {% if company_logo_data_uri %}
+        <img src="{{ company_logo_data_uri }}" alt="" style="width:{% if doc_size == 'thermal' %}22{% else %}32{% endif %}px;height:auto;">
+        {% else %}
+        <svg width="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" height="{% if doc_size == 'thermal' %}18{% else %}28{% endif %}" viewBox="0 0 24 24" fill="none">
+          <path d="M13.2 2 4.8 13.4h5.6L10 22l9-11.6h-5.9L13.2 2Z" fill="{% if doc_size == 'thermal' %}#000{% else %}#fff{% endif %}"/>
+        </svg>
+        {% endif %}
+      </span>
+      <span class="doc-header-name">{{ company_name }}</span>
+    </div>
+    <div class="doc-header-title">
+      <div class="t1">{{ doc_title }}</div>
+      {% if doc_subtitle %}<div class="t2">{{ doc_subtitle }}</div>{% endif %}
+    </div>
   </div>
-  <div class="doc-header-title">
-    <div class="t1">{{ doc_title }}</div>
-    {% if doc_subtitle %}<div class="t2">{{ doc_subtitle }}</div>{% endif %}
-  </div>
+  {% if qr_data_uri and doc_size != "thermal" %}
+  <div class="doc-qr-col"><img src="{{ qr_data_uri }}" alt="QR"></div>
+  {% endif %}
 </div>
 
 {% if qr_data_uri and doc_size == "thermal" %}
