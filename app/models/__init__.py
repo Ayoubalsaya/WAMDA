@@ -4,11 +4,9 @@ from app.models.base import Base
 from app.models.core import ClientCurrencyLocation, Currency, Location
 from app.models.accounts import Account, AccountNumberAssignment, AccountNumberCounter
 from app.models.partners import (
-    Beneficiary,
     Client,
     ClientCreditLimit,
     Partner,
-    RemitOutDestination,
 )
 from app.models.journal import EntryComment, JournalEntry, JournalLine
 from app.models.swift import SwiftMovement
@@ -38,11 +36,9 @@ __all__ = [
     "Account",
     "AccountNumberAssignment",
     "AccountNumberCounter",
-    "Beneficiary",
     "Client",
     "ClientCreditLimit",
     "Partner",
-    "RemitOutDestination",
     "EntryComment",
     "JournalEntry",
     "JournalLine",

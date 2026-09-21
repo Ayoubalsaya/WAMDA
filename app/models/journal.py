@@ -33,7 +33,6 @@ class JournalEntry(Base):
     operation_type: Mapped[OperationType] = mapped_column(operation_type_enum, nullable=False)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id"))
     partner_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("partners.id"))
-    beneficiary_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("beneficiaries.id"))
     from_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
     to_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
     cost_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 10))

@@ -31,7 +31,6 @@ from app.engine.operations import (
     swift_out as swift_out_op,
     swift_return as swift_return_op,
 )
-from app.engine.operations.remit_out import BeneficiaryRequiredError
 from app.engine.posting import (
     BackdatedEntryRequiresAdminError,
     CreditLimitExceededError,
@@ -42,8 +41,7 @@ from app.engine.posting import (
 )
 from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
-from app.models import Beneficiary, Client, JournalEntry, JournalLine, User
-from app.models.partners import RemitOutDestination
+from app.models import Client, JournalEntry, JournalLine, User
 from app.schemas.operations import (
     AdjustmentRequest,
     CashTransferRequest,

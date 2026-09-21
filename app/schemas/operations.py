@@ -26,10 +26,6 @@ class EntryResponse(BaseModel):
     chain_ref: Optional[str] = None
     chain_seq: Optional[int] = None
     chain_total: Optional[int] = None
-    # لقطة وجهة REMIT_OUT فقط — §3-3، تظهر في الإيصال ولا تتأثر بتعديل المستفيد لاحقاً
-    beneficiary_name_snapshot: Optional[str] = None
-    account_number_snapshot: Optional[str] = None
-    bank_name_snapshot: Optional[str] = None
 
 
 class ReceiptRequest(BaseModel):
@@ -147,11 +143,10 @@ class RemitOutRequest(BaseModel):
     client_id: int
     from_location_code: str
     partner_account_code: str
-    beneficiary_id: int
-    beneficiary_amount: Decimal = Field(gt=0)
+    currency_code: str  # عملة المبلغ المُرسَل للمستفيد — لا سجل مستفيدين بعد الآن
+    amount: Decimal = Field(gt=0)
     cost_rate: Decimal = Field(gt=0)
     client_rate: Decimal = Field(gt=0)
-    purpose: Optional[str] = None
     description: Optional[str] = None
     note: Optional[str] = None
     negative_margin_reason: Optional[str] = None

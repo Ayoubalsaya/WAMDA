@@ -41,10 +41,16 @@
 
 - **الفرع النشط:** `stage-14c-fixes` (منبثق من `stage-14b-notes-cancel-edit`
   بعد `00d7edd`). **المراحل ١-١٤ب معتمدة (١٤ب بانتظار تجربتك، لم تُدمَج
-  بعد).** **المرحلة ١٤ج: أربع مجموعات إصلاح — تعديل/إلغاء من كل مكان ·
-  رصيد سالب مضبوط للصناديق/المراسلين · حقول بلا نظام تصميم · علّتا تحميل
-  أبدي وجرس بلا وظيفة — منجزة ومُختبَرة حياً، بانتظار تجربتك.** انظر قسم
-  "المرحلة ١٤ج" أسفله للتفصيل الكامل.
+  بعد).** **المرحلة ١٤ج: أربع مجموعات إصلاح — منجزة ومُختبَرة حياً
+  ومُعتمَدة في commit، بانتظار تجربتك.**
+- **⚠ تحذير يفوق كل ما سبق — اقرأه قبل أي شيء آخر:** فوق ١٤ج مباشرة،
+  عمل جارٍ لتنفيذ قرار مالك (إلغاء المستفيدين بالكامل، ٢٠٢٦-٠٩-٢٢)
+  **متوقِّف في منتصف الطريق**. **`import app.main` يفشل حالياً فعلياً**
+  (`ImportError` من `app/routers/clients.py`) — **لا خادم يعمل، لا
+  اختبار يُشغَّل، حتى تُكمِل القائمة الكاملة في قسم "قرار مالك ٢٠٢٦-٠٩-٢٢
+  — إلغاء المستفيدين" أدناه**. اقرأه كاملاً أولاً، لا تفترض شيئاً. بعده
+  مباشرة: بلاغ منفصل غير مبدوء بعد (علّتا تخطيط QR + تباعد تسمية/قيمة
+  في قوالب المستندات) — مفصَّل في نهاية نفس القسم.
 - **الخادم المحلي:** `uvicorn` **بلا** `--reload` (قرار المرحلة ٧، لا يزال
   سارياً). أعِد التشغيل يدوياً بعد أي تعديل خلفي، وتحقَّق دائماً من
   `curl http://127.0.0.1:<port>/openapi.json` قبل أي اختبار حيّ.
@@ -2349,6 +2355,151 @@ commit واحد في النهاية. فشل أي طرف يترك الجلسة ب
 من بيانات اختبار `QA-14C-P` قبل تنظيفها) — لا علاقة له بومضة (أكَّد
 المالك أنه نشاط في نظام منفصل تماماً). ذُكر هنا فقط لتفسير مصدر حالة
 `1501` أعلاه، لا كمشكلة قائمة.
+
+## قرار مالك ٢٠٢٦-٠٩-٢٢ — إلغاء المستفيدين 🚧 قيد التنفيذ، **الخادم لا يُقلِع حالياً**
+
+**السبب المُعلَن من المالك**: ٩٥٪ من العملاء يعطون رقم حساب فقط بلا أي
+معلومة أخرى، وحقل «ملاحظة العملية» (المرحلة ١٤ب) يغطي أي حاجة لتدوين
+الوجهة — سجل المستفيدين عبء بلا فائدة. **إلغاء كامل**: لا شاشة مستفيدين،
+لا جدول `beneficiaries`/`remit_out_destinations`، لا ربط في `REMIT_OUT`
+— القيمة تُرسَل مباشرة (عميل · عملة · موقع · مبلغ · سعر · ملاحظة).
+
+### ⚠ تحذير صريح لبداية الجلسة القادمة — لا تفترض العمل جاهزاً
+**التطبيق لا يُقلِع الآن فعلياً**: `import app.main` يفشل بـ`ImportError:
+cannot import name 'Beneficiary' from 'app.models'` (مصدره
+`app/routers/clients.py`). هذا **متوقَّع في منتصف عمل جذري بمعاملة
+متعددة الملفات**، لا انحداراً غامضاً — القائمة أدناه تحصر كل ما تبقّى
+بدقة. **لا تُشغِّل uvicorn ولا تختبر شيئاً قبل إكمال القسم "الباقي" كاملاً.**
+
+### المُنجَز فعلياً (طبقة النموذج والمحرك الأساسية فقط)
+- `app/models/partners.py`: حُذف `Beneficiary`/`RemitOutDestination` (تعليق
+  توثيقي مكانهما يشير لهذا القرار).
+- `app/models/journal.py`: حُذف عمود `JournalEntry.beneficiary_id`.
+- `app/models/__init__.py`: حُذف تصدير الصنفين.
+- `app/engine/posting.py`: حُذف معامل `beneficiary_id` من
+  `create_draft_entry` ومن استدعاء `reverse_entry` له.
+- `app/engine/operations/remit_out.py`: **أُعيدت كتابته بالكامل** —
+  لا `beneficiary`/`BeneficiaryRequiredError`/`RemitOutDestination`
+  إطلاقاً. معاملات جديدة: `currency_code` + `amount` مباشرة بدل
+  `beneficiary`+`beneficiary_amount` (العملة كانت تُشتق من
+  `beneficiary.currency_code`، الآن مُدخَل صريح). **حُذف أيضاً معامل
+  `purpose`** — كان ميتاً فعلياً حتى قبل هذا القرار (يُستقبَل ولا يُخزَّن
+  في أي مكان مطلقاً، تحقَّقتُ بالقراءة المباشرة)، وغير مذكور في قائمة
+  الحقول المطلوبة من المالك، فحُذف بدل إبقاء عبء بلا فائدة.
+- `app/schemas/operations.py`: `RemitOutRequest` مُحدَّث لنفس الحقول
+  الجديدة. `EntryResponse` — حُذفت الحقول الثلاثة
+  `beneficiary_name_snapshot`/`account_number_snapshot`/`bank_name_snapshot`.
+- `app/routers/operations.py`: حُذف استيراد `BeneficiaryRequiredError`
+  ونموذجَي `Beneficiary`/`RemitOutDestination` من `app.models`.
+  **لم يُكمَل بعد**: دالة `_get_beneficiary()` لا تزال موجودة (جسمها
+  يستدعي `Beneficiary` غير المستورَد — `NameError` عند أي استدعاء فعلي،
+  لا عند الاستيراد بفضل `from __future__ import annotations`)، ومسار
+  `POST /operations/remit-out` لا يزال يستدعيها ويمرّر
+  `beneficiary=`/`beneficiary_amount=` القديمين (توقيع غير متوافق مع
+  `remit_out.execute` الجديد) ويقرأ `RemitOutDestination` لملء
+  `response.beneficiary_name_snapshot` (حقل محذوف من `EntryResponse`).
+
+### الباقي — بالترتيب المنطقي، مطلوب لإعادة تشغيل الخادم فقط أولاً
+
+**١) لإصلاح فشل الإقلاع (أولوية قصوى، لا شيء يعمل قبله):**
+- `app/routers/clients.py`: يستورد `Beneficiary` + `BeneficiaryDetail`/
+  `CreateBeneficiaryRequest`/`SetBeneficiaryActiveRequest` من
+  `app.schemas.clients` — احذف المسارات الثلاثة (`GET .../beneficiaries-full`،
+  `POST .../beneficiaries`، `PATCH /beneficiaries/{id}`) بالكامل + الاستيراد.
+- `app/routers/reference.py`: يستورد `Beneficiary`/`BeneficiaryOut` —
+  احذف `GET /clients/{id}/beneficiaries` بالكامل + الاستيراد.
+- `app/routers/entry_actions.py`: يستورد `BeneficiaryRequiredError` من
+  `remit_out.py` (لم يعد موجوداً فيه) ويستدعي `_get_beneficiary` من
+  `operations.py` (سيُحذَف) داخل `_create_remit_out` بمعاملات قديمة —
+  حدِّثها لنفس معاملات `remit_out.execute` الجديدة (`currency_code`/`amount`).
+- `app/schemas/clients.py`: احذف `CreateBeneficiaryRequest`/
+  `BeneficiaryDetail`/`SetBeneficiaryActiveRequest`.
+- `app/schemas/reference.py`: احذف `BeneficiaryOut`.
+- `app/routers/operations.py` نفسه: أكمل ما وُصف أعلاه (احذف
+  `_get_beneficiary`، أصلح مسار `remit-out`).
+
+**٢) ترحيل Alembic جديد** (`down_revision = '220e41749c52'`، لم يُنشأ بعد):
+  `upgrade`: `drop_table('remit_out_destinations')` ثم
+  `drop_constraint('journal_entries_beneficiary_id_fkey', 'journal_entries',
+  type_='foreignkey')` (الاسم الحقيقي مؤكَّد بالاستعلام المباشر على
+  القاعدة) ثم `drop_column('journal_entries', 'beneficiary_id')` ثم
+  `drop_table('beneficiaries')`. `downgrade`: إعادة الإنشاء بالترتيب
+  المعاكس بنفس تعريفات الأعمدة/القيود الحرفية من `c9ff2c0b9b7b_initial_schema.py`
+  (مُحدَّدة سطراً سطراً بالفعل، جاهزة للنسخ). **لم يُشغَّل على القاعدة
+  المحلية بعد** — لا تُشغِّله قبل أن تستقر طبقة الكود (القسم ١) لتفادي
+  قاعدة بلا كود متوافق.
+
+**٣) واجهة الموظف:**
+  - احذف `frontend/src/screens/clients/BeneficiariesPanel.tsx` بالكامل.
+  - `ClientDetailView.tsx`: احذف الاستيراد والاستخدام.
+  - `ClientsScreen.css`: احذف أنماط `.beneficiaries-list`/`.beneficiary-row*`.
+  - `OperationForm.tsx` (الأثقل): احذف قائمة اختيار المستفيد وحقل «مبلغ
+    المستفيد» من تبويب `REMIT_OUT`، استبدلهما بحقلي عملة (اختيار من
+    القائمة) ومبلغ مباشرين. أعد بناء `remitPreview` (حالياً يعتمد
+    `selectedBeneficiary.currency_code`) ليعتمد حقل العملة الجديد مباشرة.
+    احذف `beneficiaries`/`selectedBeneficiary` وجلب
+    `/clients/{id}/beneficiaries` بالكامل. حدِّث جسم طلب `remit-out` في
+    `submit()`/`buildRequest()` (الحقول الجديدة `currency_code`/`amount`
+    بدل `beneficiary_id`/`beneficiary_amount`). احذف عرض
+    `success.beneficiary_name_snapshot` من شريط النجاح.
+  - `frontend/src/api/types.ts`: احذف `Beneficiary`/`BeneficiaryFull`
+    وحقول `beneficiary_name_snapshot`/`account_number_snapshot`/
+    `bank_name_snapshot` من `EntryResponse`.
+
+**٤) الإيصال:**
+  - `app/documents/receipt.py`: احذف بناء سياق `destination`
+    (`beneficiary_name`/الخ من `dest_row`) بالكامل.
+  - `app/documents/templates/receipt.html`: احذف قسم لقطة الوجهة
+    (`{{ destination.beneficiary_name }}` وصفّه)، اعرض `entry.note` مكانه
+    إن وُجدت (بنفس نمط عرض الملاحظة في القوالب الأخرى).
+
+**٥) `app/cli/purge_demo_data.py`**: احذف سطر
+  `DELETE FROM beneficiaries WHERE client_id IN (...)` — الجدول نفسه
+  سيُحذَف بالترحيل، الإبقاء عليه بعد ذلك سيكسر الأداة بخطأ "جدول غير
+  موجود". راجع رأس الملف (قائمة الأنماط/الجداول) لأي ذكر آخر للمستفيدين.
+
+**٦) `scripts/demo_stage2.py`**: يستخدم مستفيدين تجريبيين لتوضيح
+  `REMIT_OUT` — حدِّثه ليطابق التوقيع الجديد (أو احذف ذلك المقطع إن لم
+  يعد ذا معنى) كي لا يفشل إن شُغِّل لاحقاً.
+
+**٧) الاختبارات:**
+  - `tests/test_acceptance_31_40.py`: احذف اختبارات القبول ٣١ (مستفيد
+    إلزامي) و٣٢ (رقم حساب إلزامي) و٣٣ (لقطة الوجهة) — الثلاثة بأرقامها
+    مؤكَّدة (`@pytest.mark.acceptance(31/32/33)`). أزِلها من أي سجل
+    استثناء تغطية (`conftest.py`/`test_marker_coverage.py`) **بتوثيق
+    صريح أنها أُلغيت عمداً** — لا حذف صامت يُفشل `marker-coverage` لاحقاً
+    ظناً أنه نقص حقيقي.
+  - أضِف اختباراً جديداً: `REMIT_OUT` بلا أي مستفيد (الحقول الجديدة
+    فقط) → `٢٠١` نجاح.
+  - `tests/factories.py::make_beneficiary` تُستخدَم في **٧ ملفات اختبار**
+    (`factories.py` نفسها + `test_acceptance_01_10` · `test_acceptance_31_40`
+    · `test_documents_receipt` · `test_operations_api` · `test_rate_visibility`
+    · `test_reference_api`) — راجع كل استخدام؛ أغلبها على الأرجح REMIT_OUT
+    قديم يحتاج تحديث توقيع لا حذفاً كاملاً للاختبار نفسه.
+  - `tests/test_permission_matrix.py`/`tests/test_csrf_coverage.py`:
+    أزِل تصنيف المسارات المحذوفة (`beneficiaries*`)، تأكَّد أن الحارسين
+    يمرّان (يفشلان عمداً عند أي مسار محذوف غير مُزال من الجدول أيضاً).
+  - شغِّل المجموعة كاملة بعد كل ما سبق — **لم تُشغَّل منذ بدء هذا القرار،
+    الحالة الحالية غير معروفة**.
+
+**٨) الوثيقتان المرجعيتان في المجلد الأب** (لم تُلمَسا بعد،
+  `نظام_ومضة_v3.0_النهائي.md`: ١٢ ذكراً لـ"مستفيد"، `ومضة_مواصفة_التصميم_v3.0.md`:
+  ٤ ذكرات — كلاهما بحاجة مراجعة كاملة لا استبدال نصي أعمى):
+  احذف كل ذكر للمستفيدين وسجلهم ولقطة الوجهة · أضِف لـ§١٤ سجل القرارات:
+  «المستفيدون — مُلغى (٢٠٢٦-٠٩-٢٢) · حقل الملاحظة يكفي» · انقص عدد
+  الشاشات المذكور بشاشة المستفيدين.
+
+### مهمة منفصلة أُبلِغت ولم تبدأ بعد — علّتا تخطيط في قالب الإيصال
+المالك أرسل أثناء هذا العمل نفسه بلاغاً منفصلاً تماماً (لقطة مطبوعة
+فعلية مرفقة): رمز QR في قالب المستندات يقع فوق النص ويُخفي جزءاً منه
+(الملاحظة تُقطَع)، والتسميات/القيم متباعدة بمسافة فارغة ضخمة بدل أن
+تكون القيمة مباشرة بعد تسميتها. المطلوب: عمود QR مستقل بعرض ثابت
+(Flexbox/Grid لا `position:absolute`)، عمودا تسمية/قيمة متلاصقان بعرض
+تسمية ثابت، وتطبيق الإصلاح في الأنماط المشتركة (تُستخدَم في الإيصال +
+كشف حساب العميل + كشف الحساب الأساسي + بطاقة الرصيد + التقارير) لا في
+كل قالب منفرداً، ثم توليد كل مستند فعلياً وفحص الملف الناتج + لقطة شاشة
+لكل واحد. **لم يبدأ العمل على هذا البند إطلاقاً** — وصل أثناء تنفيذ إلغاء
+المستفيدين، طلب المالك التالي كان توثيق الحالة والتوقف، فأُجِّل بالكامل.
 
 ## المراحل القادمة (لم تبدأ بعد المرحلة ١٤)
 
