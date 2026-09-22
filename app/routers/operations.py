@@ -137,7 +137,7 @@ def create_receipt(
         db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
         amount=payload.amount, receiving_account_code=payload.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, payment_method=payload.payment_method, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, payment_method=payload.payment_method, description=payload.description,
     ))
     entry.note = payload.note
     db.commit()
@@ -159,7 +159,7 @@ def create_payment(
         db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
         amount=payload.amount, paying_account_code=payload.paying_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
@@ -180,7 +180,7 @@ def create_exchange(
         db, client=client, from_currency=payload.from_currency, from_location_code=payload.from_location_code,
         to_currency=payload.to_currency, to_location_code=payload.to_location_code, amount=payload.amount,
         cost_rate=payload.cost_rate, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
     ))
     entry.note = payload.note
@@ -200,7 +200,7 @@ def create_exchange_from_lot(
     entry = _run(lambda: exchange_op.execute_via_lot(
         db, client=client, from_location_code=payload.from_location_code, to_location_code=payload.to_location_code,
         amount=payload.amount, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
     entry.note = payload.note
     db.commit()
@@ -224,6 +224,7 @@ def create_exchange_chain(
     """
     client = _get_client(db, payload.client_id)
     now = system_clock()
+    resolved_entry_date = payload.entry_date or _clock.local_entry_date(now, settings.work_timezone)
     step1_holder: dict = {}
 
     def _step1(chain_ref: str, chain_seq: int, chain_total: int) -> JournalEntry:
@@ -233,6 +234,7 @@ def create_exchange_chain(
             to_location_code=payload.step1.to_location_code, amount=payload.step1.amount,
             cost_rate=payload.step1.cost_rate, client_rate=payload.step1.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
+            entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
             idempotency_key=f"{idempotency_key}-1", description=payload.description,
             negative_margin_reason=payload.step1.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
@@ -258,13 +260,14 @@ def create_exchange_chain(
             to_location_code=payload.step2.to_location_code, amount=credited_line.credit,
             cost_rate=payload.step2.cost_rate, client_rate=payload.step2.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
+            entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
             idempotency_key=f"{idempotency_key}-2", description=payload.description,
             negative_margin_reason=payload.step2.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
         )
 
     result = _run(lambda: chain.execute_two_step_chain(
-        db, entry_date=_clock.local_entry_date(now, settings.work_timezone), step1=_step1, step2=_step2
+        db, entry_date=resolved_entry_date, step1=_step1, step2=_step2
     ))
     result.step1_entry.note = payload.note
     result.step2_entry.note = payload.note
@@ -296,7 +299,7 @@ def create_cash_transfer(
         cost_commission_amount=payload.cost_commission_amount,
         cost_correspondent_account_code=payload.cost_correspondent_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
@@ -317,7 +320,7 @@ def create_local_move(
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=payload.currency_code, from_account_code=payload.from_account_code,
         to_account_code=payload.to_account_code, amount=payload.amount, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, fee_amount=payload.fee_amount,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, fee_amount=payload.fee_amount,
         description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
@@ -342,7 +345,7 @@ def create_remit_out(
         partner_account_code=payload.partner_account_code, currency_code=payload.currency_code,
         amount=payload.amount, cost_rate=payload.cost_rate,
         client_rate=payload.client_rate, work_timezone=settings.work_timezone, created_by=current_user.id,
-        now=now, idempotency_key=idempotency_key, description=payload.description,
+        now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
@@ -364,7 +367,7 @@ def create_swift_out(
     entry = _run(lambda: swift_out_op.execute(
         db, partner_account_code=payload.partner_account_code, amount=payload.amount,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, external_ref=payload.external_ref, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, external_ref=payload.external_ref, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note
@@ -384,7 +387,7 @@ def create_swift_in(
         db, swift_movement_id=payload.swift_movement_id, total_amount=payload.total_amount,
         fee_amount=payload.fee_amount, receiving_account_code=payload.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, bank_conversion_rate=payload.bank_conversion_rate,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, bank_conversion_rate=payload.bank_conversion_rate,
         description=payload.description,
     ))
     entry.note = payload.note
@@ -405,7 +408,7 @@ def create_swift_return(
         db, swift_movement_id=payload.swift_movement_id, partner_account_code=payload.partner_account_code,
         total_amount=payload.total_amount, client=client, client_location_code=payload.client_location_code,
         return_fee_amount=payload.return_fee_amount, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
     entry.note = payload.note
     db.commit()
@@ -426,7 +429,7 @@ def create_expense(
         db, expense_account_code=payload.expense_account_code, currency_code=payload.currency_code,
         paying_account_code=payload.paying_account_code, amount=payload.amount, description=payload.description,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, allow_negative=payload.allow_negative,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, allow_negative=payload.allow_negative,
         override_reason=payload.override_reason,
     ))
     entry.note = payload.note
@@ -471,7 +474,7 @@ def create_adjustment(
     entry = _run(lambda: adjustment_op.execute(
         db, account_code=payload.account_code, currency_code=payload.currency_code, amount=payload.amount,
         is_debit=payload.is_debit, reason=payload.reason, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason,
         allow_negative=payload.allow_negative,
     ))
     entry.note = payload.note

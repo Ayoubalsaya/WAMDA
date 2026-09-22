@@ -8,6 +8,13 @@ import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClien
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 
+// ٢٠٢٦-٠٩-٢٢: "اليوم" بتوقيت العمل (Africa/Tripoli) — لا `new Date()` خام
+// (قد يختلف يوم العمل عن يوم المتصفح المحلي قرب منتصف الليل). صيغة
+// en-CA تُنتج YYYY-MM-DD مباشرة، نفس ما يتوقعه <input type="date">.
+function todayInTripoli(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tripoli' }).format(new Date())
+}
+
 type OpTab =
   | 'RECEIPT' | 'PAYMENT' | 'EXCHANGE' | 'CASH_TRANSFER' | 'REMIT_OUT' | 'EXPENSE'
   | 'SWIFT_OUT' | 'SWIFT_IN' | 'SWIFT_RETURN' | 'LOCAL_MOVE' | 'OPENING' | 'ADJUSTMENT'
@@ -85,6 +92,13 @@ export function OperationForm({
   // (allow_negative+override_reason)، بدل رفض تام بلا أي وسيلة تجاوز.
   const [negOverride, setNegOverride] = useState<{ url: string; retryPayload: (reason: string) => Record<string, unknown> } | null>(null)
   const [negReason, setNegReason] = useState('')
+  // ج: تاريخ العملية (طلب مالك ٢٠٢٦-٠٩-٢٢) — مشترك لكل التبويبات ما عدا
+  // OPENING (له `as_of_date` خاص بنفس الدور أصلاً). نفس نمط negOverride
+  // أعلاه لإعادة الإرسال بسبب بعد رفض ٤٢٢ "بأثر رجعي بعد الإقفال".
+  const [entryDate, setEntryDate] = useState(() => todayInTripoli())
+  const [backdateReason, setBackdateReason] = useState('')
+  const [backdateOverride, setBackdateOverride] = useState<{ url: string; retryPayload: (reason: string) => Record<string, unknown> } | null>(null)
+  const [backdateOverrideReason, setBackdateOverrideReason] = useState('')
 
   // حقول العمليات الأربع الأصلية (المرحلة ٥) — بلا تغيير
   const [currencyCode, setCurrencyCode] = useState('')
@@ -127,6 +141,10 @@ export function OperationForm({
     setSuccess(null)
     setNegOverride(null)
     setNegReason('')
+    setEntryDate(todayInTripoli())
+    setBackdateReason('')
+    setBackdateOverride(null)
+    setBackdateOverrideReason('')
   }
 
   useEffect(() => { resetForm() }, [tab])
@@ -332,7 +350,8 @@ export function OperationForm({
   // لكلا الوضعين (تعديل يحتاج تغليف operation من جديد، إنشاء لا).
   async function doSubmit(
     url: string, payload: Record<string, unknown>, printAfter: boolean,
-    retryPayload: (reason: string) => Record<string, unknown>,
+    retryNegative: (reason: string) => Record<string, unknown>,
+    retryBackdate: (reason: string) => Record<string, unknown>,
   ) {
     setBusy(true)
     setError(null)
@@ -349,8 +368,11 @@ export function OperationForm({
       }
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.message.includes('سيصبح سالباً')) {
-        setNegOverride({ url, retryPayload })
+        setNegOverride({ url, retryPayload: retryNegative })
         setNegReason('')
+      } else if (err instanceof ApiError && err.status === 422 && err.message.includes('بأثر رجعي')) {
+        setBackdateOverride({ url, retryPayload: retryBackdate })
+        setBackdateOverrideReason('')
       } else {
         setError(err instanceof ApiError ? err.message : (mode === 'edit' ? 'تعذّر التعديل' : 'تعذّر الترحيل'))
       }
@@ -367,22 +389,30 @@ export function OperationForm({
     }
     const req = buildRequest()
     if (!req) return
+    // ج: OPENING له as_of_date الخاص به أصلاً (نفس الدور) — لا يُضاف تاريخ
+    // مشترك ثانٍ فوقه. كل التبويبات الأخرى تحمل entry_date/backdate_reason.
+    const payload = tab === 'OPENING'
+      ? req.payload
+      : { ...req.payload, entry_date: entryDate || undefined, backdate_reason: backdateReason.trim() || undefined }
     if (mode === 'edit') {
       if (!editReason.trim()) {
         setError('سبب التعديل إلزامي')
         return
       }
       const url = `/operations/${editEntryId}/edit`
-      const body = { reason: editReason.trim(), operation: req.payload }
-      await doSubmit(url, body, false, (reason) => ({
-        reason: editReason.trim(),
-        operation: { ...req.payload, allow_negative: true, override_reason: reason },
-      }))
+      const body = { reason: editReason.trim(), operation: payload }
+      await doSubmit(
+        url, body, false,
+        (reason) => ({ reason: editReason.trim(), operation: { ...payload, allow_negative: true, override_reason: reason } }),
+        (reason) => ({ reason: editReason.trim(), operation: { ...payload, backdate_reason: reason } }),
+      )
       return
     }
-    await doSubmit(req.url, req.payload, printAfter, (reason) => ({
-      ...req.payload, allow_negative: true, override_reason: reason,
-    }))
+    await doSubmit(
+      req.url, payload, printAfter,
+      (reason) => ({ ...payload, allow_negative: true, override_reason: reason }),
+      (reason) => ({ ...payload, backdate_reason: reason }),
+    )
   }
 
   // ب: تأكيد صريح بعد إدخال سبب — الطلب نفسه يُعاد بـallow_negative+
@@ -393,7 +423,18 @@ export function OperationForm({
     const { url, retryPayload } = negOverride
     const body = retryPayload(negReason.trim())
     setNegOverride(null)
-    await doSubmit(url, body, false, retryPayload)
+    await doSubmit(url, body, false, retryPayload, retryPayload)
+  }
+
+  // نفس نمط confirmNegativeOverride أعلاه — الفترة الشهرية مقفلة والمستخدم
+  // مدير فعلاً (وإلا كان الرفض ٤٠٣ لا ٤٢٢ ولا يصل لهذا المسار إطلاقاً)،
+  // ينقصه فقط سبب القيد بأثر رجعي.
+  async function confirmBackdateOverride() {
+    if (!backdateOverride || !backdateOverrideReason.trim()) return
+    const { url, retryPayload } = backdateOverride
+    const body = retryPayload(backdateOverrideReason.trim())
+    setBackdateOverride(null)
+    await doSubmit(url, body, false, retryPayload, retryPayload)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -446,6 +487,37 @@ export function OperationForm({
         )}
         {needsClient && !client && <div className="alert alert-info">اختر عميلاً من العمود الأيمن أولاً</div>}
         {adminBlocked && <div className="alert alert-warning">هذه العملية تتطلب صلاحية مدير — لن يقبلها الخادم لدورك الحالي.</div>}
+
+        {/* ج: تاريخ العملية — مشترك لكل التبويبات، ما عدا OPENING (حقله
+            الخاص "التاريخ" أدناه بنفس الدور) ووضع التعديل (خارج نطاق هذا
+            التعديل). الافتراضي اليوم بتوقيت العمل؛ يقبل أي تاريخ ماضٍ
+            بحرّية ما دامت الفترة التأسيسية مفتوحة — بعد إقفال فترة شهرية
+            الضوابط القائمة في الخادم تُطبَّق (مدير + سبب إلزامي، ٤٢٢/٤٠٣). */}
+        {!isEdit && tab !== 'OPENING' && (
+          <div className="op-row">
+            <div className="field">
+              <label className="field-label" htmlFor="op-entry-date">تاريخ العملية</label>
+              <input id="op-entry-date" type="date" max={todayInTripoli()} value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
+            </div>
+            {entryDate && entryDate !== todayInTripoli() && (
+              <div className="field" style={{ flex: 2 }}>
+                <label className="field-label" htmlFor="op-backdate-reason">سبب القيد بأثر رجعي (إن كانت الفترة مقفلة)</label>
+                <input id="op-backdate-reason" value={backdateReason} onChange={(e) => setBackdateReason(e.target.value)} placeholder="اختياري — يُطلَب فقط إن رفضه الخادم" />
+              </div>
+            )}
+          </div>
+        )}
+        {!isEdit && tab !== 'OPENING' && (
+          entryDate === todayInTripoli() ? (
+            <div className="text-muted" style={{ fontSize: 12, marginTop: -4, marginBottom: 6 }}>
+              سيُسجَّل بتاريخ اليوم ({entryDate})
+            </div>
+          ) : (
+            <div className="alert alert-warning" style={{ fontSize: 12, marginBottom: 6 }}>
+              ⚠ سيُسجَّل بتاريخ ماضٍ: {entryDate} — تحقَّق قبل الحفظ
+            </div>
+          )
+        )}
 
         {tab !== 'CASH_TRANSFER' && (tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
           <div className="op-row">
@@ -933,6 +1005,24 @@ export function OperationForm({
                 disabled={busy || !negReason.trim()} onClick={() => void confirmNegativeOverride()}
               >
                 تأكيد الترحيل رغم الرصيد السالب
+              </button>
+            </div>
+          </div>
+        )}
+        {backdateOverride && (
+          <div className="alert alert-warning" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+            <div>الفترة الشهرية لهذا التاريخ مقفلة — القيد بأثر رجعي مسموح لمديرك الحالي لكن يتطلب سبباً مكتوباً.</div>
+            <textarea
+              value={backdateOverrideReason} onChange={(e) => setBackdateOverrideReason(e.target.value)} rows={2} autoFocus
+              placeholder="سبب القيد بأثر رجعي — مثلاً: تصحيح سهو مكتشف بعد الإقفال"
+            />
+            <div className="op-row">
+              <button type="button" className="btn btn-secondary" onClick={() => setBackdateOverride(null)}>تراجع</button>
+              <button
+                type="button" className="btn btn-primary" style={{ flex: 1 }}
+                disabled={busy || !backdateOverrideReason.trim()} onClick={() => void confirmBackdateOverride()}
+              >
+                تأكيد الترحيل بأثر رجعي
               </button>
             </div>
           </div>

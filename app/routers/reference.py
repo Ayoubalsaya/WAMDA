@@ -239,18 +239,29 @@ def list_accounts_for_operation(
 @router.get("/journal/entries", response_model=list[JournalEntryOut])
 def list_journal_entries(
     entry_date_filter: Optional[date] = Query(default=None, alias="date"),
-    limit: int = Query(default=30, le=100),
+    date_from: Optional[date] = Query(default=None, description="بداية نطاق (مع date_to) — بديل عن date ليوم واحد"),
+    date_to: Optional[date] = Query(default=None, description="نهاية نطاق (مع date_from)"),
+    limit: int = Query(default=200, le=1000),
     include_reversed: bool = Query(default=False, description="أظهر الملغاة (REVERSED) — مخفية افتراضياً"),
     db: OrmSession = Depends(get_db),
 ) -> list[JournalEntryOut]:
-    """عمود دفتر اليومية اليسار (ح-٢): عمليات اليوم افتراضياً، أو تاريخ محدَّد.
+    """سجل العمليات (ح-٢، ٢٠٢٦-٠٩-٢٢): يوم واحد افتراضياً (اليوم أو `date`
+    محدَّد)، أو نطاق تاريخين عبر `date_from`/`date_to` معاً (أسبوع/شهر —
+    §سجل العمليات الدائم).
 
     افتراضياً: لا قيود ملغاة (`REVERSED`) ولا قيود العكس الداخلية نفسها
     (`reverses_entry_id` غير فارغ) — كلاهما ضجيج محاسبي لا عملية يومية
     حقيقية. `include_reversed=true` يعيدهما لمن يحتاج الأرشيف الكامل.
     """
-    target_date = entry_date_filter or local_entry_date(system_clock(), settings.work_timezone)
-    query = select(JournalEntry).where(JournalEntry.entry_date == target_date)
+    if date_from or date_to:
+        if not (date_from and date_to):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "النطاق يحتاج date_from وdate_to معاً")
+        if date_from > date_to:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_from يجب ألا يتجاوز date_to")
+        query = select(JournalEntry).where(JournalEntry.entry_date.between(date_from, date_to))
+    else:
+        target_date = entry_date_filter or local_entry_date(system_clock(), settings.work_timezone)
+        query = select(JournalEntry).where(JournalEntry.entry_date == target_date)
     if not include_reversed:
         query = query.where(JournalEntry.status != EntryStatus.REVERSED, JournalEntry.reverses_entry_id.is_(None))
     entries = db.execute(query.order_by(JournalEntry.id.desc()).limit(limit)).scalars().all()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -24,12 +24,16 @@ def execute(
     work_timezone: str,
     created_by: int,
     now: datetime,
+    entry_date: Optional[date] = None,
+    backdate_reason: Optional[str] = None,
     idempotency_key: str,
     description: Optional[str] = None,
     allow_negative: bool = False,
     override_reason: Optional[str] = None,
 ):
-    entry_date = clock.local_entry_date(now, work_timezone)
+    _today = clock.local_entry_date(now, work_timezone)
+
+    entry_date = entry_date or _today
 
     def _create():
         client_account = accounts_repo.get_or_create_client_account(
@@ -40,6 +44,8 @@ def execute(
             db,
             operation_type=OperationType.PAYMENT,
             entry_date=entry_date,
+            is_backdated=entry_date != _today,
+            backdate_reason=backdate_reason,
             created_by=created_by,
             client_id=client.id,
             description=description or "تسليم لعميل",

@@ -72,6 +72,72 @@ def test_receipt_creates_entry_and_credits_client(db, client):
     assert db.get(AccountBalance, account.id).balance == Decimal("1000.000")
 
 
+def test_receipt_accepts_past_entry_date_while_founding_period_open(db, client):
+    """٢٠٢٦-٠٩-٢٢: حقل entry_date جديد — الفترة التأسيسية مفتوحة افتراضياً
+    في بيانات الاختبار، فأي تاريخ ماضٍ يُقبَل بلا سبب ولا صلاحية مدير."""
+    _login(db, client, role="ACCOUNTANT")
+    c = f.make_client(db)
+    resp = client.post(
+        "/operations/receipt",
+        json={"client_id": c.id, "currency_code": "LYD", "location_code": "TRIPOLI",
+              "amount": "500.000", "receiving_account_code": "1101", "entry_date": "2026-01-15"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    from app.models import JournalEntry
+    entry = db.get(JournalEntry, resp.json()["id"])
+    assert str(entry.entry_date) == "2026-01-15"
+    # is_backdated يعكس فقط أن تاريخ القيد يختلف عن يوم إدخاله فعلياً — لا
+    # يعني عبور بوابة موافقة المدير (لم تُفعَّل هنا، الفترة التأسيسية مفتوحة).
+    assert entry.is_backdated is True
+    assert entry.backdate_reason is None
+
+
+def test_receipt_backdate_into_closed_period_requires_admin_then_reason(db, client, now):
+    """نفس بوابة posting._check_backdate_gate (مُختبَرة هندسياً في اختبار
+    القبول ٢٦) — هنا نتحقق أنها **متّصلة فعلياً** عبر HTTP لعملية حقيقية،
+    لا افتراضاً من سلامة المحرك وحده."""
+    from app.models import FoundingPeriod, Period
+    founding = db.get(FoundingPeriod, 1)
+    founding.is_open = False
+    db.add(Period(year=now.year, month=now.month, is_closed=True))
+    db.flush()
+
+    _login(db, client, role="ACCOUNTANT")
+    c = f.make_client(db)
+    closed_date = f"{now.year}-{now.month:02d}-10"
+    resp = client.post(
+        "/operations/receipt",
+        json={"client_id": c.id, "currency_code": "LYD", "location_code": "TRIPOLI",
+              "amount": "500.000", "receiving_account_code": "1101", "entry_date": closed_date},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 403, resp.text  # محاسب — الفترة مقفلة
+
+    _login(db, client, role="ADMIN")
+    resp = client.post(
+        "/operations/receipt",
+        json={"client_id": c.id, "currency_code": "LYD", "location_code": "TRIPOLI",
+              "amount": "500.000", "receiving_account_code": "1101", "entry_date": closed_date},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 422, resp.text  # مدير لكن بلا سبب
+
+    resp = client.post(
+        "/operations/receipt",
+        json={"client_id": c.id, "currency_code": "LYD", "location_code": "TRIPOLI",
+              "amount": "500.000", "receiving_account_code": "1101", "entry_date": closed_date,
+              "backdate_reason": "تصحيح بأثر رجعي بموافقة الإدارة"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    from app.models import JournalEntry
+    entry = db.get(JournalEntry, resp.json()["id"])
+    assert str(entry.entry_date) == closed_date
+    assert entry.is_backdated is True
+    assert entry.backdate_reason == "تصحيح بأثر رجعي بموافقة الإدارة"
+
+
 def test_payment_reduces_client_balance(db, client, now):
     _login(db, client)
     c = f.make_client(db)

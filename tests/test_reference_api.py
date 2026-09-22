@@ -286,3 +286,50 @@ def test_journal_entries_lists_todays_posted_entries_with_lines(db, client, now)
     assert {Decimal(l["debit"]) for l in matching["lines"]} | {Decimal(l["credit"]) for l in matching["lines"]} >= {
         Decimal("321.000")
     }
+
+
+def test_journal_entries_date_range_spans_multiple_days(db, client, now):
+    """سجل العمليات (٢٠٢٦-٠٩-٢٢): date_from/date_to معاً يُرجعان عمليات
+    عبر أيام متعددة — الفترة التأسيسية مفتوحة افتراضياً فهذا تاريخ ماضٍ حرّ."""
+    _login(db, client)
+    c = f.make_client(db)
+    user = f.make_user(db)
+    from datetime import date as _date
+    entry_d1 = f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("100.000"),
+        receiving_account_code="1101", user=user, now=now,
+        idempotency_key=f"{f.uid()}-d1",
+    )
+    entry_d1.entry_date = _date(2026, 1, 5)
+    entry_d3 = f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("200.000"),
+        receiving_account_code="1101", user=user, now=now,
+        idempotency_key=f"{f.uid()}-d3",
+    )
+    entry_d3.entry_date = _date(2026, 1, 7)
+    outside = f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("300.000"),
+        receiving_account_code="1101", user=user, now=now,
+        idempotency_key=f"{f.uid()}-out",
+    )
+    outside.entry_date = _date(2026, 2, 1)
+    db.flush()
+
+    resp = client.get("/journal/entries?date_from=2026-01-01&date_to=2026-01-31")
+    assert resp.status_code == 200
+    ids = {r["id"] for r in resp.json()}
+    assert entry_d1.id in ids
+    assert entry_d3.id in ids
+    assert outside.id not in ids
+
+
+def test_journal_entries_range_requires_both_dates(db, client):
+    _login(db, client)
+    resp = client.get("/journal/entries?date_from=2026-01-01")
+    assert resp.status_code == 400
+
+
+def test_journal_entries_range_rejects_inverted_dates(db, client):
+    _login(db, client)
+    resp = client.get("/journal/entries?date_from=2026-01-31&date_to=2026-01-01")
+    assert resp.status_code == 400

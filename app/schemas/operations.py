@@ -28,7 +28,18 @@ class EntryResponse(BaseModel):
     chain_total: Optional[int] = None
 
 
-class ReceiptRequest(BaseModel):
+class BackdateFields(BaseModel):
+    """تاريخ العملية (٢٠٢٦-٠٩-٢٢، طلب مالك) — مشترك بين كل العمليات ما عدا
+    OPENING (لها `as_of_date` الخاص بها أصلاً بنفس الدور). `None` = اليوم
+    بتوقيت العمل (`app.engine.clock.local_entry_date`). البوابة الفعلية
+    (فترة تأسيسية مفتوحة = حرّية كاملة؛ فترة شهرية مقفلة = مدير + سبب
+    إلزامي) قائمة بالفعل في `posting._check_backdate_gate` — هذا الحقل
+    فقط يمرِّر اختيار المستخدم إليها، لا منطق تحقق جديد هنا."""
+    entry_date: Optional[date] = None
+    backdate_reason: Optional[str] = None
+
+
+class ReceiptRequest(BackdateFields):
     client_id: int
     currency_code: str
     location_code: str
@@ -39,7 +50,7 @@ class ReceiptRequest(BaseModel):
     note: Optional[str] = None  # ملاحظة وقت الإدخال — تظهر في الإيصال/كشف الحساب، بخلاف description
 
 
-class PaymentRequest(BaseModel):
+class PaymentRequest(BackdateFields):
     client_id: int
     currency_code: str
     location_code: str
@@ -51,7 +62,7 @@ class PaymentRequest(BaseModel):
     override_reason: Optional[str] = None
 
 
-class ExchangeRatesRequest(BaseModel):
+class ExchangeRatesRequest(BackdateFields):
     client_id: int
     from_currency: str
     from_location_code: str
@@ -65,7 +76,7 @@ class ExchangeRatesRequest(BaseModel):
     negative_margin_reason: Optional[str] = None
 
 
-class ExchangeLotRequest(BaseModel):
+class ExchangeLotRequest(BackdateFields):
     client_id: int
     from_location_code: str
     to_location_code: str
@@ -94,7 +105,7 @@ class ExchangeChainStep2(BaseModel):
     negative_margin_reason: Optional[str] = None
 
 
-class ExchangeChainRequest(BaseModel):
+class ExchangeChainRequest(BackdateFields):
     client_id: int
     step1: ExchangeChainStep1
     step2: ExchangeChainStep2
@@ -108,7 +119,7 @@ class ExchangeChainResponse(BaseModel):
     step2: EntryResponse
 
 
-class CashTransferRequest(BaseModel):
+class CashTransferRequest(BackdateFields):
     client_id: int
     currency_code: str
     from_location_code: str
@@ -127,7 +138,7 @@ class CashTransferRequest(BaseModel):
     override_reason: Optional[str] = None
 
 
-class LocalMoveRequest(BaseModel):
+class LocalMoveRequest(BackdateFields):
     currency_code: str
     from_account_code: str
     to_account_code: str
@@ -139,7 +150,7 @@ class LocalMoveRequest(BaseModel):
     override_reason: Optional[str] = None
 
 
-class RemitOutRequest(BaseModel):
+class RemitOutRequest(BackdateFields):
     client_id: int
     from_location_code: str
     partner_account_code: str
@@ -154,7 +165,7 @@ class RemitOutRequest(BaseModel):
     override_reason: Optional[str] = None
 
 
-class SwiftOutRequest(BaseModel):
+class SwiftOutRequest(BackdateFields):
     partner_account_code: str
     amount: Decimal = Field(gt=0)
     external_ref: Optional[str] = None
@@ -164,7 +175,7 @@ class SwiftOutRequest(BaseModel):
     override_reason: Optional[str] = None
 
 
-class SwiftInRequest(BaseModel):
+class SwiftInRequest(BackdateFields):
     swift_movement_id: int
     total_amount: Decimal = Field(gt=0)
     fee_amount: Decimal = Field(ge=0)
@@ -174,7 +185,7 @@ class SwiftInRequest(BaseModel):
     note: Optional[str] = None
 
 
-class SwiftReturnRequest(BaseModel):
+class SwiftReturnRequest(BackdateFields):
     swift_movement_id: int
     partner_account_code: str
     total_amount: Decimal = Field(gt=0)
@@ -185,7 +196,7 @@ class SwiftReturnRequest(BaseModel):
     note: Optional[str] = None
 
 
-class ExpenseRequest(BaseModel):
+class ExpenseRequest(BackdateFields):
     expense_account_code: str
     currency_code: str
     paying_account_code: str
@@ -221,7 +232,7 @@ class OpeningRequest(BaseModel):
         return self
 
 
-class AdjustmentRequest(BaseModel):
+class AdjustmentRequest(BackdateFields):
     account_code: str
     currency_code: str
     amount: Decimal = Field(gt=0)
