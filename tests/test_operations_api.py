@@ -304,6 +304,45 @@ def test_cash_transfer_generates_commission_profit(db, client, now):
     assert Decimal(body["profit_amount"]) == Decimal("300.000")
 
 
+def test_cash_transfer_collects_commission_from_client_balance_by_default(db, client, now):
+    """٢٠٢٦-٠٩-٢٣: لا collection_account_code في الطلب — التحصيل يُخصَم
+    مباشرة من رصيد العميل بعملة العمولة (المسار الحقيقي الذي وصفه المالك:
+    دولار طرابلس←تركيا، عمولة دينار تُحصَّل من رصيد العميل نفسه)."""
+    _login(db, client)
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TRIPOLI", amount=Decimal("50000.00"),
+        receiving_account_code="1104", user=f.make_user(db), now=now,
+    )
+    exec_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    cost_correspondent = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    # نفس تمويل الاختبار المجاور أعلاه — يمنح العميل رصيداً بالدينار في
+    # طرابلس (لِيُخصَم منه التحصيل) **و**cost_correspondent رصيداً (لتحمُّل
+    # تكلفة العمولة دون رصيد سالب) بقيد واحد حقيقي.
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"),
+        receiving_account_code=cost_correspondent.code, user=f.make_user(db), now=now,
+    )
+    resp = client.post(
+        "/operations/cash-transfer",
+        json={"client_id": c.id, "currency_code": "USD", "from_location_code": "TRIPOLI",
+              "to_location_code": "TURKEY", "amount": "10000.00", "source_account_code": "1104",
+              "execution_account_code": exec_acct.code,
+              "commission_currency": "LYD", "client_commission_amount": "800.000",
+              "cost_commission_amount": "500.000", "cost_correspondent_account_code": cost_correspondent.code},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert Decimal(body["profit_amount"]) == Decimal("300.000")
+
+    client_lyd_tripoli = accounts_repo.get_or_create_client_account(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI"
+    )
+    # ٥٠٠٠ المُموَّلة ابتداءً - ٨٠٠ عمولة مُخصَومة = ٤٢٠٠
+    assert db.get(AccountBalance, client_lyd_tripoli.id).balance == Decimal("4200.000")
+
+
 def test_local_move_between_company_accounts(db, client, now):
     # حسابات اختبار طازجة لا "1101"/"1102" الحقيقيان — رصيدهما الفعلي في
     # قاعدة التطوير المشتركة متغيّر (قد يكون صفراً) فيجعل الاختبار هشّاً

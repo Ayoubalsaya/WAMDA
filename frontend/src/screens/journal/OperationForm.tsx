@@ -15,6 +15,25 @@ function todayInTripoli(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Tripoli' }).format(new Date())
 }
 
+// ٢٠٢٦-٠٩-٢٣: "آخر مراسل استُخدم" لحساب تكلفة العمولة (طلب مالك) — تفضيل
+// شخصي لهذا الجهاز/المتصفح فقط، لا حالة يشاركها موظفون آخرون ولا يقرؤها
+// الخادم، فتخزين محلي بسيط يكفي (يُغلَّف بـtry/catch: قد يُحجَب في تصفح خاص).
+const LAST_COST_CORRESPONDENT_KEY = 'wamda:lastCostCorrespondentAccount'
+function lastCostCorrespondent(): string {
+  try {
+    return localStorage.getItem(LAST_COST_CORRESPONDENT_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+function rememberCostCorrespondent(code: string) {
+  try {
+    localStorage.setItem(LAST_COST_CORRESPONDENT_KEY, code)
+  } catch {
+    // تجاهل — مجرد تحسين تجربة، لا وظيفة أساسية
+  }
+}
+
 type OpTab =
   | 'RECEIPT' | 'PAYMENT' | 'EXCHANGE' | 'CASH_TRANSFER' | 'REMIT_OUT' | 'EXPENSE'
   | 'SWIFT_OUT' | 'SWIFT_IN' | 'SWIFT_RETURN' | 'LOCAL_MOVE' | 'OPENING' | 'ADJUSTMENT'
@@ -115,10 +134,14 @@ export function OperationForm({
   const [sourceAccount, setSourceAccount] = useState('')
   const [executionAccount, setExecutionAccount] = useState('')
   const [collectionAccount, setCollectionAccount] = useState('')
+  // ٢٠٢٦-٠٩-٢٣: التحصيل من رصيد العميل نفسه هو الافتراضي (توضيح مالك،
+  // "الأكثر شيوعاً عندي") — لا حساب شركة يُختار إلا إذا بدَّل المستخدم صراحة.
+  const [collectFromCompanyAccount, setCollectFromCompanyAccount] = useState(false)
+  const [collectionLocation, setCollectionLocation] = useState('')
   const [commissionCurrency, setCommissionCurrency] = useState('')
   const [clientCommission, setClientCommission] = useState('')
   const [costCommission, setCostCommission] = useState('')
-  const [costCorrespondentAccount, setCostCorrespondentAccount] = useState('')
+  const [costCorrespondentAccount, setCostCorrespondentAccount] = useState(() => lastCostCorrespondent())
 
   // حقول الثماني عمليات الجديدة (المرحلة ٧) — كائن عام واحد، أبسط من
   // إضافة ٣٠+ useState فردياً لكل حقل من كل عملية
@@ -134,7 +157,8 @@ export function OperationForm({
     setToCurrency(''); setToLocation(''); setCostRate(''); setClientRate(''); setNegativeMarginReason('')
     setFromLocation(''); setToLocationCt(''); setCommissionCurrency('')
     setClientCommission(''); setCostCommission(''); setSourceAccount(''); setExecutionAccount('')
-    setCollectionAccount(''); setCostCorrespondentAccount('')
+    setCollectionAccount(''); setCollectFromCompanyAccount(false); setCollectionLocation('')
+    setCostCorrespondentAccount(lastCostCorrespondent())
     setFields({})
     setOpeningAccountMode('system')
     setIdemKey(newIdempotencyKey())
@@ -187,6 +211,7 @@ export function OperationForm({
   const toLocations = useMemo(() => locationsForCurrency(toCurrency), [toCurrency, locationsForCurrency])
   const ctFromLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
   const ctToLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
+  const ctCollectionLocations = useMemo(() => locationsForCurrency(commissionCurrency), [commissionCurrency, locationsForCurrency])
   const remitLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
 
   // حسابات مُصفّاة بحسب (نوع العملية × دور الحقل × العملة × الموقع) —
@@ -203,11 +228,14 @@ export function OperationForm({
   const ctExecutionSpec: AccountPickerSpec | null =
     tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
 
+  // ٢٠٢٦-٠٩-٢٣ (توضيح مالك): عملة/حساب العمولة مستقلّان تماماً عن موقع
+  // الوجهة — كانا مربوطين بـtoLocationCt خطأً (عمولة دينار لتحويل هدفه
+  // تركيا لا علاقة لها بتركيا إطلاقاً). كلا الحقلين الآن بلا قيد موقع.
   const ctCollectionSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
+    tab === 'CASH_TRANSFER' && collectFromCompanyAccount ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency } : null
 
   const ctCostCorrespondentSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
+    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency } : null
 
   const localMoveFromSpec: AccountPickerSpec | null =
     tab === 'LOCAL_MOVE' ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
@@ -288,7 +316,11 @@ export function OperationForm({
       return { url: '/operations/cash-transfer', payload: {
         client_id: client!.id, currency_code: currencyCode, from_location_code: fromLocation,
         to_location_code: toLocationCt, amount, source_account_code: sourceAccount,
-        execution_account_code: executionAccount, collection_account_code: collectionAccount,
+        execution_account_code: executionAccount,
+        // لا حساب شركة إلا إذا بدَّل المستخدم صراحة — غير ذلك يُخصَم من
+        // رصيد العميل (افتراضي الخادم)، بموقع collectionLocation إن اختير.
+        collection_account_code: collectFromCompanyAccount ? collectionAccount : undefined,
+        collection_location_code: collectFromCompanyAccount ? undefined : (collectionLocation || undefined),
         commission_currency: commissionCurrency, client_commission_amount: clientCommission,
         cost_commission_amount: costCommission, cost_correspondent_account_code: costCorrespondentAccount, note: fields.note || undefined,
       } }
@@ -361,6 +393,7 @@ export function OperationForm({
         onEdited?.(result)
       } else {
         const entry = await api.post<EntryResponse>(url, payload, idemKey)
+        if (tab === 'CASH_TRANSFER' && costCorrespondentAccount) rememberCostCorrespondent(costCorrespondentAccount)
         resetForm()
         setSuccess(entry)
         onPosted(entry)
@@ -589,18 +622,22 @@ export function OperationForm({
               value={executionAccount} onChange={setExecutionAccount} spec={ctExecutionSpec} label="الحساب المنفِّذ"
               emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا حسابات بهذه العملة في موقع الوجهة'}
             />
-            <AccountPicker
-              value={collectionAccount} onChange={setCollectionAccount} spec={ctCollectionSpec} label="حساب تحصيل العمولة"
-              emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا صناديق/بنوك بعملة العمولة في موقع الوجهة'}
-            />
-            <AccountPicker
-              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} spec={ctCostCorrespondentSpec} label="حساب تكلفة العمولة (المراسل)"
-              emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا حسابات مراسلين بعملة العمولة في موقع الوجهة'}
-            />
+            {/* ٢٠٢٦-٠٩-٢٣ (توضيح مالك): عملة/حساب العمولة مستقلّان تماماً عن
+                موقع الوجهة — عمولة دينار تُحصَّل وتُسوَّى في ليبيا لتحويل
+                هدفه تركيا مثلاً. عملة العمولة أولاً هنا كي تُبنى قوائم
+                الحسابات أدناه عليها مباشرة، لا بعد فوات الأوان. */}
             <div className="op-row">
               <div className="field">
                 <label className="field-label">عملة العمولة</label>
-                <CurrencySelect value={commissionCurrency} onChange={setCommissionCurrency} currencies={currencies} />
+                <CurrencySelect
+                  value={commissionCurrency}
+                  onChange={(v) => {
+                    setCommissionCurrency(v)
+                    const valid = locationsForCurrency(v).some((l) => l.code === fromLocation)
+                    setCollectionLocation(valid ? fromLocation : '')
+                  }}
+                  currencies={currencies}
+                />
               </div>
               <div className="field">
                 <label className="field-label">عمولة العميل (تحصيل)</label>
@@ -611,6 +648,29 @@ export function OperationForm({
                 <input className="num" value={costCommission} onChange={(e) => setCostCommission(e.target.value)} />
               </div>
             </div>
+
+            <div className="field">
+              <label className="field-label">حساب تحصيل العمولة</label>
+              <div className="op-tabs" style={{ marginBottom: 8 }}>
+                <button type="button" className={`op-tab${!collectFromCompanyAccount ? ' is-active' : ''}`} onClick={() => setCollectFromCompanyAccount(false)}>من رصيد العميل</button>
+                <button type="button" className={`op-tab${collectFromCompanyAccount ? ' is-active' : ''}`} onClick={() => setCollectFromCompanyAccount(true)}>حساب شركة</button>
+              </div>
+            </div>
+            {collectFromCompanyAccount ? (
+              <AccountPicker
+                value={collectionAccount} onChange={setCollectionAccount} spec={ctCollectionSpec} label="الحساب"
+                emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات بعملة العمولة'}
+              />
+            ) : (
+              <div className="field">
+                <label className="field-label">موقع رصيد العميل المخصوم منه</label>
+                <LocationSelect value={collectionLocation} onChange={setCollectionLocation} locations={ctCollectionLocations} disabled={!commissionCurrency} />
+              </div>
+            )}
+            <AccountPicker
+              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} spec={ctCostCorrespondentSpec} label="حساب تكلفة العمولة (المراسل)"
+              emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات مراسلين بعملة العمولة'}
+            />
           </>
         )}
 

@@ -29,7 +29,6 @@ def execute(
     amount: Decimal,
     source_account_code: str,
     execution_account_code: str,
-    collection_account_code: str,
     commission_currency: str,
     client_commission_amount: Decimal,
     cost_commission_amount: Decimal,
@@ -40,10 +39,18 @@ def execute(
     entry_date: Optional[date] = None,
     backdate_reason: Optional[str] = None,
     idempotency_key: str,
+    collection_account_code: Optional[str] = None,
+    collection_location_code: Optional[str] = None,
     description: Optional[str] = None,
     allow_negative: bool = False,
     override_reason: Optional[str] = None,
 ):
+    """تحصيل العمولة (٢٠٢٦-٠٩-٢٣، توضيح مالك): `collection_account_code`
+    حساب شركة (صندوق/بنك/مراسل) صريح إن أُرسل، وإلا **يُخصَم من رصيد
+    العميل نفسه مباشرة** (الأكثر شيوعاً عملياً) — حساب العميل بعملة
+    العمولة في `collection_location_code` إن أُرسل، وإلا `from_location_code`
+    افتراضاً. عملة/موقع العمولة مستقلّان تماماً عن موقع الوجهة (كانا
+    مربوطين خطأً — العمولة غالباً دينار يُسوَّى في ليبيا لتحويل هدفه تركيا)."""
     _today = clock.local_entry_date(now, work_timezone)
 
     entry_date = entry_date or _today
@@ -57,7 +64,13 @@ def execute(
         )
         source_account = accounts_repo.get_account_by_code(db, source_account_code)
         execution_account = accounts_repo.get_account_by_code(db, execution_account_code)
-        collection_account = accounts_repo.get_account_by_code(db, collection_account_code)
+        if collection_account_code:
+            collection_account = accounts_repo.get_account_by_code(db, collection_account_code)
+        else:
+            collection_account = accounts_repo.get_or_create_client_account(
+                db, client=client, currency_code=commission_currency,
+                location_code=collection_location_code or from_location_code,
+            )
         cost_correspondent = accounts_repo.get_account_by_code(db, cost_correspondent_account_code)
         revenue_account = accounts_repo.get_currency_subaccount(db, "4110", commission_currency)
         cost_account = accounts_repo.get_currency_subaccount(db, "5410", commission_currency)

@@ -82,15 +82,22 @@ _SPECS: dict[tuple[str, str], _FieldSpec] = {
         forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
         location_mode="param",  # موقع التنفيذ = to_location
     ),
+    # ⚠ تصحيح ثانٍ (٢٠٢٦-٠٩-٢٣، توضيح مالك): ربط حقلي العمولة بموقع
+    # الوجهة كان خطأً مفاهيمياً من الأصل — العمولة عملتها وحسابها لا علاقة
+    # لهما بموقع الوجهة إطلاقاً (مثال المالك: تحويل لتركيا بعمولة **دينار
+    # تُحصَّل وتُسوَّى في ليبيا**). كلا الحقلين الآن حرّا الموقع تماماً
+    # (نفس نمط LOCAL_MOVE أدناه)؛ التصفية الوحيدة المتبقية عملة العمولة.
+    # حقل التحصيل تحديداً له خيار ثالث لا يمرّ عبر هذا الملف إطلاقاً: رصيد
+    # العميل نفسه (الافتراضي في الواجهة) — انظر `cash_transfer.py`.
     ("CASH_TRANSFER", "collection"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
-        forms=frozenset({AccountForm.CASH, AccountForm.BANK}),
-        location_mode="param",  # تحصيل العمولة يقع في موقع الوجهة عملياً
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
+        location_mode="none",
     ),
     ("CASH_TRANSFER", "cost_correspondent"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
         forms=frozenset({AccountForm.CORRESPONDENT}),
-        location_mode="param",  # تكلفة العمولة تُسوَّى مع مراسل موقع الوجهة
+        location_mode="none",
     ),
     ("LOCAL_MOVE", "from"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),

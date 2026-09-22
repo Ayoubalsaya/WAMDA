@@ -59,8 +59,8 @@ def test_create_partner_account_gets_sequential_real_code(db, client):
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["code"].startswith("132")
-    assert len(body["code"]) == 4  # لا كود مشوَّه (T-ACC-...)
+    assert body["code"].startswith("1320")
+    assert len(body["code"]) == 6  # 1320 + لاحقة رقمين (٠١-٩٩) — لا كود مشوَّه (T-ACC-...)
     assert body["partner_id"] == partner["id"]
     assert body["form"] == "CORRESPONDENT"
 

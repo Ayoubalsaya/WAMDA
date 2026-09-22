@@ -127,7 +127,11 @@ class CashTransferRequest(BackdateFields):
     amount: Decimal = Field(gt=0)
     source_account_code: str
     execution_account_code: str
-    collection_account_code: str
+    # None = يُخصَم من رصيد العميل نفسه بعملة العمولة (الافتراضي —
+    # collection_location_code أو from_location_code إن غاب) — لا حساب
+    # شركة صريح. انظر التوثيق الكامل في app/engine/operations/cash_transfer.py.
+    collection_account_code: Optional[str] = None
+    collection_location_code: Optional[str] = None
     commission_currency: str
     client_commission_amount: Decimal = Field(ge=0)
     cost_commission_amount: Decimal = Field(ge=0)
