@@ -394,6 +394,13 @@ def test_swift_out_then_swift_in(db, client, now):
         db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
+    # ٢٠٢٦-٠٩-٢٣: رصيد قبل التنفيذ لا صفر مفترَض — `1501` حساب مقاصة
+    # مشترك حقيقي على قاعدة التطوير. الإغلاق النسبي لنقطة البداية وحده
+    # ما يخصّ هذا الاختبار، لا الصفر المطلق.
+    in_transit_id = accounts_repo.get_account_by_code(db, "1501").id
+    in_transit_before_row = db.get(AccountBalance, in_transit_id)
+    in_transit_before = in_transit_before_row.balance if in_transit_before_row else Decimal("0")
+
     resp = client.post(
         "/operations/swift-out",
         json={"partner_account_code": partner_acct.code, "amount": "10000.00"},
@@ -412,7 +419,7 @@ def test_swift_out_then_swift_in(db, client, now):
         headers=_headers(client),
     )
     assert resp2.status_code == 201, resp2.text
-    assert db.get(AccountBalance, accounts_repo.get_account_by_code(db, "1501").id).balance == Decimal("0.00")
+    assert db.get(AccountBalance, in_transit_id).balance == in_transit_before  # أُقفل تماماً — عاد لنقطة البداية
 
 
 # ═══ بند (ب): رصيد سالب للصناديق/المراسلين — تحذير + سبب إلزامي، مدير

@@ -5,9 +5,11 @@ from __future__ import annotations
 import pyotp
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import delete
 
 from app.database import get_db
 from app.main import app
+from app.models import Setting
 from app.security.passwords import hash_password
 from tests import factories as f
 
@@ -42,6 +44,11 @@ def _headers(client: TestClient) -> dict:
 
 
 def test_company_profile_defaults_when_unset(db, client):
+    # يعزل حالته بنفسه — قاعدة التطوير المشتركة قد تحمل ملف شركة حقيقياً
+    # مضبوطاً يدوياً (وهذا هو الوضع الفعلي عليها). الحذف هنا يقع داخل
+    # معاملة الاختبار المعزولة فقط (SAVEPOINT تُلغى بعد الاختبار عبر
+    # fixture db)، لا أثر دائم على القاعدة الحقيقية مهما كانت حالتها.
+    db.execute(delete(Setting).where(Setting.key == "company_profile"))
     _login(db, client, role="ACCOUNTANT")
     resp = client.get("/settings/company")
     assert resp.status_code == 200
