@@ -35,6 +35,9 @@ class AccountOut(BaseModel):
     currency_code: Optional[str] = None
     location_code: Optional[str] = None
     form: Optional[str] = None
+    # ٢٠٢٦-٠٩-٢٢: رصيد حيّ يُحسب وقت الطلب — كل قائمة اختيار حساب في الواجهة
+    # تعرضه تحت اسم الحساب (أخضر/أحمر/رمادي)، لا تُعيد استدعاءً منفصلاً له.
+    balance: Decimal = Decimal("0")
 
 
 class ClientSearchResultOut(BaseModel):

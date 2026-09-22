@@ -64,14 +64,22 @@ _SPECS: dict[tuple[str, str], _FieldSpec] = {
     # CASH_TRANSFER: أربعة حقول مختلفة الدور تماماً رغم تشابه الشكل —
     # المصدر/المنفِّذ ينقلان العملة الأصلية نفسها بموقعين مختلفين،
     # التحصيل/تكلفة العمولة يخصّان عملة العمولة (قد تختلف عن المنقولة).
+    #
+    # ⚠ تصحيح (٢٠٢٦-٠٩-٢٢، بلاغ مالك مكرَّر): المصدر/المنفِّذ كانا يستثنيان
+    # CORRESPONDENT عمداً — لكن التحقق الفعلي من القاعدة أثبت أن مكاتب
+    # الشركة خارج طرابلس (تركيا وغيرها)، بل وحتى مكتب المراسل داخل طرابلس
+    # نفسه (١٣١١-١٣١٣ "مكتب منصور")، **حسابات CORRESPONDENT فعلياً لا
+    # CASH/BANK** — لا يوجد صندوق/بنك حرفي بمعظم المواقع أصلاً. استثناء
+    # CORRESPONDENT هنا كان يمنع تنفيذ أي تحويل حقيقي بين هذه المواقع
+    # بالكامل. أُضيف CORRESPONDENT الآن لنفس أسباب RECEIPT/PAYMENT أعلاه.
     ("CASH_TRANSFER", "source"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
-        forms=frozenset({AccountForm.CASH, AccountForm.BANK}),
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
         location_mode="param",  # موقع المصدر = from_location
     ),
     ("CASH_TRANSFER", "execution"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
-        forms=frozenset({AccountForm.CASH, AccountForm.BANK}),
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
         location_mode="param",  # موقع التنفيذ = to_location
     ),
     ("CASH_TRANSFER", "collection"): _FieldSpec(

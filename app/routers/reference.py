@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -75,6 +76,17 @@ def list_client_currency_locations(db: OrmSession = Depends(get_db)) -> list[Cli
     return [ClientCurrencyLocationOut(currency_code=ccy, location_code=loc) for ccy, loc in rows]
 
 
+def _balances_by_account_id(db: OrmSession, account_ids: list[int]) -> dict[int, Decimal]:
+    """رصيد حيّ لكل حساب وقت الطلب — لا كاش، لا قيمة من وقت تحميل الصفحة.
+    ٠ لحساب بلا صف `account_balances` بعد (لم يُلمَس بأي قيد قط)."""
+    if not account_ids:
+        return {}
+    rows = db.execute(
+        select(AccountBalance.account_id, AccountBalance.balance).where(AccountBalance.account_id.in_(account_ids))
+    ).all()
+    return {account_id: balance for account_id, balance in rows}
+
+
 @router.get("/reference/accounts", response_model=list[AccountOut])
 def list_accounts(db: OrmSession = Depends(get_db)) -> list[AccountOut]:
     """حسابات قابلة للترحيل مباشرة لاختيار «الحساب المنفِّذ»/المصدر/التحصيل
@@ -83,11 +95,13 @@ def list_accounts(db: OrmSession = Depends(get_db)) -> list[AccountOut]:
     parent_ids = {a.parent_id for a in all_accounts if a.parent_id is not None}
     locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
     leaves = [a for a in all_accounts if a.id not in parent_ids and a.client_id is None]
+    balances = _balances_by_account_id(db, [a.id for a in leaves])
     return [
         AccountOut(
             code=a.code, name_ar=a.name_ar, type=a.type.value, currency_code=a.currency_code,
             location_code=locations.get(a.location_id) if a.location_id else None,
             form=a.form.value if a.form else None,
+            balance=balances.get(a.id, Decimal("0")),
         )
         for a in sorted(leaves, key=lambda x: x.code)
     ]
@@ -210,11 +224,13 @@ def list_accounts_for_operation(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
+    balances = _balances_by_account_id(db, [a.id for a in accounts])
     return [
         AccountOut(
             code=a.code, name_ar=a.name_ar, type=a.type.value, currency_code=a.currency_code,
             location_code=locations.get(a.location_id) if a.location_id else None,
             form=a.form.value if a.form else None,
+            balance=balances.get(a.id, Decimal("0")),
         )
         for a in accounts
     ]

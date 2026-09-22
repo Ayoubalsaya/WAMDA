@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { AccountOut, ClientSearchResult, Location, OpeningBalanceRow } from '../../api/types'
+import { AccountPicker } from '../../components/AccountPicker'
 
 const SOURCE_TYPES: { v: string; label: string }[] = [
   { v: 'VERIFIED', label: 'مؤكَّد (مستند/كشف)' },
@@ -94,16 +95,8 @@ export function OpeningBalancesTab() {
         </div>
         <form onSubmit={submit}>
           {mode === 'system' ? (
-            <div className="field" style={{ marginBottom: 10 }}>
-              <label className="field-label" htmlFor="ob-acct">الحساب</label>
-              <select id="ob-acct" value={accountCode} onChange={(e) => setAccountCode(e.target.value)} required>
-                <option value="">اختر حساباً...</option>
-                {accounts.map((a) => (
-                  <option key={a.code} value={a.code}>
-                    {a.code} — {a.name_ar}{a.currency_code ? ` (${a.currency_code})` : ''}
-                  </option>
-                ))}
-              </select>
+            <div style={{ marginBottom: 10 }}>
+              <AccountPicker value={accountCode} onChange={setAccountCode} spec={{ mode: 'full' }} label="الحساب" />
             </div>
           ) : (
             <div className="op-row" style={{ marginBottom: 10 }}>

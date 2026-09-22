@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type {
-  AccountRef, ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
+  ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
 import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
-import { useAccountsForOperation, type AccountFieldSpec } from '../../hooks/useAccountsForOperation'
+import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 
 type OpTab =
   | 'RECEIPT' | 'PAYMENT' | 'EXCHANGE' | 'CASH_TRANSFER' | 'REMIT_OUT' | 'EXPENSE'
@@ -53,21 +53,6 @@ function LocationSelect({ value, onChange, locations, disabled }: { value: strin
   )
 }
 
-function AccountSelect({
-  value, onChange, accounts, label, emptyMessage,
-}: { value: string; onChange: (v: string) => void; accounts: AccountRef[]; label: string; emptyMessage?: string }) {
-  return (
-    <div className="field">
-      <label className="field-label">{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={accounts.length === 0}>
-        <option value="" disabled>{accounts.length ? 'اختر حساباً' : (emptyMessage ?? 'لا حسابات مطابقة')}</option>
-        {accounts.map((a) => <option key={a.code} value={a.code}>{a.code} — {a.name_ar}</option>)}
-      </select>
-      {accounts.length === 0 && emptyMessage && <span className="rate-hint">{emptyMessage}</span>}
-    </div>
-  )
-}
-
 interface OperationFormProps {
   client: ClientSearchResult | null
   currentUserRole: 'ADMIN' | 'ACCOUNTANT'
@@ -87,7 +72,7 @@ export function OperationForm({
   client, currentUserRole, onPosted, onOpenWizard, requestedTab,
   mode = 'create', editEntryId, onEdited, onCancelEdit,
 }: OperationFormProps) {
-  const { currencies, accounts, locationsForCurrency } = useReferenceData()
+  const { currencies, locationsForCurrency } = useReferenceData()
   const [tab, setTab] = useState<OpTab>('RECEIPT')
   const [moreOpen, setMoreOpen] = useState(false)
   const [idemKey, setIdemKey] = useState(newIdempotencyKey())
@@ -185,60 +170,55 @@ export function OperationForm({
   const ctFromLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
   const ctToLocations = useMemo(() => locationsForCurrency(currencyCode), [currencyCode, locationsForCurrency])
   const remitLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
-  const expenseAccounts = useMemo(() => accounts.filter((a) => a.type === 'EXPENSE'), [accounts])
 
-  // حسابات مُصفّاة بحسب (نوع العملية × دور الحقل × العملة × الموقع) عبر
-  // /reference/accounts/for-operation — بديل `accounts` غير المُصفّى الذي
-  // كان يعرض شجرة الحسابات كاملة لكل حقل بلا استثناء. spec=null يعني
-  // "هذا الحقل غير معني بالتبويب الحالي" فلا يُطلَق أي جلب.
-  const receivingPayingSpec: AccountFieldSpec | null =
+  // حسابات مُصفّاة بحسب (نوع العملية × دور الحقل × العملة × الموقع) —
+  // AccountPicker يجلبها بنفسه (حياً، عند كل فتح) عبر /reference/accounts/for-operation.
+  // spec=null يعني "هذا الحقل غير معني بالتبويب الحالي" فلا يُطلَق أي جلب.
+  const receivingPayingSpec: AccountPickerSpec | null =
     tab === 'RECEIPT' || tab === 'PAYMENT'
-      ? { operationType: tab, field: tab === 'RECEIPT' ? 'receiving' : 'paying', currencyCode, locationCode: locationCode || undefined }
+      ? { mode: 'operation', operationType: tab, field: tab === 'RECEIPT' ? 'receiving' : 'paying', currencyCode, locationCode: locationCode || undefined }
       : null
-  const { accounts: receivingPayingAccounts } = useAccountsForOperation(receivingPayingSpec)
 
-  const ctSourceSpec: AccountFieldSpec | null =
-    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
-  const { accounts: ctSourceAccounts } = useAccountsForOperation(ctSourceSpec)
+  const ctSourceSpec: AccountPickerSpec | null =
+    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
 
-  const ctExecutionSpec: AccountFieldSpec | null =
-    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
-  const { accounts: ctExecutionAccounts } = useAccountsForOperation(ctExecutionSpec)
+  const ctExecutionSpec: AccountPickerSpec | null =
+    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
 
-  const ctCollectionSpec: AccountFieldSpec | null =
-    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
-  const { accounts: ctCollectionAccounts } = useAccountsForOperation(ctCollectionSpec)
+  const ctCollectionSpec: AccountPickerSpec | null =
+    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
 
-  const ctCostCorrespondentSpec: AccountFieldSpec | null =
-    tab === 'CASH_TRANSFER' ? { operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
-  const { accounts: ctCostCorrespondentAccounts } = useAccountsForOperation(ctCostCorrespondentSpec)
+  const ctCostCorrespondentSpec: AccountPickerSpec | null =
+    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency, locationCode: toLocationCt || undefined } : null
 
-  const localMoveFromSpec: AccountFieldSpec | null =
-    tab === 'LOCAL_MOVE' ? { operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
-  const { accounts: localMoveFromAccounts } = useAccountsForOperation(localMoveFromSpec)
+  const localMoveFromSpec: AccountPickerSpec | null =
+    tab === 'LOCAL_MOVE' ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
 
-  const localMoveToSpec: AccountFieldSpec | null =
-    tab === 'LOCAL_MOVE' ? { operationType: 'LOCAL_MOVE', field: 'to', currencyCode: fields.currency_code ?? '' } : null
-  const { accounts: localMoveToAccounts } = useAccountsForOperation(localMoveToSpec)
+  const localMoveToSpec: AccountPickerSpec | null =
+    tab === 'LOCAL_MOVE' ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'to', currencyCode: fields.currency_code ?? '' } : null
 
-  const swiftOutPartnerSpec: AccountFieldSpec | null =
-    tab === 'SWIFT_OUT' ? { operationType: 'SWIFT_OUT', field: 'partner', currencyCode: PIVOT_CODE } : null
-  const { accounts: swiftOutPartnerAccounts } = useAccountsForOperation(swiftOutPartnerSpec)
+  const swiftOutPartnerSpec: AccountPickerSpec | null =
+    tab === 'SWIFT_OUT' ? { mode: 'operation', operationType: 'SWIFT_OUT', field: 'partner', currencyCode: PIVOT_CODE } : null
 
   // عملة الاستقبال تتبع وجود سعر تحويل البنك: بلا سعر = إيداع دولار مباشر،
   // بسعر = فتح دفعة رمبي (انظر الشارة الديناميكية أدناه) — نفس المنطق هنا.
   const swiftInCurrency = fields.bank_conversion_rate ? 'CNY' : PIVOT_CODE
-  const swiftInReceivingSpec: AccountFieldSpec | null =
-    tab === 'SWIFT_IN' ? { operationType: 'SWIFT_IN', field: 'receiving', currencyCode: swiftInCurrency } : null
-  const { accounts: swiftInReceivingAccounts } = useAccountsForOperation(swiftInReceivingSpec)
+  const swiftInReceivingSpec: AccountPickerSpec | null =
+    tab === 'SWIFT_IN' ? { mode: 'operation', operationType: 'SWIFT_IN', field: 'receiving', currencyCode: swiftInCurrency } : null
 
-  const remitOutPartnerSpec: AccountFieldSpec | null =
-    tab === 'REMIT_OUT' ? { operationType: 'REMIT_OUT', field: 'partner', currencyCode: PIVOT_CODE, locationCode: fields.from_location_code || undefined } : null
-  const { accounts: remitOutPartnerAccounts } = useAccountsForOperation(remitOutPartnerSpec)
+  const remitOutPartnerSpec: AccountPickerSpec | null =
+    tab === 'REMIT_OUT' ? { mode: 'operation', operationType: 'REMIT_OUT', field: 'partner', currencyCode: PIVOT_CODE, locationCode: fields.from_location_code || undefined } : null
 
-  const expensePayingSpec: AccountFieldSpec | null =
-    tab === 'EXPENSE' ? { operationType: 'EXPENSE', field: 'paying', currencyCode: fields.currency_code ?? '' } : null
-  const { accounts: expensePayingAccounts } = useAccountsForOperation(expensePayingSpec)
+  const expensePayingSpec: AccountPickerSpec | null =
+    tab === 'EXPENSE' ? { mode: 'operation', operationType: 'EXPENSE', field: 'paying', currencyCode: fields.currency_code ?? '' } : null
+
+  const fullAccountListSpec: AccountPickerSpec | null = (tab === 'OPENING' && openingAccountMode === 'system') || tab === 'ADJUSTMENT'
+    ? { mode: 'full' }
+    : null
+
+  // بند المصروف (EXPENSE) — لا مواصفة تصفية خادمية له في account_filters.py
+  // (النوع لا الدور محدِّد الحقل هنا)، فيُجلب الكل ويُصفَّى جانب العميل.
+  const expenseCategorySpec: AccountPickerSpec | null = tab === 'EXPENSE' ? { mode: 'full' } : null
 
   const selectedReturnMovement = pendingSwift.find((m) => m.id === Number(fields.swift_movement_id))
 
@@ -498,8 +478,8 @@ export function OperationForm({
         )}
 
         {(tab === 'RECEIPT' || tab === 'PAYMENT') && (
-          <AccountSelect
-            value={accountCode} onChange={setAccountCode} accounts={receivingPayingAccounts}
+          <AccountPicker
+            value={accountCode} onChange={setAccountCode} spec={receivingPayingSpec}
             label={tab === 'RECEIPT' ? 'الحساب المستقبِل' : 'الحساب المصروف منه'}
             emptyMessage={!currencyCode || !locationCode ? 'اختر العملة والموقع أولاً' : 'لا حسابات صناديق/مراسلين/بنوك بهذه العملة والموقع'}
           />
@@ -521,20 +501,28 @@ export function OperationForm({
                 <LocationSelect value={toLocationCt} onChange={setToLocationCt} locations={ctToLocations} disabled={!currencyCode} />
               </div>
             </div>
-            <AccountSelect
-              value={sourceAccount} onChange={setSourceAccount} accounts={ctSourceAccounts} label="حساب المصدر (الشركة)"
-              emptyMessage={!currencyCode || !fromLocation ? 'اختر العملة وموقع المصدر أولاً' : 'لا صناديق/بنوك بهذه العملة في موقع المصدر'}
+            {/* ٢٠٢٦-٠٩-٢٢: حقل المبلغ المنقول كان غائباً كلياً هنا — buildRequest()
+                كان يرسل `amount` الحالة المشتركة (فارغة دائماً بعد resetForm()
+                عند تبديل التبويب) بلا أي وسيلة لملئها؛ أي CASH_TRANSFER حقيقي
+                كان سيُرفَض بمبلغ فارغ. اكتُشف أثناء اختبار حي كامل للإصلاح أعلاه. */}
+            <div className="field field-amount">
+              <label className="field-label">المبلغ المنقول ({currencyCode || '—'})</label>
+              <input className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <AccountPicker
+              value={sourceAccount} onChange={setSourceAccount} spec={ctSourceSpec} label="حساب المصدر (الشركة)"
+              emptyMessage={!currencyCode || !fromLocation ? 'اختر العملة وموقع المصدر أولاً' : 'لا حسابات بهذه العملة في موقع المصدر'}
             />
-            <AccountSelect
-              value={executionAccount} onChange={setExecutionAccount} accounts={ctExecutionAccounts} label="الحساب المنفِّذ"
-              emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا صناديق/بنوك بهذه العملة في موقع الوجهة'}
+            <AccountPicker
+              value={executionAccount} onChange={setExecutionAccount} spec={ctExecutionSpec} label="الحساب المنفِّذ"
+              emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا حسابات بهذه العملة في موقع الوجهة'}
             />
-            <AccountSelect
-              value={collectionAccount} onChange={setCollectionAccount} accounts={ctCollectionAccounts} label="حساب تحصيل العمولة"
+            <AccountPicker
+              value={collectionAccount} onChange={setCollectionAccount} spec={ctCollectionSpec} label="حساب تحصيل العمولة"
               emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا صناديق/بنوك بعملة العمولة في موقع الوجهة'}
             />
-            <AccountSelect
-              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} accounts={ctCostCorrespondentAccounts} label="حساب تكلفة العمولة (المراسل)"
+            <AccountPicker
+              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} spec={ctCostCorrespondentSpec} label="حساب تكلفة العمولة (المراسل)"
               emptyMessage={!commissionCurrency || !toLocationCt ? 'اختر عملة العمولة وموقع الوجهة أولاً' : 'لا حسابات مراسلين بعملة العمولة في موقع الوجهة'}
             />
             <div className="op-row">
@@ -561,9 +549,9 @@ export function OperationForm({
                 <label className="field-label">الموقع المخصوم من العميل</label>
                 <LocationSelect value={fields.from_location_code ?? ''} onChange={(v) => setField('from_location_code', v)} locations={remitLocations} />
               </div>
-              <AccountSelect
+              <AccountPicker
                 value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)}
-                accounts={remitOutPartnerAccounts} label="حساب المراسل"
+                spec={remitOutPartnerSpec} label="حساب المراسل"
                 emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
               />
             </div>
@@ -610,14 +598,14 @@ export function OperationForm({
         {tab === 'EXPENSE' && (
           <>
             <div className="op-row">
-              <AccountSelect value={fields.expense_account_code ?? ''} onChange={(v) => setField('expense_account_code', v)} accounts={expenseAccounts} label="بند المصروف" />
+              <AccountPicker value={fields.expense_account_code ?? ''} onChange={(v) => setField('expense_account_code', v)} spec={expenseCategorySpec} typeFilter={['EXPENSE']} label="بند المصروف" />
               <div className="field">
                 <label className="field-label">العملة</label>
                 <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
               </div>
             </div>
-            <AccountSelect
-              value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} accounts={expensePayingAccounts} label="الحساب المصروف منه"
+            <AccountPicker
+              value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} spec={expensePayingSpec} label="الحساب المصروف منه"
               emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا صناديق/بنوك بهذه العملة'}
             />
             <div className="op-row">
@@ -635,8 +623,8 @@ export function OperationForm({
 
         {tab === 'SWIFT_OUT' && (
           <>
-            <AccountSelect
-              value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} accounts={swiftOutPartnerAccounts} label="حساب المراسل (تركيا)"
+            <AccountPicker
+              value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} spec={swiftOutPartnerSpec} label="حساب المراسل (تركيا)"
               emptyMessage="لا حسابات مراسلين بالدولار في تركيا — سجّل الشريك من شاشة الشركاء أولاً"
             />
             <div className="op-row">
@@ -675,8 +663,8 @@ export function OperationForm({
                 <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
               </div>
             </div>
-            <AccountSelect
-              value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} accounts={swiftInReceivingAccounts} label="الحساب المستقبِل"
+            <AccountPicker
+              value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} spec={swiftInReceivingSpec} label="الحساب المستقبِل"
               emptyMessage={`لا بنوك صينية بعملة ${swiftInCurrency} — سجّل البنك من شاشة الشركاء أولاً`}
             />
             <div className="field">
@@ -737,12 +725,12 @@ export function OperationForm({
               <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
             </div>
             <div className="op-row">
-              <AccountSelect
-                value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} accounts={localMoveFromAccounts} label="من حساب"
+              <AccountPicker
+                value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} spec={localMoveFromSpec} label="من حساب"
                 emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
               />
-              <AccountSelect
-                value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} accounts={localMoveToAccounts} label="إلى حساب"
+              <AccountPicker
+                value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} spec={localMoveToSpec} label="إلى حساب"
                 emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
               />
             </div>
@@ -776,7 +764,7 @@ export function OperationForm({
               // رصيد افتتاحي قد يمسّ أي حساب في الشجرة، فتضييق الاختيار كان
               // سيمنع حالات مشروعة لا يمكن حصرها مسبقاً (انظر توثيق الاستثناء
               // الكامل في app/engine/account_filters.py).
-              <AccountSelect value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} accounts={accounts} label="الحساب" />
+              <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
             ) : (
               <div className="field">
                 <label className="field-label">حساب العميل (يجب أن يكون موجوداً فعلاً)</label>
@@ -842,7 +830,7 @@ export function OperationForm({
           <>
             {/* استثناء مقصود — بلا تصفية عبر for-operation، نفس سبب OPENING أعلاه:
                 تسوية قد تمسّ أي حساب في الشجرة، لا الصندوق وحده. */}
-            <AccountSelect value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} accounts={accounts} label="الحساب" />
+            <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
             <div className="op-row">
               <div className="field">
                 <label className="field-label">العملة</label>

@@ -210,6 +210,25 @@ def test_accounts_for_operation_local_move_excludes_client_accounts(db, client, 
     assert not any(code.startswith(f"2100-{c.code}-") for code in codes)  # حساب عميل مُشتق — لا يظهر أبداً
 
 
+def test_accounts_for_operation_cash_transfer_source_execution_include_correspondents(db, client):
+    """تصحيح ٢٠٢٦-٠٩-٢٢: مكاتب الشركة (طرابلس ضمناً) غالباً CORRESPONDENT لا
+    CASH/BANK حرفياً — استثناؤها كان يمنع أي تحويل بعمولة حقيقي بينها."""
+    _login(db, client)
+    tripoli_correspondent = f.make_correspondent_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1310")
+    turkey_correspondent = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    resp_source = client.get(
+        "/reference/accounts/for-operation?operation_type=CASH_TRANSFER&field=source&currency_code=USD&location_code=TRIPOLI"
+    )
+    assert resp_source.status_code == 200
+    assert tripoli_correspondent.code in {a["code"] for a in resp_source.json()}
+
+    resp_execution = client.get(
+        "/reference/accounts/for-operation?operation_type=CASH_TRANSFER&field=execution&currency_code=USD&location_code=TURKEY"
+    )
+    assert resp_execution.status_code == 200
+    assert turkey_correspondent.code in {a["code"] for a in resp_execution.json()}
+
+
 def test_accounts_for_operation_unknown_combo_rejected(db, client):
     _login(db, client)
     resp = client.get("/reference/accounts/for-operation?operation_type=EXCHANGE&field=from&currency_code=USD")

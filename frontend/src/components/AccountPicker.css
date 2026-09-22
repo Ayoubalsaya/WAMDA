@@ -1,0 +1,76 @@
+.acct-picker { position: relative; }
+
+.acct-picker-trigger {
+  height: 44px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--sky-50);
+  padding: 0 var(--space-4);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-primary);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  cursor: pointer;
+  text-align: start;
+}
+.acct-picker-trigger:disabled { opacity: .6; cursor: not-allowed; }
+.acct-picker-trigger[aria-expanded="true"] {
+  border-color: var(--sky-500);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(66, 176, 213, .14);
+}
+.acct-picker-trigger-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-picker-trigger-placeholder { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-picker-trigger-caret { color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
+
+.acct-picker-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  inset-inline: 0;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-elevated);
+  overflow: hidden;
+}
+.acct-picker-search {
+  width: 100%;
+  height: 38px;
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  padding: 0 var(--space-3);
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+}
+.acct-picker-list { max-height: 260px; overflow-y: auto; }
+.acct-picker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  background: #fff;
+  border: none;
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+  text-align: start;
+  font-family: inherit;
+}
+.acct-picker-row:last-child { border-bottom: none; }
+.acct-picker-row:hover { background: var(--sky-50); }
+.acct-picker-row.is-selected { background: var(--sky-100); }
+.acct-picker-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.acct-picker-row-name { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.acct-picker-row-code { font-size: 11px; }
+.acct-picker-row-balance { font-size: 13.5px; font-weight: 700; flex-shrink: 0; }
+.acct-picker-row-balance.tone-pos { color: var(--money-in-text); }
+.acct-picker-row-balance.tone-neg { color: var(--money-out-text); }
+.acct-picker-row-balance.tone-zero { color: var(--text-muted); }
+.acct-picker-loading, .acct-picker-empty { padding: var(--space-3); font-size: 13px; color: var(--text-muted); text-align: center; }

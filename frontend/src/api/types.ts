@@ -39,6 +39,7 @@ export interface AccountRef {
   currency_code: string | null
   location_code: string | null
   form: string | null
+  balance: string
 }
 
 export interface ClientSearchResult {
