@@ -37,9 +37,15 @@ def search(
     operation_type: Optional[str] = Query(default=None),
     username: Optional[str] = Query(default=None),
     limit: int = Query(default=50, le=200),
+    include_reversed: bool = Query(default=False, description="أظهر الملغاة — مخفية افتراضياً كبقية القوائم"),
     db: OrmSession = Depends(get_db),
 ) -> list[SearchResultRow]:
-    query = select(JournalEntry).where(JournalEntry.status.in_((EntryStatus.POSTED, EntryStatus.REVERSED)))
+    if include_reversed:
+        query = select(JournalEntry).where(JournalEntry.status.in_((EntryStatus.POSTED, EntryStatus.REVERSED)))
+    else:
+        query = select(JournalEntry).where(
+            JournalEntry.status == EntryStatus.POSTED, JournalEntry.reverses_entry_id.is_(None)
+        )
 
     if entry_no:
         query = query.where(JournalEntry.entry_no.ilike(f"%{entry_no}%"))
@@ -102,7 +108,8 @@ def search(
         result.append(
             SearchResultRow(
                 id=e.id, entry_no=e.entry_no, entry_date=e.entry_date, operation_type=e.operation_type.value,
-                status=e.status.value, description=e.description,
+                status=e.status.value, description=e.description, note=e.note, replaces_entry_id=e.replaces_entry_id,
+                client_id=e.client_id,
                 client_name_ar=clients[e.client_id].name_ar if e.client_id in clients else None,
                 profit_amount=e.profit_amount, profit_currency=e.profit_currency, chain_ref=e.chain_ref,
                 lines=[

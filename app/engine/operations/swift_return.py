@@ -4,14 +4,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.engine import accounts_repo, clock, posting
-from app.models import Client, SwiftMovement
+from app.models import Client, JournalEntry, SwiftMovement
 from app.models.enums import OperationType, SwiftStatus
 
 
@@ -27,10 +28,14 @@ def execute(
     work_timezone: str,
     created_by: int,
     now: datetime,
+    entry_date: Optional[date] = None,
+    backdate_reason: Optional[str] = None,
     idempotency_key: str,
     description: Optional[str] = None,
 ):
-    entry_date = clock.local_entry_date(now, work_timezone)
+    _today = clock.local_entry_date(now, work_timezone)
+
+    entry_date = entry_date or _today
 
     def _create():
         pivot = accounts_repo.get_pivot_currency(db)
@@ -46,6 +51,8 @@ def execute(
             db,
             operation_type=OperationType.SWIFT_RETURN,
             entry_date=entry_date,
+            is_backdated=entry_date != _today,
+            backdate_reason=backdate_reason,
             created_by=created_by,
             client_id=client.id,
             from_currency=pivot.code,
@@ -73,3 +80,16 @@ def execute(
         },
         create_fn=_create,
     )
+
+
+def reverse(db: Session, *, entry: JournalEntry, reason: str, created_by: int, now: datetime) -> JournalEntry:
+    """عكس قيد SWIFT_RETURN — يعيد حركة السويفت لحالتها قبل الإرجاع:
+    RECEIVED إن كان قد وصلها سويفت وصول من قبل (`in_entry_id` موجود)،
+    وإلا SENT (إرجاع مباشر بلا وصول وسيط)."""
+    movement = db.execute(select(SwiftMovement).where(SwiftMovement.return_entry_id == entry.id)).scalar_one_or_none()
+    reversal = posting.reverse_entry(db, entry, reason=reason, created_by=created_by, now=now)
+    if movement is not None:
+        movement.status = SwiftStatus.RECEIVED if movement.in_entry_id is not None else SwiftStatus.SENT
+        movement.return_entry_id = None
+    db.flush()
+    return reversal

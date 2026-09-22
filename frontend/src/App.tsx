@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell } from 'lucide-react'
 import { useAuth } from './hooks/useAuth'
 import { LoginScreen } from './screens/LoginScreen'
 import { ChangePasswordScreen } from './screens/ChangePasswordScreen'
@@ -14,6 +13,7 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { Sidebar, type ScreenId } from './components/Sidebar'
 import { NewOperationPanel } from './components/NewOperationPanel'
 import { SearchResultsPanel } from './components/SearchResultsPanel'
+import { NotificationsBell } from './components/NotificationsBell'
 import { type SearchChip, parseSearchQuery } from './lib/parseSearchQuery'
 import './App.css'
 
@@ -110,9 +110,7 @@ export default function App() {
             value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); runSearch() } }}
           />
-          <button type="button" className="btn btn-muted" style={{ width: 42, padding: 0 }} aria-label="التنبيهات">
-            <Bell size={18} strokeWidth={1.9} />
-          </button>
+          <NotificationsBell />
           <div className="user-chip">
             <div className="user-chip-avatar">{user.full_name.slice(0, 1)}</div>
             <div>
@@ -167,6 +165,7 @@ export default function App() {
           chips={searchChips}
           onRemoveChip={(id) => setSearchChips((chips) => chips.filter((c) => c.id !== id))}
           onClose={() => setSearchOpen(false)}
+          currentUserRole={user.role}
         />
       )}
     </div>

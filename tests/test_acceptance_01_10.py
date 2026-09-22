@@ -128,11 +128,9 @@ def test_exchange_rate_spread_via_remit_out(db, now):
         db, client=client, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
-    beneficiary = f.make_beneficiary(db, client, currency_code="CNY")
-
     entry = remit_out.execute(
         db, client=client, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        beneficiary=beneficiary, beneficiary_amount=Decimal("69000.00"), cost_rate=Decimal("6.90"),
+        currency_code="CNY", amount=Decimal("69000.00"), cost_rate=Decimal("6.90"),
         client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now,
         idempotency_key=f.uid(),
     )

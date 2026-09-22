@@ -137,13 +137,16 @@ def get_or_create_client_account(
 
 
 def _assign_next_child_code(db: Session, parent: Account) -> str:
-    """رقم فرعي تسلسلي جديد تحت `parent` — نفس آلية `account_number_counters`
-    المستخدَمة في `app.cli.seed._subdivide_by_currency` بالضبط (الرقم
-    الأخير من كود الأب يُستبدَل برقم تسلسلي، لا يُضاف)، لكن هنا **بلا**
-    `account_number_assignments` (ذاك مفتاحه عملة واحدة لكل أب — لا يناسب
-    "حساب واحد لكل شريك×عملة×موقع"؛ كل استدعاء هنا إنشاء متعمَّد جديد لا
-    بحثاً كسولاً idempotent). قفل صفّي (`with_for_update`) يمنع تصادماً
-    حقيقياً بين طلبين متزامنين على نفس الأب — نفس أسلوب `numbering.py`.
+    """رقم فرعي تسلسلي جديد تحت `parent` — يُضاف كلاحقة رقمين (٠١-٩٩) لكود
+    الأب كاملاً (لا استبدال آخر رقم منه): `1320` → `132001` .. `132099`،
+    ٩٩ حساباً فرعياً محتمَلاً لا ٩ (٢٠٢٦-٠٩-٢٣، قرار مالك بعد أن استَنفد
+    عداد `1320` فعلياً تسعته التسعة أثناء اختبار حقيقي — راجع PROGRESS.md).
+    نفس آلية `account_number_counters` **بلا** `account_number_assignments`
+    (ذاك مفتاحه عملة واحدة لكل أب — لا يناسب "حساب واحد لكل شريك×عملة×موقع"؛
+    كل استدعاء هنا إنشاء متعمَّد جديد لا بحثاً كسولاً idempotent). قفل صفّي
+    (`with_for_update`) يمنع تصادماً حقيقياً بين طلبين متزامنين على نفس
+    الأب — نفس أسلوب `numbering.py`. عام لأي أب (`1310`/`1320`/`1400`
+    وأي أب مستقبلي لحسابات شركاء/بنوك) — لا قيد على شكل كود الأب.
     """
     db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key)::bigint)"), {"key": f"account_child:{parent.id}"})
     counter = db.execute(
@@ -154,12 +157,12 @@ def _assign_next_child_code(db: Session, parent: Account) -> str:
         db.add(counter)
         db.flush()
     suffix = counter.next_suffix
-    if suffix > 9 or not parent.code.endswith("0"):
+    if suffix > 99:
         raise AccountNumberExhaustedError(
-            f"لا مجال لحساب فرعي جديد تحت {parent.code} — الأرقام الفرعية (١-٩) استُهلكت بالكامل"
+            f"لا مجال لحساب فرعي جديد تحت {parent.code} — الأرقام الفرعية (٠١-٩٩) استُهلكت بالكامل"
         )
     counter.next_suffix = suffix + 1
-    return f"{parent.code[:-1]}{suffix}"
+    return f"{parent.code}{suffix:02d}"
 
 
 _PARTNER_ACCOUNT_PARENTS = {"1310", "1320"}  # مراسلو ليبيا · مراسلو تركيا

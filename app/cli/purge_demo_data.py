@@ -22,7 +22,7 @@
 الحسابات النظامية/client_currency_locations/founding_period):
   عملاء/شركاء/حسابات/مستخدمون مطابقون لما سبق + كل قيد يمسّ أياً منهم
   (كعميل/شريك/منشئ) + كل الجداول التابعة (أسطر القيد · دفعات الرمبي
-  واستهلاكها · حركات السويفت · الأرصدة الافتتاحية · لقطات REMIT_OUT ·
+  واستهلاكها · حركات السويفت · الأرصدة الافتتاحية ·
   مفاتيح التفرّد · الجلسات).
 
 **قيد POSTED لا يُحذف عادة (§٥ قاعدة ٢: "لا حذف أبداً")** — مشغّل
@@ -186,13 +186,16 @@ def _purge(db: Session) -> dict[str, list[str]]:
     entries = _demo_entry_ids_cte()
     accounts = _demo_account_ids_cte()
 
-    # ١) فكّ أي إشارة عكس/معكوسية قبل الحذف (ذاتية الإشارة على journal_entries)
+    # ١) فكّ أي إشارة عكس/معكوسية/استبدال قبل الحذف (ذاتية الإشارة على
+    # journal_entries — إضافة replaces_entry_id هنا إلزامية مع كل عمود
+    # ذاتي الإشارة جديد، وإلا فشل الحذف بانتهاك مفتاح أجنبي بصمت لاحقاً)
     db.execute(text(f"UPDATE journal_entries SET reversed_by_entry_id = NULL WHERE reversed_by_entry_id IN {entries}"))
     db.execute(text(f"UPDATE journal_entries SET reverses_entry_id = NULL WHERE reverses_entry_id IN {entries}"))
+    db.execute(text(f"UPDATE journal_entries SET replaces_entry_id = NULL WHERE replaces_entry_id IN {entries}"))
 
     # ٢) الجداول التابعة للقيود
+    db.execute(text(f"DELETE FROM entry_comments WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM lot_consumptions WHERE entry_id IN {entries}"))
-    db.execute(text(f"DELETE FROM remit_out_destinations WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM idempotency_keys WHERE entry_id IN {entries}"))
     db.execute(text(f"""
         DELETE FROM lot_consumptions WHERE lot_id IN (SELECT id FROM currency_lots WHERE source_entry_id IN {entries})
@@ -219,7 +222,6 @@ def _purge(db: Session) -> dict[str, list[str]]:
     # ٤) أرصدة/بيانات الحسابات التجريبية، ثم الحسابات نفسها
     db.execute(text(f"DELETE FROM account_balances WHERE account_id IN {accounts}"))
     db.execute(text(f"DELETE FROM client_credit_limits WHERE client_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})"))
-    db.execute(text(f"DELETE FROM beneficiaries WHERE client_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})"))
     db.execute(text(f"DELETE FROM accounts WHERE id IN {accounts}"))
 
     # ٥) العملاء والشركاء أنفسهم

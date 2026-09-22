@@ -74,31 +74,6 @@ class ClientCreditLimit(Base):
     )
 
 
-class Beneficiary(Base):
-    __tablename__ = "beneficiaries"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    client_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("clients.id"), nullable=False)
-    code: Mapped[Optional[str]] = mapped_column(Text)
-    name: Mapped[str] = mapped_column(Text, nullable=False)
-    account_number: Mapped[str] = mapped_column(Text, nullable=False)  # إلزامي — اختبار القبول ٣٢
-    bank_name: Mapped[Optional[str]] = mapped_column(Text)
-    currency_code: Mapped[str] = mapped_column(Text, ForeignKey("currencies.code"), nullable=False)
-    purpose: Mapped[Optional[str]] = mapped_column(Text)
-    notes: Mapped[Optional[str]] = mapped_column(Text)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)  # تعطيل فقط، لا حذف
-
-
-class RemitOutDestination(Base):
-    """لقطة لحظة الترحيل — §3-3. لا تتأثر بتعديل المستفيد لاحقاً (اختبار القبول ٣٣)."""
-
-    __tablename__ = "remit_out_destinations"
-
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
-    entry_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("journal_entries.id"), unique=True, nullable=False)
-    beneficiary_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("beneficiaries.id"), nullable=False)
-    beneficiary_name_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
-    account_number_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
-    bank_name_snapshot: Mapped[Optional[str]] = mapped_column(Text)
-    currency_code: Mapped[str] = mapped_column(Text, ForeignKey("currencies.code"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+# Beneficiary/RemitOutDestination أُلغيا (قرار مالك ٢٠٢٦-٠٩-٢٢): ٩٥٪ من
+# العملاء يعطون رقم حساب فقط بلا معلومة أخرى، وحقل ملاحظة العملية يكفي
+# لتدوين الوجهة. انظر PROGRESS.md — المرحلة ١٤ج (إلغاء المستفيدين).

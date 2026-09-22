@@ -16,3 +16,20 @@ export function formatAmount(value: string, currencyCode: string, currencies: Cu
 export function formatRate(value: string): string {
   return Number(value).toString()
 }
+
+export type BalanceTone = 'pos' | 'neg' | 'zero'
+
+// ٢٠٢٦-٠٩-٢٢: عرض رصيد داخل قائمة اختيار حساب — إشارة ناقص + فواصل آلاف
+// (خلاف formatAmount في بقية الشاشات عمداً: القائمة تُقرَأ سريعاً أثناء
+// الاختيار، الفاصلة تُسهِّل تمييز الرقم دون عدّ الأصفار).
+export function formatAccountBalance(
+  value: string, currencyCode: string | null, currencies: Currency[]
+): { text: string; tone: BalanceTone } {
+  const decimals = currencies.find((c) => c.code === currencyCode)?.decimals ?? 2
+  const d = new Decimal(value || '0')
+  const tone: BalanceTone = d.isPositive() && !d.isZero() ? 'pos' : d.isNegative() ? 'neg' : 'zero'
+  const [intPart, fracPart] = d.abs().toFixed(decimals).split('.')
+  const withCommas = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const text = (tone === 'neg' ? '−' : '') + withCommas + (fracPart ? '.' + fracPart : '')
+  return { text, tone }
+}

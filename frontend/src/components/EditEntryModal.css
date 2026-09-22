@@ -1,0 +1,7 @@
+.edit-entry-modal {
+  width: 640px;
+  max-width: calc(100vw - 32px);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.edit-entry-modal .journal-col-center { width: 100%; }

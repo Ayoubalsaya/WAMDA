@@ -153,7 +153,9 @@ def test_receipt_never_contains_cost_rate(db, client, now):
     assert "1000.000" in pdf_text
 
 
-def test_receipt_remit_out_shows_destination_snapshot(db, client, now):
+def test_receipt_remit_out_shows_note_not_destination(db, client, now):
+    """سجل المستفيدين أُلغي بالكامل (قرار مالك ٢٠٢٦-٠٩-٢٢) — ملاحظة القيد
+    (`entry.note`) هي ما يُعرَض للوجهة الآن، لا لقطة مستفيد منفصلة."""
     user = _login(db, client)
     c = f.make_client(db, name="عميل إرسال فريد")
     partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
@@ -161,14 +163,16 @@ def test_receipt_remit_out_shows_destination_snapshot(db, client, now):
         db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
-    beneficiary = f.make_beneficiary(db, c, currency_code="CNY")
     from app.engine.operations import remit_out as remit_out_op
 
     entry = remit_out_op.execute(
         db, client=c, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        beneficiary=beneficiary, beneficiary_amount=Decimal("690.00"), cost_rate=Decimal("6.90"),
+        currency_code="CNY", amount=Decimal("690.00"), cost_rate=Decimal("6.90"),
         client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(),
     )
+    entry.note = "يُسلَّم للمستفيد في بنك الصين الصناعي — حساب 998877"
+    db.flush()
+
     resp = client.get(f"/documents/receipt/{entry.id}.pdf")
     assert resp.status_code == 200
     assert resp.content.startswith(b"%PDF")
@@ -176,9 +180,14 @@ def test_receipt_remit_out_shows_destination_snapshot(db, client, now):
     from app.documents.receipt import build_receipt_context
 
     ctx = build_receipt_context(db, entry_id=entry.id, doc_size="a4", now=now, work_timezone=WORK_TZ)
-    assert ctx["destination"] is not None
-    assert ctx["destination"]["beneficiary_name"] == beneficiary.name
-    assert ctx["destination"]["account_number"] == beneficiary.account_number
+    assert "destination" not in ctx
+    assert ctx["note"] == entry.note
+
+    from pypdf import PdfReader
+    import io as _io
+
+    pdf_text = "".join(page.extract_text() for page in PdfReader(_io.BytesIO(resp.content)).pages)
+    assert "998877" in pdf_text
 
 
 def test_receipt_404_for_unknown_entry(db, client):

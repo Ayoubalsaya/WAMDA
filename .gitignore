@@ -15,3 +15,4 @@ app/static/app/
 
 # لقطات تحقُّق Playwright المحلية (سكربتات scripts/verify_*)
 scripts/_*.png
+backups/

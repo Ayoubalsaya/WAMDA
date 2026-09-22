@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,7 +24,6 @@ from app.config import settings
 from app.models import (
     Account,
     AccountBalance,
-    Beneficiary,
     Client,
     ClientCurrencyLocation,
     Currency,
@@ -34,10 +34,9 @@ from app.models import (
     SwiftMovement,
     User,
 )
-from app.models.enums import SwiftStatus
+from app.models.enums import EntryStatus, SwiftStatus
 from app.schemas.reference import (
     AccountOut,
-    BeneficiaryOut,
     ClientBalanceOut,
     ClientCurrencyLocationOut,
     ClientSearchResultOut,
@@ -77,6 +76,17 @@ def list_client_currency_locations(db: OrmSession = Depends(get_db)) -> list[Cli
     return [ClientCurrencyLocationOut(currency_code=ccy, location_code=loc) for ccy, loc in rows]
 
 
+def _balances_by_account_id(db: OrmSession, account_ids: list[int]) -> dict[int, Decimal]:
+    """رصيد حيّ لكل حساب وقت الطلب — لا كاش، لا قيمة من وقت تحميل الصفحة.
+    ٠ لحساب بلا صف `account_balances` بعد (لم يُلمَس بأي قيد قط)."""
+    if not account_ids:
+        return {}
+    rows = db.execute(
+        select(AccountBalance.account_id, AccountBalance.balance).where(AccountBalance.account_id.in_(account_ids))
+    ).all()
+    return {account_id: balance for account_id, balance in rows}
+
+
 @router.get("/reference/accounts", response_model=list[AccountOut])
 def list_accounts(db: OrmSession = Depends(get_db)) -> list[AccountOut]:
     """حسابات قابلة للترحيل مباشرة لاختيار «الحساب المنفِّذ»/المصدر/التحصيل
@@ -85,11 +95,13 @@ def list_accounts(db: OrmSession = Depends(get_db)) -> list[AccountOut]:
     parent_ids = {a.parent_id for a in all_accounts if a.parent_id is not None}
     locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
     leaves = [a for a in all_accounts if a.id not in parent_ids and a.client_id is None]
+    balances = _balances_by_account_id(db, [a.id for a in leaves])
     return [
         AccountOut(
             code=a.code, name_ar=a.name_ar, type=a.type.value, currency_code=a.currency_code,
             location_code=locations.get(a.location_id) if a.location_id else None,
             form=a.form.value if a.form else None,
+            balance=balances.get(a.id, Decimal("0")),
         )
         for a in sorted(leaves, key=lambda x: x.code)
     ]
@@ -141,23 +153,6 @@ def client_balances(client_id: int, db: OrmSession = Depends(get_db)) -> list[Cl
             location_code=locations.get(acc.location_id) if acc.location_id else None, balance=bal.balance,
         )
         for acc, bal in rows
-    ]
-
-
-@router.get(
-    "/clients/{client_id}/beneficiaries", response_model=list[BeneficiaryOut],
-    dependencies=[Depends(require_role(Action.POST_ENTRY))],
-)
-def client_beneficiaries(client_id: int, db: OrmSession = Depends(get_db)) -> list[BeneficiaryOut]:
-    # §٩ المرحلة ١٢: نفس حاجز POST_ENTRY لبقية مسارات بيانات العميل
-    if db.get(Client, client_id) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
-    rows = db.execute(
-        select(Beneficiary).where(Beneficiary.client_id == client_id, Beneficiary.is_active.is_(True)).order_by(Beneficiary.name)
-    ).scalars().all()
-    return [
-        BeneficiaryOut(id=b.id, name=b.name, account_number=b.account_number, bank_name=b.bank_name, currency_code=b.currency_code)
-        for b in rows
     ]
 
 
@@ -229,11 +224,13 @@ def list_accounts_for_operation(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
     locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars().all()}
+    balances = _balances_by_account_id(db, [a.id for a in accounts])
     return [
         AccountOut(
             code=a.code, name_ar=a.name_ar, type=a.type.value, currency_code=a.currency_code,
             location_code=locations.get(a.location_id) if a.location_id else None,
             form=a.form.value if a.form else None,
+            balance=balances.get(a.id, Decimal("0")),
         )
         for a in accounts
     ]
@@ -242,14 +239,32 @@ def list_accounts_for_operation(
 @router.get("/journal/entries", response_model=list[JournalEntryOut])
 def list_journal_entries(
     entry_date_filter: Optional[date] = Query(default=None, alias="date"),
-    limit: int = Query(default=30, le=100),
+    date_from: Optional[date] = Query(default=None, description="بداية نطاق (مع date_to) — بديل عن date ليوم واحد"),
+    date_to: Optional[date] = Query(default=None, description="نهاية نطاق (مع date_from)"),
+    limit: int = Query(default=200, le=1000),
+    include_reversed: bool = Query(default=False, description="أظهر الملغاة (REVERSED) — مخفية افتراضياً"),
     db: OrmSession = Depends(get_db),
 ) -> list[JournalEntryOut]:
-    """عمود دفتر اليومية اليسار (ح-٢): عمليات اليوم افتراضياً، أو تاريخ محدَّد."""
-    target_date = entry_date_filter or local_entry_date(system_clock(), settings.work_timezone)
-    entries = db.execute(
-        select(JournalEntry).where(JournalEntry.entry_date == target_date).order_by(JournalEntry.id.desc()).limit(limit)
-    ).scalars().all()
+    """سجل العمليات (ح-٢، ٢٠٢٦-٠٩-٢٢): يوم واحد افتراضياً (اليوم أو `date`
+    محدَّد)، أو نطاق تاريخين عبر `date_from`/`date_to` معاً (أسبوع/شهر —
+    §سجل العمليات الدائم).
+
+    افتراضياً: لا قيود ملغاة (`REVERSED`) ولا قيود العكس الداخلية نفسها
+    (`reverses_entry_id` غير فارغ) — كلاهما ضجيج محاسبي لا عملية يومية
+    حقيقية. `include_reversed=true` يعيدهما لمن يحتاج الأرشيف الكامل.
+    """
+    if date_from or date_to:
+        if not (date_from and date_to):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "النطاق يحتاج date_from وdate_to معاً")
+        if date_from > date_to:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "date_from يجب ألا يتجاوز date_to")
+        query = select(JournalEntry).where(JournalEntry.entry_date.between(date_from, date_to))
+    else:
+        target_date = entry_date_filter or local_entry_date(system_clock(), settings.work_timezone)
+        query = select(JournalEntry).where(JournalEntry.entry_date == target_date)
+    if not include_reversed:
+        query = query.where(JournalEntry.status != EntryStatus.REVERSED, JournalEntry.reverses_entry_id.is_(None))
+    entries = db.execute(query.order_by(JournalEntry.id.desc()).limit(limit)).scalars().all()
     if not entries:
         return []
 
@@ -270,7 +285,8 @@ def list_journal_entries(
         result.append(
             JournalEntryOut(
                 id=e.id, entry_no=e.entry_no, entry_date=e.entry_date, operation_type=e.operation_type.value,
-                status=e.status.value, description=e.description,
+                status=e.status.value, description=e.description, note=e.note, replaces_entry_id=e.replaces_entry_id,
+                client_id=e.client_id,
                 client_name_ar=clients[e.client_id].name_ar if e.client_id in clients else None,
                 profit_amount=e.profit_amount, profit_currency=e.profit_currency, chain_ref=e.chain_ref,
                 lines=[

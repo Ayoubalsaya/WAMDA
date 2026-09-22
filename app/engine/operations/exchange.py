@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
@@ -45,6 +45,8 @@ def execute_via_rates(
     work_timezone: str,
     created_by: int,
     now: datetime,
+    entry_date: Optional[date] = None,
+    backdate_reason: Optional[str] = None,
     idempotency_key: str,
     description: Optional[str] = None,
     negative_margin_reason: Optional[str] = None,
@@ -52,7 +54,9 @@ def execute_via_rates(
     chain_seq: Optional[int] = None,
     chain_total: Optional[int] = None,
 ) -> JournalEntry:
-    entry_date = clock.local_entry_date(now, work_timezone)
+    _today = clock.local_entry_date(now, work_timezone)
+
+    entry_date = entry_date or _today
 
     def _create():
         pivot = accounts_repo.get_pivot_currency(db)
@@ -86,6 +90,8 @@ def execute_via_rates(
             db,
             operation_type=OperationType.EXCHANGE,
             entry_date=entry_date,
+            is_backdated=entry_date != _today,
+            backdate_reason=backdate_reason,
             created_by=created_by,
             client_id=client.id,
             from_currency=from_currency,
@@ -138,11 +144,15 @@ def execute_via_lot(
     work_timezone: str,
     created_by: int,
     now: datetime,
+    entry_date: Optional[date] = None,
+    backdate_reason: Optional[str] = None,
     idempotency_key: str,
     description: Optional[str] = None,
 ) -> JournalEntry:
     """§٢-٨-ج: بيع رمبي من مخزون السويفت — FIFO تلقائي، بلا cost_rate يدوي."""
-    entry_date = clock.local_entry_date(now, work_timezone)
+    _today = clock.local_entry_date(now, work_timezone)
+
+    entry_date = entry_date or _today
 
     def _create():
         pivot = accounts_repo.get_pivot_currency(db)
@@ -168,6 +178,8 @@ def execute_via_lot(
             db,
             operation_type=OperationType.EXCHANGE,
             entry_date=entry_date,
+            is_backdated=entry_date != _today,
+            backdate_reason=backdate_reason,
             created_by=created_by,
             client_id=client.id,
             from_currency=pivot.code,

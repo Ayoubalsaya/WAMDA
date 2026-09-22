@@ -35,6 +35,9 @@ class AccountOut(BaseModel):
     currency_code: Optional[str] = None
     location_code: Optional[str] = None
     form: Optional[str] = None
+    # ٢٠٢٦-٠٩-٢٢: رصيد حيّ يُحسب وقت الطلب — كل قائمة اختيار حساب في الواجهة
+    # تعرضه تحت اسم الحساب (أخضر/أحمر/رمادي)، لا تُعيد استدعاءً منفصلاً له.
+    balance: Decimal = Decimal("0")
 
 
 class ClientSearchResultOut(BaseModel):
@@ -50,14 +53,6 @@ class ClientBalanceOut(BaseModel):
     currency_code: str
     location_code: Optional[str] = None
     balance: Decimal
-
-
-class BeneficiaryOut(BaseModel):
-    id: int
-    name: str
-    account_number: str
-    bank_name: Optional[str] = None
-    currency_code: str
 
 
 class JournalLineOut(BaseModel):
@@ -92,6 +87,9 @@ class JournalEntryOut(BaseModel):
     operation_type: str
     status: str
     description: Optional[str] = None
+    note: Optional[str] = None
+    replaces_entry_id: Optional[int] = None
+    client_id: Optional[int] = None
     client_name_ar: Optional[str] = None
     profit_amount: Optional[Decimal] = None
     profit_currency: Optional[str] = None

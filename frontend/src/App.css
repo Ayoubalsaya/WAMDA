@@ -56,6 +56,27 @@
 
 .app-content { flex: 1; overflow-y: auto; }
 
+/* د-٢: زر الجرس + قائمة التنبيهات المنسدلة */
+.notif-bell-root { position: relative; }
+.notif-bell-btn { width: 42px; padding: 0; position: relative; }
+.notif-dot {
+  position: absolute; top: -4px; left: -4px;
+  min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 999px;
+  background: var(--pending-text);
+  color: #fff;
+  font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--surface);
+}
+.notif-dot-critical { background: var(--critical-text); }
+.notif-dropdown {
+  position: absolute; top: calc(100% + 10px); left: 0;
+  width: 340px; max-height: 420px; overflow-y: auto;
+  z-index: 40;
+}
+.notif-dropdown .alerts-list { display: flex; flex-direction: column; gap: 8px; }
+
 /* د: انتقال الشاشة — تبدو كأنها خرجت من الزر المضغوط */
 .screen-enter {
   transform-origin: right var(--origin-y, 50%);

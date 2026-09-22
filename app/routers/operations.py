@@ -31,7 +31,6 @@ from app.engine.operations import (
     swift_out as swift_out_op,
     swift_return as swift_return_op,
 )
-from app.engine.operations.remit_out import BeneficiaryRequiredError
 from app.engine.posting import (
     BackdatedEntryRequiresAdminError,
     CreditLimitExceededError,
@@ -42,8 +41,7 @@ from app.engine.posting import (
 )
 from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
-from app.models import Beneficiary, Client, JournalEntry, JournalLine, User
-from app.models.partners import RemitOutDestination
+from app.models import Client, JournalEntry, JournalLine, User
 from app.schemas.operations import (
     AdjustmentRequest,
     CashTransferRequest,
@@ -68,7 +66,6 @@ from app.security.permissions import Action, PermissionDeniedError, require_perm
 router = APIRouter(prefix="/operations", tags=["operations"], dependencies=[Depends(verify_csrf)])
 
 _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
-    (BeneficiaryRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (NegativeMarginReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (OverrideReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidClientLocationError, status.HTTP_422_UNPROCESSABLE_ENTITY),
@@ -103,13 +100,6 @@ def _get_client(db: OrmSession, client_id: int) -> Client:
     if client is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عميل بالمعرّف {client_id}")
     return client
-
-
-def _get_beneficiary(db: OrmSession, beneficiary_id: int, *, client_id: int) -> Beneficiary:
-    beneficiary = db.get(Beneficiary, beneficiary_id)
-    if beneficiary is None or beneficiary.client_id != client_id:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا مستفيد بالمعرّف {beneficiary_id} لهذا العميل")
-    return beneficiary
 
 
 def _require_override_permission(current_user: User) -> None:
@@ -147,8 +137,9 @@ def create_receipt(
         db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
         amount=payload.amount, receiving_account_code=payload.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, payment_method=payload.payment_method, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, payment_method=payload.payment_method, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -168,9 +159,10 @@ def create_payment(
         db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
         amount=payload.amount, paying_account_code=payload.paying_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -188,9 +180,10 @@ def create_exchange(
         db, client=client, from_currency=payload.from_currency, from_location_code=payload.from_location_code,
         to_currency=payload.to_currency, to_location_code=payload.to_location_code, amount=payload.amount,
         cost_rate=payload.cost_rate, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -207,8 +200,9 @@ def create_exchange_from_lot(
     entry = _run(lambda: exchange_op.execute_via_lot(
         db, client=client, from_location_code=payload.from_location_code, to_location_code=payload.to_location_code,
         amount=payload.amount, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -230,6 +224,7 @@ def create_exchange_chain(
     """
     client = _get_client(db, payload.client_id)
     now = system_clock()
+    resolved_entry_date = payload.entry_date or _clock.local_entry_date(now, settings.work_timezone)
     step1_holder: dict = {}
 
     def _step1(chain_ref: str, chain_seq: int, chain_total: int) -> JournalEntry:
@@ -239,6 +234,7 @@ def create_exchange_chain(
             to_location_code=payload.step1.to_location_code, amount=payload.step1.amount,
             cost_rate=payload.step1.cost_rate, client_rate=payload.step1.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
+            entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
             idempotency_key=f"{idempotency_key}-1", description=payload.description,
             negative_margin_reason=payload.step1.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
@@ -264,14 +260,17 @@ def create_exchange_chain(
             to_location_code=payload.step2.to_location_code, amount=credited_line.credit,
             cost_rate=payload.step2.cost_rate, client_rate=payload.step2.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
+            entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
             idempotency_key=f"{idempotency_key}-2", description=payload.description,
             negative_margin_reason=payload.step2.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
         )
 
     result = _run(lambda: chain.execute_two_step_chain(
-        db, entry_date=_clock.local_entry_date(now, settings.work_timezone), step1=_step1, step2=_step2
+        db, entry_date=resolved_entry_date, step1=_step1, step2=_step2
     ))
+    result.step1_entry.note = payload.note
+    result.step2_entry.note = payload.note
     db.commit()
     return ExchangeChainResponse(
         chain_ref=result.chain_ref,
@@ -287,19 +286,24 @@ def create_cash_transfer(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     client = _get_client(db, payload.client_id)
     now = system_clock()
     entry = _run(lambda: cash_transfer_op.execute(
         db, client=client, currency_code=payload.currency_code, from_location_code=payload.from_location_code,
         to_location_code=payload.to_location_code, amount=payload.amount,
         source_account_code=payload.source_account_code, execution_account_code=payload.execution_account_code,
-        collection_account_code=payload.collection_account_code, commission_currency=payload.commission_currency,
+        collection_account_code=payload.collection_account_code, collection_location_code=payload.collection_location_code,
+        commission_currency=payload.commission_currency,
         client_commission_amount=payload.client_commission_amount,
         cost_commission_amount=payload.cost_commission_amount,
         cost_correspondent_account_code=payload.cost_correspondent_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -311,13 +315,17 @@ def create_local_move(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     now = system_clock()
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=payload.currency_code, from_account_code=payload.from_account_code,
         to_account_code=payload.to_account_code, amount=payload.amount, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, fee_amount=payload.fee_amount,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, fee_amount=payload.fee_amount,
         description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -329,27 +337,22 @@ def create_remit_out(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     client = _get_client(db, payload.client_id)
-    beneficiary = _get_beneficiary(db, payload.beneficiary_id, client_id=client.id)
     now = system_clock()
     entry = _run(lambda: remit_out_op.execute(
         db, client=client, from_location_code=payload.from_location_code,
-        partner_account_code=payload.partner_account_code, beneficiary=beneficiary,
-        beneficiary_amount=payload.beneficiary_amount, cost_rate=payload.cost_rate,
+        partner_account_code=payload.partner_account_code, currency_code=payload.currency_code,
+        amount=payload.amount, cost_rate=payload.cost_rate,
         client_rate=payload.client_rate, work_timezone=settings.work_timezone, created_by=current_user.id,
-        now=now, idempotency_key=idempotency_key, purpose=payload.purpose, description=payload.description,
+        now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
-    response = _entry_response(entry)
-    destination = db.execute(
-        select(RemitOutDestination).where(RemitOutDestination.entry_id == entry.id)
-    ).scalar_one_or_none()
-    if destination is not None:
-        response.beneficiary_name_snapshot = destination.beneficiary_name_snapshot
-        response.account_number_snapshot = destination.account_number_snapshot
-        response.bank_name_snapshot = destination.bank_name_snapshot
-    return response
+    return _entry_response(entry)
 
 
 @router.post("/swift-out", response_model=EntryResponse, status_code=status.HTTP_201_CREATED)
@@ -359,12 +362,16 @@ def create_swift_out(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
+    if payload.allow_negative:
+        _require_override_permission(current_user)
     now = system_clock()
     entry = _run(lambda: swift_out_op.execute(
         db, partner_account_code=payload.partner_account_code, amount=payload.amount,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, external_ref=payload.external_ref, description=payload.description,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, external_ref=payload.external_ref, description=payload.description,
+        allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -381,9 +388,10 @@ def create_swift_in(
         db, swift_movement_id=payload.swift_movement_id, total_amount=payload.total_amount,
         fee_amount=payload.fee_amount, receiving_account_code=payload.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, bank_conversion_rate=payload.bank_conversion_rate,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, bank_conversion_rate=payload.bank_conversion_rate,
         description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -401,8 +409,9 @@ def create_swift_return(
         db, swift_movement_id=payload.swift_movement_id, partner_account_code=payload.partner_account_code,
         total_amount=payload.total_amount, client=client, client_location_code=payload.client_location_code,
         return_fee_amount=payload.return_fee_amount, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, description=payload.description,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -421,9 +430,10 @@ def create_expense(
         db, expense_account_code=payload.expense_account_code, currency_code=payload.currency_code,
         paying_account_code=payload.paying_account_code, amount=payload.amount, description=payload.description,
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
-        idempotency_key=idempotency_key, allow_negative=payload.allow_negative,
+        idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, allow_negative=payload.allow_negative,
         override_reason=payload.override_reason,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -436,12 +446,20 @@ def create_opening(
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
     now = system_clock()
+    if payload.client_id is not None:
+        client = _get_client(db, payload.client_id)
+        target_code = get_or_create_client_account(
+            db, client=client, currency_code=payload.currency_code, location_code=payload.location_code,
+        ).code
+    else:
+        target_code = payload.account_code
     entry = _run(lambda: opening_op.execute(
-        db, account_code=payload.account_code, currency_code=payload.currency_code, amount=payload.amount,
+        db, account_code=target_code, currency_code=payload.currency_code, amount=payload.amount,
         is_debit=payload.is_debit, as_of_date=payload.as_of_date, source_type=payload.source_type,
         confidence=payload.confidence, approved_by=current_user.id, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, source_note=payload.source_note,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)
 
@@ -457,8 +475,9 @@ def create_adjustment(
     entry = _run(lambda: adjustment_op.execute(
         db, account_code=payload.account_code, currency_code=payload.currency_code, amount=payload.amount,
         is_debit=payload.is_debit, reason=payload.reason, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason,
         allow_negative=payload.allow_negative,
     ))
+    entry.note = payload.note
     db.commit()
     return _entry_response(entry)

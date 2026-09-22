@@ -162,3 +162,37 @@ def test_period_close_and_founding_close_write_audit_log(db, client, now):
     ).scalar_one_or_none()
     assert row is not None
     assert row.after_json == {"year": now.year, "month": now.month}
+
+
+def test_list_opening_balances_shows_entered_rows_admin_only(db, client, now):
+    """§١٤ التشغيل المتوازي — مراجعة ما أُدخِل من أرصدة افتتاحية قبل
+    إقفال الفترة التأسيسية. مدير فقط."""
+    admin = _login(db, client, role="ADMIN")
+    from app.engine.operations import opening_balance as opening_op
+    from app.models.enums import ConfidenceLevel, OpeningSourceType
+
+    box = f.make_bank_account(db, currency_code="USD", location_code="CHINA", parent_code="1400")
+    opening_op.execute(
+        db, account_code=box.code, currency_code="USD", amount=Decimal("12345.000000"), is_debit=True,
+        as_of_date=now.date(), source_type=OpeningSourceType.VERIFIED, confidence=ConfidenceLevel.HIGH,
+        approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
+        source_note="كشف بنك الصين",
+    )
+
+    resp = client.get("/periods/opening-balances")
+    assert resp.status_code == 200
+    rows = resp.json()
+    mine = [r for r in rows if r["account_code"] == box.code]
+    assert len(mine) == 1
+    r = mine[0]
+    assert r["currency_code"] == "USD"
+    assert r["source_type"] == "VERIFIED"
+    assert r["confidence"] == "HIGH"
+    assert r["source_note"] == "كشف بنك الصين"
+    assert r["contra_account_code"].startswith("31")  # ثقة عالية → ٣١٠٠.x
+    assert r["approved_by_username"] == admin.username
+
+
+def test_list_opening_balances_rejects_accountant(db, client):
+    _login(db, client, role="ACCOUNTANT")
+    assert client.get("/periods/opening-balances").status_code == 403

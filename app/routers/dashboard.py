@@ -132,6 +132,7 @@ def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
         JournalEntryOut(
             id=e.id, entry_no=e.entry_no, entry_date=e.entry_date, operation_type=e.operation_type.value,
             status=e.status.value, description=e.description,
+            client_id=e.client_id,
             client_name_ar=recent_clients[e.client_id].name_ar if e.client_id in recent_clients else None,
             profit_amount=e.profit_amount, profit_currency=e.profit_currency, chain_ref=e.chain_ref, lines=[],
         )

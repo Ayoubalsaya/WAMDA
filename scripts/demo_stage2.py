@@ -1,7 +1,7 @@
 """عرض المرحلة ٢: يشغّل محرك القيود فعلياً على القاعدة وينتج أمثلة §١-٣
 الثلاثة (أ · ب · ج) بأسطرها الكاملة، للمراجعة قبل اعتماد المرحلة ٣.
 
-ليس بذرة بيانات — الشركاء/العميل/المستفيد هنا بيانات تجريبية صريحة لغرض
+ليس بذرة بيانات — الشركاء/العميل هنا بيانات تجريبية صريحة لغرض
 العرض فقط (partner codes تبدأ بـ DEMO-)، ومستخدم النظام معطَّل ولا يصلح
 لتسجيل دخول حقيقي؛ لا شيء هنا يُعاد استخدامه كبيانات تأسيسية فعلية.
 """
@@ -22,7 +22,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.engine import accounts_repo, clock
 from app.engine.operations import cash_transfer, exchange, receipt, remit_out, swift_in, swift_out
-from app.models import Account, Beneficiary, Client, JournalLine, Partner, User
+from app.models import Account, Client, JournalLine, Partner, User
 from app.models.enums import AccountForm, AccountType
 
 WORK_TZ = settings.work_timezone
@@ -112,24 +112,6 @@ def _ensure_client(db) -> Client:
     return client
 
 
-def _ensure_beneficiary(db, client: Client) -> Beneficiary:
-    existing = db.execute(select(Beneficiary).where(Beneficiary.code == "DEMO-B0001")).scalar_one_or_none()
-    if existing is not None:
-        return existing
-    beneficiary = Beneficiary(
-        client_id=client.id,
-        code="DEMO-B0001",
-        name="مستفيد تجريبي — الصين",
-        account_number="CN-DEMO-0000123456",
-        bank_name="بنك تجريبي للعرض",
-        currency_code="CNY",
-        purpose="تحويل عائلي",
-    )
-    db.add(beneficiary)
-    db.flush()
-    return beneficiary
-
-
 def print_entry(db, entry, title: str) -> None:
     print(f"\n=== {title} — {entry.entry_no} ({entry.operation_type.value}) — {entry.status.value} ===")
     lines = db.execute(
@@ -150,7 +132,6 @@ def main() -> None:
         now = clock.system_clock()
         user = _ensure_demo_user(db)
         client = _ensure_client(db)
-        beneficiary = _ensure_beneficiary(db, client)
 
         libya_office = _ensure_partner_account(
             db,
@@ -230,8 +211,8 @@ def main() -> None:
         # ══════════════════════════ المثال ب ══════════════════════════
         # فرق سعر الصرف — REMIT_OUT عبر شركة تركية — الربح المتوقع 147.06 $
         entry_b = remit_out.execute(
-            db, client=client, from_location_code="TURKEY", partner_account_code="1321", beneficiary=beneficiary,
-            beneficiary_amount=Decimal("69000.00"), cost_rate=Decimal("6.90"), client_rate=Decimal("6.80"),
+            db, client=client, from_location_code="TURKEY", partner_account_code="1321", currency_code="CNY",
+            amount=Decimal("69000.00"), cost_rate=Decimal("6.90"), client_rate=Decimal("6.80"),
             work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=_uuid(),
         )
         db.commit()

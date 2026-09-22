@@ -33,7 +33,6 @@ class JournalEntry(Base):
     operation_type: Mapped[OperationType] = mapped_column(operation_type_enum, nullable=False)
     client_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("clients.id"))
     partner_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("partners.id"))
-    beneficiary_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("beneficiaries.id"))
     from_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
     to_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
     cost_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 10))
@@ -49,9 +48,19 @@ class JournalEntry(Base):
     chain_seq: Mapped[Optional[int]] = mapped_column(SmallInteger)
     chain_total: Mapped[Optional[int]] = mapped_column(SmallInteger)
     description: Mapped[Optional[str]] = mapped_column(Text)
+    # ملاحظة يكتبها المُدخِل وقت إنشاء العملية — بخلاف description (نص
+    # داخلي مولَّد تلقائياً، مثل "عكس WMD-... : السبب" في reverse_entry).
+    # تظهر في: الإيصال · كشف الحساب · تفاصيل القيد · عمليات اليوم.
+    note: Mapped[Optional[str]] = mapped_column(Text)
     status: Mapped[EntryStatus] = mapped_column(entry_status_enum, nullable=False, default=EntryStatus.DRAFT)
     reverses_entry_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("journal_entries.id"))
     reversed_by_entry_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("journal_entries.id"))
+    # يربط قيداً جديداً بالقيد الأصلي الذي حلّ محلّه عبر "تعديل" (عكس +
+    # إنشاء جديد، §٥ قاعدة ٢) — يفرّق بصرياً بين "إلغاء بلا بديل" (الأصل
+    # REVERSED بلا replaces وارد إليه) و"تعديل" (قيد جديد يحمل replaces_entry_id
+    # يشير للأصل)، فتُعرَض العملية المعدَّلة كصفّ واحد بشارة تفتح السجل
+    # الكامل بدل ظهورها مرتين.
+    replaces_entry_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("journal_entries.id"))
     correction_reason: Mapped[Optional[str]] = mapped_column(Text)
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
@@ -70,6 +79,7 @@ class JournalEntry(Base):
         Index("ix_je_partner", "partner_id"),
         Index("ix_je_created_by", "created_by"),
         Index("ix_je_chain_ref", "chain_ref"),
+        Index("ix_je_replaces_entry_id", "replaces_entry_id"),
     )
 
 
@@ -93,4 +103,24 @@ class JournalLine(Base):
         CheckConstraint("NOT (debit <> 0 AND credit <> 0)", name="ck_journal_lines_one_side"),
         UniqueConstraint("entry_id", "line_no", name="uq_journal_lines_entry_line"),
         Index("ix_jl_account_entry", "account_id", "entry_id"),
+    )
+
+
+class EntryComment(Base):
+    """تعليق لاحق على قيد — append-only، بخلاف `note` (تُكتب وقت الإدخال
+    وتظهر في الإيصال). التعليقات لا تظهر إطلاقاً في إيصال مطبوع سابقاً
+    (الإيصال وثيقة بتاريخها) — فقط في تفاصيل القيد وكشف الحساب الداخلي.
+    لا تعديل ولا حذف — أي كتابة هنا تُسجَّل في audit_log (§٥ قاعدة ١١).
+    """
+
+    __tablename__ = "entry_comments"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    entry_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("journal_entries.id"), nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_entry_comments_entry", "entry_id"),
     )

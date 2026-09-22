@@ -101,15 +101,11 @@ ROUTE_AUTH: dict[str, str] = {
     # بيانات مالية للعميل — كلها POST_ENTRY باتساق (§٩ المرحلة ١٢: هذان
     # المساران + مستندا العميل كانا `require_password_changed` فقط؛ شُدِّدا)
     "GET /clients/{client_id}/balances": POST_ENTRY,
-    "GET /clients/{client_id}/beneficiaries": POST_ENTRY,
-    "GET /clients/{client_id}/beneficiaries-full": POST_ENTRY,
     "GET /documents/balance-card/{client_id}.png": POST_ENTRY,
     "GET /documents/balance-card/{client_id}.pdf": POST_ENTRY,
     "GET /documents/statement/client/{client_id}.pdf": POST_ENTRY,
     "GET /documents/statement/client/{client_id}.xlsx": POST_ENTRY,
-    "POST /clients/{client_id}/beneficiaries": POST_ENTRY,
     "GET /clients/{client_id}/statement": POST_ENTRY,
-    "PATCH /beneficiaries/{beneficiary_id}": POST_ENTRY,
     "POST /operations/receipt": POST_ENTRY,
     "POST /operations/payment": POST_ENTRY,
     "POST /operations/exchange": POST_ENTRY,
@@ -122,6 +118,10 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /operations/swift-in": POST_ENTRY,
     "POST /operations/swift-return": POST_ENTRY,
     "POST /operations/expense": POST_ENTRY,
+    # المرحلة ١٤ب — تعليقات على أي قيد (مدير/محاسب، مثل الإدخال العادي)
+    "GET /operations/{entry_id}/comments": POST_ENTRY,
+    "POST /operations/{entry_id}/comments": POST_ENTRY,
+    "GET /operations/{entry_id}/history": POST_ENTRY,
     # مدير فقط
     "PATCH /clients/{client_id}/credit-allowed": ADMIN,
     "PUT /clients/{client_id}/credit-limits/{currency_code}": ADMIN,
@@ -131,8 +131,12 @@ ROUTE_AUTH: dict[str, str] = {
     "PATCH /users/{user_id}": ADMIN,
     "POST /operations/opening": ADMIN,
     "POST /operations/adjustment": ADMIN,
+    # المرحلة ١٤ب — §٥ قاعدة ٢: تعديل/إلغاء قيد مُرحّل = EDIT_POSTED_ENTRY، مدير حصراً
+    "POST /operations/{entry_id}/cancel": ADMIN,
+    "POST /operations/{entry_id}/edit": ADMIN,
     "POST /partners": ADMIN,
     "POST /partners/{partner_id}/accounts": ADMIN,
+    "GET /periods/opening-balances": ADMIN,
     "POST /periods/close": ADMIN,
     "POST /periods/reopen": ADMIN,
     "POST /periods/founding/close": ADMIN,
@@ -170,7 +174,7 @@ _PARAM_SAMPLE = {
     "lot_id": "1", "entry_id": "1", "client_id": "1", "account_code": "1000",
     "chain_ref": "X", "report_key": "trial-balance", "partner_id": "1",
     "user_id": "1", "currency_code": "USD", "statement_id": "1",
-    "line_id": "1", "beneficiary_id": "1",
+    "line_id": "1",
 }
 
 
@@ -259,16 +263,14 @@ def _route_required_actions(path: str, method: str) -> set:
 
 
 def test_client_financial_reads_all_require_post_entry():
-    """§٩ المرحلة ١٢ — بيانات العميل المالية (أرصدة · كشف · بطاقة · مستفيدون)
+    """§٩ المرحلة ١٢ — بيانات العميل المالية (أرصدة · كشف · بطاقة)
     كلها خلف `POST_ENTRY` صراحةً، لا حاجز الموظف العام وحده. يمنع تكرار
-    التفاوت الذي كان: `/clients/{id}/balances` و`/clients/{id}/beneficiaries`
-    ومستندَي العميل كانت `require_password_changed` فقط."""
+    التفاوت الذي كان: `/clients/{id}/balances` ومستندَي العميل كانت
+    `require_password_changed` فقط."""
     from app.security.permissions import Action as _A
 
     for path in (
         "/clients/{client_id}/balances",
-        "/clients/{client_id}/beneficiaries",
-        "/clients/{client_id}/beneficiaries-full",
         "/clients/{client_id}/statement",
         "/documents/balance-card/{client_id}.png",
         "/documents/balance-card/{client_id}.pdf",

@@ -122,6 +122,15 @@ ACCEPTANCE_VERIFIED_VIA_PLAYWRIGHT: dict[int, str] = {
     50: "RTL/أرقام LTR/محاذاة أعمدة/أيقونات — scripts/verify_acceptance_50_rtl.py",
 }
 
+# اختبارات قبول أُلغيت عمداً — البند الوظيفي الذي تختبره لم يعد موجوداً في
+# النظام، لا نقصاً في التغطية. تُعدّ مغطّاة هنا كي لا يُظهرها `marker-coverage`
+# "مفقودة" زوراً (قرار المرحلة نفسها موثَّق في PROGRESS.md).
+ACCEPTANCE_CANCELLED: dict[int, str] = {
+    31: "مستفيد إلزامي في REMIT_OUT — سجل المستفيدين أُلغي بالكامل (قرار مالك ٢٠٢٦-٠٩-٢٢)",
+    32: "رقم حساب إلزامي عند إنشاء مستفيد — نفس الإلغاء أعلاه",
+    33: "لقطة وجهة التحويل (RemitOutDestination) — نفس الإلغاء أعلاه",
+}
+
 
 def pytest_collection_modifyitems(config, items):
     """يُجمع بعد كل تجميع اختبارات: يفحص كل `@pytest.mark.acceptance(n)` أن

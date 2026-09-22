@@ -115,6 +115,14 @@ def test_sell_from_single_lot_profit_matches_document_example(db, now):
         db, client=client, currency_code="USD", location_code="TURKEY", amount=Decimal("20000.00"),
         receiving_account_code="1104", user=user, now=now,
     )
+    clearing_usd = accounts_repo.get_currency_subaccount(db, "1900", "USD")
+    profit_acct = accounts_repo.get_currency_subaccount(db, "4120", "USD")
+    # ٢٠٢٦-٠٩-٢٣: رصيد قبل التنفيذ لا صفر مفترَض — `4120-USD` حساب مشترك
+    # حقيقي على قاعدة التطوير، قد يحمل نشاطاً سابقاً (موثَّق منذ المرحلة
+    # ٧). الدلتا وحدها ما يخصّ هذا الاختبار، بصرف النظر عن أي رصيد سابق.
+    profit_before_row = db.get(AccountBalance, profit_acct.id)
+    profit_before = profit_before_row.balance if profit_before_row else Decimal("0")
+
     entry = exchange.execute_via_lot(
         db, client=client, from_location_code="TURKEY", to_location_code="CHINA", amount=Decimal("5000.00"),
         client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(),
@@ -122,10 +130,9 @@ def test_sell_from_single_lot_profit_matches_document_example(db, now):
     assert entry.profit_amount == Decimal("107.910000")
     assert entry.profit_currency == "USD"
 
-    clearing_usd = accounts_repo.get_currency_subaccount(db, "1900", "USD")
-    profit_acct = accounts_repo.get_currency_subaccount(db, "4120", "USD")
     # الربح يزيد رصيد حساب الربح — أصل الشركة (المقاصة عند التكلفة) لم يُمسّ إيجاباً بالربح نفسه
-    assert db.get(AccountBalance, profit_acct.id).balance == Decimal("107.910000")
+    profit_after = db.get(AccountBalance, profit_acct.id).balance
+    assert profit_after - profit_before == Decimal("107.910000")
 
     db.refresh(lot)
     assert lot.remaining_qty == Decimal("69500.00") - Decimal("34000.00")
@@ -223,12 +230,17 @@ def test_swift_out_in_return_closes_1501_correctly(db, now):
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
     in_transit = accounts_repo.get_account_by_code(db, "1501")
+    # ٢٠٢٦-٠٩-٢٣: رصيد قبل التنفيذ لا صفر مفترَض — `1501` حساب مقاصة
+    # مشترك حقيقي على قاعدة التطوير (قد يحمل نشاطاً حقيقياً موازياً).
+    # الدلتا/الإغلاق النسبي لنقطة البداية وحدهما ما يخصّ هذا الاختبار.
+    in_transit_before_row = db.get(AccountBalance, in_transit.id)
+    in_transit_before = in_transit_before_row.balance if in_transit_before_row else Decimal("0")
 
     out_entry = swift_out.execute(
         db, partner_account_code=partner_acct.code, amount=Decimal("10000.00"), work_timezone=WORK_TZ,
         created_by=user.id, now=now, idempotency_key=f.uid(),
     )
-    assert db.get(AccountBalance, in_transit.id).balance == Decimal("10000.00")
+    assert db.get(AccountBalance, in_transit.id).balance - in_transit_before == Decimal("10000.00")
     movement = db.execute(select(SwiftMovement).where(SwiftMovement.out_entry_id == out_entry.id)).scalar_one()
     assert movement.status == SwiftStatus.SENT
 
@@ -238,7 +250,7 @@ def test_swift_out_in_return_closes_1501_correctly(db, now):
         receiving_account_code=bank_usd.code, work_timezone=WORK_TZ, created_by=user.id, now=now,
         idempotency_key=f.uid(),
     )
-    assert db.get(AccountBalance, in_transit.id).balance == Decimal("0.00")  # أُقفل تماماً
+    assert db.get(AccountBalance, in_transit.id).balance == in_transit_before  # أُقفل تماماً — عاد لنقطة البداية
     db.refresh(movement)
     assert movement.status == SwiftStatus.RECEIVED
 
@@ -258,7 +270,7 @@ def test_swift_out_in_return_closes_1501_correctly(db, now):
         client=client, client_location_code="TURKEY", return_fee_amount=Decimal("50.00"), work_timezone=WORK_TZ,
         created_by=user.id, now=now, idempotency_key=f.uid(),
     )
-    assert db.get(AccountBalance, in_transit.id).balance == Decimal("0.00")  # أُقفل مرة أخرى
+    assert db.get(AccountBalance, in_transit.id).balance == in_transit_before  # أُقفل مرة أخرى — عاد لنقطة البداية
     db.refresh(movement2)
     assert movement2.status == SwiftStatus.RETURNED
 

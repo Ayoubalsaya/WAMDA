@@ -1,7 +1,7 @@
 """إيصال عملية (قبض/تسليم/صرافة/تحويل...) — §٨. يعمل لأي عملية تخصّ
 عميلاً، لا RECEIPT/PAYMENT فقط (العميل يحتاج إيصالاً لأي عملية لمسّت
-حسابه). REMIT_OUT تحديداً يضيف لقطة الوجهة (اسم/رقم حساب/بنك) من
-`RemitOutDestination` — لقطة لحظة الترحيل، لا تتأثر بتعديل المستفيد لاحقاً.
+حسابه). سجل المستفيدين أُلغي (قرار مالك ٢٠٢٦-٠٩-٢٢) — ملاحظة القيد
+(`entry.note`) تكفي لتدوين وجهة أي تحويل، تُعرَض في القالب مباشرة.
 
 **cost_rate لا يصل هذا الملف إطلاقاً** — لا يُقرأ من `JournalEntry` هنا،
 فلا حاجة لحجبه لاحقاً في القالب (نفس مبدأ بوابة العميل، المرحلة ٩: يُحجَب
@@ -18,7 +18,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.documents.common import base_context
-from app.models import Account, Client, JournalEntry, JournalLine, Location, RemitOutDestination
+from app.documents.formatting import format_rate
+from app.models import Account, Client, JournalEntry, JournalLine, Location
 from app.models.enums import EntryStatus
 
 _OP_LABELS_AR: dict[str, str] = {
@@ -82,19 +83,6 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
             "credit": line.credit,
         })
 
-    destination = None
-    if entry.operation_type.value == "REMIT_OUT":
-        dest_row = db.execute(
-            select(RemitOutDestination).where(RemitOutDestination.entry_id == entry.id)
-        ).scalar_one_or_none()
-        if dest_row is not None:
-            destination = {
-                "beneficiary_name": dest_row.beneficiary_name_snapshot,
-                "account_number": dest_row.account_number_snapshot,
-                "bank_name": dest_row.bank_name_snapshot,
-                "currency_code": dest_row.currency_code,
-            }
-
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
         "doc_size": doc_size,
@@ -104,7 +92,10 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
         "client_name": client.name_ar if client else "",
         "client_code": client.code if client else "",
         "description": entry.description,
+        "note": entry.note,
+        # سعر العميل فقط — cost_rate لا يُقرأ هنا إطلاقاً (انظر تعليق أعلى
+        # الملف)، فلا حاجة لأي حجب لاحق مهما تغيّر هذا القالب مستقبلاً.
+        "client_rate": format_rate(entry.client_rate) if entry.client_rate is not None else None,
         "balances": balances,
-        "destination": destination,
     })
     return ctx

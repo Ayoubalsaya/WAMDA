@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { api } from '../api/client'
-import type { ClientSearchResult, JournalEntryOut } from '../api/types'
+import { useEffect, useState } from 'react'
+import type { ClientSearchResult } from '../api/types'
 import { ClientPanel } from './journal/ClientPanel'
 import { OperationsList } from './journal/OperationsList'
 import { OperationForm } from './journal/OperationForm'
@@ -22,11 +21,12 @@ interface JournalScreenProps {
 
 export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpTypeConsumed }: JournalScreenProps) {
   const [client, setClient] = useState<ClientSearchResult | null>(null)
-  const [entries, setEntries] = useState<JournalEntryOut[]>([])
-  const [loadingEntries, setLoadingEntries] = useState(true)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [unsupportedNotice, setUnsupportedNotice] = useState<string | null>(null)
   const [balanceRefreshToken, setBalanceRefreshToken] = useState(0)
+  // سجل العمليات (OperationsList) يملك جلب بياناته بنفسه الآن (تنقّل
+  // بالتاريخ/نطاق مستقل) — هذا فقط يُخبره "شيء تغيَّر، أعد الجلب".
+  const [entriesRefreshToken, setEntriesRefreshToken] = useState(0)
 
   useEffect(() => {
     if (!requestedOpType) return
@@ -36,16 +36,10 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
     onRequestedOpTypeConsumed?.()
   }, [requestedOpType, onRequestedOpTypeConsumed])
 
-  const reloadEntries = useCallback(async () => {
-    setLoadingEntries(true)
-    const rows = await api.get<JournalEntryOut[]>('/journal/entries')
-    setEntries(rows)
-    setLoadingEntries(false)
-  }, [])
-
-  useEffect(() => {
-    void reloadEntries()
-  }, [reloadEntries])
+  function onEntryPosted() {
+    setEntriesRefreshToken((v) => v + 1)
+    setBalanceRefreshToken((v) => v + 1)
+  }
 
   return (
     <div className="journal-screen">
@@ -62,17 +56,17 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
         <OperationForm
           client={client}
           currentUserRole={currentUserRole}
-          onPosted={() => { void reloadEntries(); setBalanceRefreshToken((v) => v + 1) }}
+          onPosted={onEntryPosted}
           onOpenWizard={() => setWizardOpen(true)}
           requestedTab={requestedOpType && SUPPORTED_TABS.has(requestedOpType) ? requestedOpType : null}
         />
-        <OperationsList entries={entries} loading={loadingEntries} />
+        <OperationsList currentUserRole={currentUserRole} refreshToken={entriesRefreshToken} />
       </div>
       {wizardOpen && (
         <ExchangeWizard
           client={client}
           onClose={() => setWizardOpen(false)}
-          onPosted={() => { void reloadEntries(); setBalanceRefreshToken((v) => v + 1) }}
+          onPosted={onEntryPosted}
         />
       )}
     </div>

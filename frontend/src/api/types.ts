@@ -39,6 +39,7 @@ export interface AccountRef {
   currency_code: string | null
   location_code: string | null
   form: string | null
+  balance: string
 }
 
 export interface ClientSearchResult {
@@ -54,14 +55,6 @@ export interface ClientBalance {
   currency_code: string
   location_code: string | null
   balance: string
-}
-
-export interface Beneficiary {
-  id: number
-  name: string
-  account_number: string
-  bank_name: string | null
-  currency_code: string
 }
 
 export interface JournalLineOut {
@@ -80,11 +73,47 @@ export interface JournalEntryOut {
   operation_type: string
   status: string
   description: string | null
+  note: string | null
+  replaces_entry_id: number | null
+  client_id: number | null
   client_name_ar: string | null
   profit_amount: string | null
   profit_currency: string | null
   chain_ref: string | null
   lines: JournalLineOut[]
+}
+
+export interface CommentOut {
+  id: number
+  entry_id: number
+  body: string
+  created_by: number
+  created_by_name: string
+  created_at: string
+}
+
+export interface CancelResponse {
+  cancelled_entry_ids: number[]
+  chain_cascade: boolean
+}
+
+export interface EditResponse {
+  reversed_entry_id: number
+  new_entry: EntryResponse
+}
+
+export interface HistoryStep {
+  entry_id: number
+  entry_no: string
+  kind: 'original' | 'reversal' | 'replacement'
+  status: string
+  created_by_name: string
+  created_at: string
+  reason: string | null
+}
+
+export interface HistoryResponse {
+  steps: HistoryStep[]
 }
 
 export interface EntryResponse {
@@ -96,9 +125,6 @@ export interface EntryResponse {
   chain_ref: string | null
   chain_seq: number | null
   chain_total: number | null
-  beneficiary_name_snapshot: string | null
-  account_number_snapshot: string | null
-  bank_name_snapshot: string | null
 }
 
 export interface ExchangeChainResponse {
@@ -147,6 +173,11 @@ export interface StatementRow {
   debit: string
   credit: string
   running_balance: string
+  status: string
+  note: string | null
+  replaces_entry_id: number | null
+  client_rate: string | null
+  chain_ref: string | null
 }
 
 export interface StatementResponse {
@@ -156,17 +187,6 @@ export interface StatementResponse {
   opening_balance: string
   closing_balance: string
   rows: StatementRow[]
-}
-
-export interface BeneficiaryFull {
-  id: number
-  name: string
-  account_number: string
-  bank_name: string | null
-  currency_code: string
-  purpose: string | null
-  notes: string | null
-  is_active: boolean
 }
 
 export interface PendingSwiftMovement {
@@ -508,6 +528,21 @@ export interface FoundingPeriodStatus {
   closed_at: string | null
   closed_by_username: string | null
   suspense_balance_by_currency: Record<string, string>
+}
+
+// §١٤ التشغيل المتوازي — الأرصدة الافتتاحية المُدخَلة
+export interface OpeningBalanceRow {
+  id: number
+  account_code: string
+  account_name_ar: string
+  currency_code: string
+  amount: string
+  as_of_date: string
+  source_type: string
+  confidence: string
+  source_note: string | null
+  contra_account_code: string
+  approved_by_username: string | null
 }
 
 // §٩ المرحلة ١١ — سجل التدقيق

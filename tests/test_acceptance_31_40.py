@@ -1,5 +1,10 @@
 """اختبارات القبول ٣١–٤٠.
 
+اختبارات القبول ٣١ (مستفيد إلزامي) · ٣٢ (رقم حساب إلزامي) · ٣٣ (لقطة
+الوجهة) **أُلغيت عمداً** — سجل المستفيدين أُلغي بالكامل (قرار مالك
+٢٠٢٦-٠٩-٢٢)؛ لا معنى للاحتفاظ بها. راجع `conftest.py`/`test_marker_coverage.py`
+لاستثنائها الصريح من فحص التغطية الآلي.
+
 اختبار ٤٠ (عزل البوابة على مستوى الاستعلام) **غير مُغطّى عمداً** هنا —
 يتطلب طبقة API/بوابة عميل فعلية (المرحلة ٩) لا وجود لها بعد في محرك
 قيود بلا واجهة. تركه بلا علامة `acceptance(40)` صادق: تقرير التغطية
@@ -13,74 +18,15 @@ from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
 from app.engine import accounts_repo, opening, posting
-from app.engine.operations import opening_balance, remit_out
+from app.engine.operations import opening_balance
 from app.engine.posting import BackdatedEntryRequiresAdminError, OutageWindowRequiredError
-from app.models import AccountBalance, Beneficiary, OutageWindow, RemitOutDestination
+from app.models import AccountBalance, OutageWindow
 from app.models.enums import ConfidenceLevel, EntryStatus, OpeningSourceType
 from tests import factories as f
 
 WORK_TZ = "Africa/Tripoli"
-
-
-@pytest.mark.acceptance(31)
-def test_remit_out_without_beneficiary_rejected(db, now):
-    client = f.make_client(db)
-    user = f.make_user(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    f.fund_client(
-        db, client=client, currency_code="USD", location_code="TURKEY", amount=Decimal("10000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
-    )
-    with pytest.raises(remit_out.BeneficiaryRequiredError):
-        remit_out.execute(
-            db, client=client, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-            beneficiary=None, beneficiary_amount=Decimal("1000.00"), cost_rate=Decimal("6.90"),
-            client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now,
-            idempotency_key=f.uid(),
-        )
-
-
-@pytest.mark.acceptance(32)
-def test_beneficiary_without_account_number_rejected_at_creation(db, now):
-    client = f.make_client(db)
-    beneficiary = Beneficiary(client_id=client.id, name="مستفيد بلا رقم حساب", account_number=None, currency_code="CNY")
-    db.add(beneficiary)
-    with pytest.raises(IntegrityError):
-        db.flush()
-
-
-@pytest.mark.acceptance(33)
-def test_editing_beneficiary_after_remit_out_does_not_change_historical_snapshot(db, now):
-    client = f.make_client(db)
-    user = f.make_user(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    f.fund_client(
-        db, client=client, currency_code="USD", location_code="TURKEY", amount=Decimal("10000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
-    )
-    beneficiary = f.make_beneficiary(db, client, currency_code="CNY")
-    original_name = beneficiary.name
-    original_account_number = beneficiary.account_number
-
-    entry = remit_out.execute(
-        db, client=client, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        beneficiary=beneficiary, beneficiary_amount=Decimal("1000.00"), cost_rate=Decimal("6.90"),
-        client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now,
-        idempotency_key=f.uid(),
-    )
-
-    beneficiary.name = "اسم مُعدَّل لاحقاً"
-    beneficiary.account_number = "ACC-CHANGED-LATER"
-    db.flush()
-
-    snapshot = db.execute(
-        select(RemitOutDestination).where(RemitOutDestination.entry_id == entry.id)
-    ).scalar_one()
-    assert snapshot.beneficiary_name_snapshot == original_name
-    assert snapshot.account_number_snapshot == original_account_number
 
 
 @pytest.mark.acceptance(34)

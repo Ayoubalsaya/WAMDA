@@ -10,11 +10,12 @@ from app.database import get_db
 from app.documents.formatting import currency_decimals_map, format_amount
 from app.engine import opening, periods
 from app.engine.clock import system_clock
-from app.models import FoundingPeriod, Period, User
+from app.models import Account, FoundingPeriod, OpeningBalance, Period, User
 from app.schemas.periods import (
     ClosePeriodRequest,
     CloseFoundingPeriodRequest,
     FoundingPeriodStatus,
+    OpeningBalanceRow,
     PeriodRow,
     ReopenPeriodRequest,
 )
@@ -90,6 +91,42 @@ def founding_period_status(db: OrmSession = Depends(get_db)) -> FoundingPeriodSt
         closed_by_username=closer.username if closer else None,
         suspense_balance_by_currency={ccy: format_amount(bal, ccy, dec) for ccy, bal in suspense.items()},
     )
+
+
+@router.get("/opening-balances", response_model=list[OpeningBalanceRow])
+def list_opening_balances(
+    db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.OPENING_BALANCES)),
+) -> list[OpeningBalanceRow]:
+    """كل الأرصدة الافتتاحية المُدخَلة — لمراجعة ما أُدخِل قبل إقفال الفترة
+    التأسيسية (المرحلة ١٤، التشغيل المتوازي). مدير فقط."""
+    rows = db.execute(select(OpeningBalance).order_by(OpeningBalance.created_at)).scalars().all()
+    if not rows:
+        return []
+    acct_ids = {r.account_id for r in rows} | {r.contra_account_id for r in rows}
+    accts = {a.id: a for a in db.execute(select(Account).where(Account.id.in_(acct_ids))).scalars().all()}
+    users = {
+        u.id: u for u in db.execute(select(User).where(User.id.in_({r.approved_by for r in rows}))).scalars().all()
+    }
+    dec = currency_decimals_map(db)
+    out = []
+    for r in rows:
+        acct = accts.get(r.account_id)
+        contra = accts.get(r.contra_account_id)
+        out.append(OpeningBalanceRow(
+            id=r.id,
+            account_code=acct.code if acct else "?",
+            account_name_ar=acct.name_ar if acct else "?",
+            currency_code=r.currency_code,
+            amount=format_amount(r.amount, r.currency_code, dec),
+            as_of_date=r.as_of_date,
+            source_type=r.source_type.value,
+            confidence=r.confidence.value,
+            source_note=r.source_note,
+            contra_account_code=contra.code if contra else "?",
+            approved_by_username=users[r.approved_by].username if r.approved_by in users else None,
+        ))
+    return out
 
 
 @router.post("/founding/close", response_model=FoundingPeriodStatus, dependencies=[Depends(verify_csrf)])
