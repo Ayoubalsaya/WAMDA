@@ -57,6 +57,20 @@ _EXCHANGE_SPREAD_OPS = {OperationType.EXCHANGE, OperationType.REMIT_OUT}
 _LIBYA_BOX_PARENT_CODE = "1100"
 
 
+# ٢٠٢٦-٠٩-٢٤: صرافة الخزينة (EXCHANGE بلا client_id) مصدر ربح مستقل عن
+# فرق صرافة العملاء — نفس نوع القيد وحساب الربح (4120.x) محاسبياً، لكن
+# مُدارة بطريقة مختلفة تماماً عملياً (رأس مال الشركة نفسه لا وسيط مع
+# عميل)، فيُفصَل في كل تقرير ربح بدل الدمج الصامت مع exchange_spread.
+def _is_client_facing_spread(e: JournalEntry) -> bool:
+    if e.operation_type not in _EXCHANGE_SPREAD_OPS:
+        return False
+    return not (e.operation_type == OperationType.EXCHANGE and e.client_id is None)
+
+
+def _is_treasury_exchange(e: JournalEntry) -> bool:
+    return e.operation_type == OperationType.EXCHANGE and e.client_id is None
+
+
 def _balances_by_account(db: OrmSession) -> dict[int, Decimal]:
     return {row.account_id: row.balance for row in db.execute(select(AccountBalance)).scalars()}
 
@@ -98,13 +112,22 @@ def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
         (e.profit_currency, e.profit_amount) for e in today_entries if e.operation_type in _TRANSFER_FEE_OPS and e.profit_currency
     ]
     exchange_pairs = [
-        (e.profit_currency, e.profit_amount) for e in today_entries if e.operation_type in _EXCHANGE_SPREAD_OPS and e.profit_currency
+        (e.profit_currency, e.profit_amount) for e in today_entries if _is_client_facing_spread(e) and e.profit_currency
+    ]
+    treasury_pairs = [
+        (e.profit_currency, e.profit_amount) for e in today_entries if _is_treasury_exchange(e) and e.profit_currency
     ]
     transfer_totals = _group_currency_amounts(transfer_pairs)
     exchange_totals = _group_currency_amounts(exchange_pairs)
-    net_pairs = [(c.currency_code, c.amount) for c in transfer_totals] + [(c.currency_code, c.amount) for c in exchange_totals]
+    treasury_totals = _group_currency_amounts(treasury_pairs)
+    net_pairs = (
+        [(c.currency_code, c.amount) for c in transfer_totals]
+        + [(c.currency_code, c.amount) for c in exchange_totals]
+        + [(c.currency_code, c.amount) for c in treasury_totals]
+    )
     today_profit = ProfitBreakdown(
-        transfer_fee=transfer_totals, exchange_spread=exchange_totals, net_by_currency=_group_currency_amounts(net_pairs)
+        transfer_fee=transfer_totals, exchange_spread=exchange_totals, treasury_exchange=treasury_totals,
+        net_by_currency=_group_currency_amounts(net_pairs),
     )
 
     # أفضل ٥ عملاء — معيار الترتيب: عدد القيود المُرحَّلة (POSTED) التي شارك

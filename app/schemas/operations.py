@@ -63,17 +63,37 @@ class PaymentRequest(BackdateFields):
 
 
 class ExchangeRatesRequest(BackdateFields):
-    client_id: int
+    """نطاقان حصرياً — أحدهما، لا كلاهما ولا أيّ منهما (٢٠٢٦-٠٩-٢٤):
+    **عميل** (`client_id`+موقعا من/إلى) أو **خزينة** (`source_account_code`+
+    `destination_account_code`، لا حساب عميل في القيد إطلاقاً)."""
+    client_id: Optional[int] = None
+    from_location_code: Optional[str] = None
+    to_location_code: Optional[str] = None
+    source_account_code: Optional[str] = None
+    destination_account_code: Optional[str] = None
     from_currency: str
-    from_location_code: str
     to_currency: str
-    to_location_code: str
     amount: Decimal = Field(gt=0)
     cost_rate: Decimal = Field(gt=0)
     client_rate: Decimal = Field(gt=0)
     description: Optional[str] = None
     note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_scope(self):
+        is_client = self.client_id is not None
+        is_treasury = self.source_account_code is not None or self.destination_account_code is not None
+        if is_client == is_treasury:
+            raise ValueError(
+                "مرّر (client_id + from_location_code + to_location_code) لصرافة عميل، أو "
+                "(source_account_code + destination_account_code) لصرافة خزينة — لا كليهما ولا أياً منهما"
+            )
+        if is_client and not (self.from_location_code and self.to_location_code):
+            raise ValueError("صرافة عميل تتطلب from_location_code وto_location_code")
+        if is_treasury and not (self.source_account_code and self.destination_account_code):
+            raise ValueError("صرافة خزينة تتطلب source_account_code وdestination_account_code معاً")
+        return self
 
 
 class ExchangeLotRequest(BackdateFields):
@@ -87,30 +107,54 @@ class ExchangeLotRequest(BackdateFields):
 
 
 class ExchangeChainStep1(BaseModel):
+    """موقعا من/إلى لصرافة عميل، أو حسابا مصدر/وجهة لصرافة خزينة — يحسمه
+    `ExchangeChainRequest.client_id` (موجود=عميل، غائب=خزينة)."""
     from_currency: str
-    from_location_code: str
     to_currency: str
-    to_location_code: str
     amount: Decimal = Field(gt=0)
     cost_rate: Decimal = Field(gt=0)
     client_rate: Decimal = Field(gt=0)
     negative_margin_reason: Optional[str] = None
+    from_location_code: Optional[str] = None
+    to_location_code: Optional[str] = None
+    source_account_code: Optional[str] = None
+    destination_account_code: Optional[str] = None
 
 
 class ExchangeChainStep2(BaseModel):
+    """لا `source_account_code`/موقع "من" هنا — الخطوة ٢ تنطلق دائماً من
+    حيث انتهت الخطوة ١ (وجهتها، بالمبلغ الفعلي المُرحَّل هناك)."""
     to_currency: str
-    to_location_code: str
     cost_rate: Decimal = Field(gt=0)
     client_rate: Decimal = Field(gt=0)
     negative_margin_reason: Optional[str] = None
+    to_location_code: Optional[str] = None
+    destination_account_code: Optional[str] = None
 
 
 class ExchangeChainRequest(BackdateFields):
-    client_id: int
+    """نطاقان (٢٠٢٦-٠٩-٢٤): `client_id` موجود = سلسلة عميل (مواقع الخطوتين
+    إلزامية)، غائب = سلسلة خزينة (حسابا مصدر/وجهة الخطوة ١ + حساب وجهة
+    الخطوة ٢ إلزامية، لا عميل في أي قيد)."""
+    client_id: Optional[int] = None
     step1: ExchangeChainStep1
     step2: ExchangeChainStep2
     description: Optional[str] = None
     note: Optional[str] = None  # يُنسَخ لكلا قيدي الخطوتين
+
+    @model_validator(mode="after")
+    def _one_scope(self):
+        if self.client_id is None:
+            if not (self.step1.source_account_code and self.step1.destination_account_code):
+                raise ValueError("سلسلة صرافة خزينة تتطلب step1.source_account_code وstep1.destination_account_code")
+            if not self.step2.destination_account_code:
+                raise ValueError("سلسلة صرافة خزينة تتطلب step2.destination_account_code")
+        else:
+            if not (self.step1.from_location_code and self.step1.to_location_code):
+                raise ValueError("سلسلة صرافة عميل تتطلب step1.from_location_code وstep1.to_location_code")
+            if not self.step2.to_location_code:
+                raise ValueError("سلسلة صرافة عميل تتطلب step2.to_location_code")
+        return self
 
 
 class ExchangeChainResponse(BaseModel):

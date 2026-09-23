@@ -61,6 +61,20 @@ _SPECS: dict[tuple[str, str], _FieldSpec] = {
         forms=frozenset({AccountForm.CASH, AccountForm.BANK}),
         location_mode="none",  # المصروف قد يُدفع من أي صندوق/بنك بتلك العملة بصرف النظر عن الموقع
     ),
+    # EXCHANGE نطاق الخزينة (٢٠٢٦-٠٩-٢٤، طلب مالك — لا عميل، تحويل بين
+    # حسابي شركة عبر مراسل طرف ثالث §١-٥): أي حساب شركة بعملة كل طرف، أي
+    # موقع — حسابات العملاء (2100-*) مستبعَدة أصلاً هنا كبقية `_SPECS`
+    # (نفس الاستبعاد البنيوي في `accounts_for_operation` أدناه لكل الحقول).
+    ("EXCHANGE", "source"): _FieldSpec(
+        types=frozenset({AccountType.ASSET}),
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
+        location_mode="none",
+    ),
+    ("EXCHANGE", "destination"): _FieldSpec(
+        types=frozenset({AccountType.ASSET}),
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
+        location_mode="none",
+    ),
     # CASH_TRANSFER: أربعة حقول مختلفة الدور تماماً رغم تشابه الشكل —
     # المصدر/المنفِّذ ينقلان العملة الأصلية نفسها بموقعين مختلفين،
     # التحصيل/تكلفة العمولة يخصّان عملة العمولة (قد تختلف عن المنقولة).

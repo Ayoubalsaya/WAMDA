@@ -34,11 +34,8 @@ __all__ = ["NegativeMarginReasonRequiredError", "execute_via_rates", "execute_vi
 def execute_via_rates(
     db: Session,
     *,
-    client: Client,
     from_currency: str,
-    from_location_code: str,
     to_currency: str,
-    to_location_code: str,
     amount: Decimal,
     cost_rate: Decimal,
     client_rate: Decimal,
@@ -48,12 +45,33 @@ def execute_via_rates(
     entry_date: Optional[date] = None,
     backdate_reason: Optional[str] = None,
     idempotency_key: str,
+    client: Optional[Client] = None,
+    from_location_code: Optional[str] = None,
+    to_location_code: Optional[str] = None,
+    source_account_code: Optional[str] = None,
+    destination_account_code: Optional[str] = None,
     description: Optional[str] = None,
     negative_margin_reason: Optional[str] = None,
     chain_ref: Optional[str] = None,
     chain_seq: Optional[int] = None,
     chain_total: Optional[int] = None,
 ) -> JournalEntry:
+    """نطاقان (٢٠٢٦-٠٩-٢٤، طلب مالك — لا نوع عملية ثالث عشر): **عميل**
+    (`client`+المواقع، الأصل) أو **خزينة** (`source_account_code`+
+    `destination_account_code`، لا عميل إطلاقاً — تحويل بين حسابي شركة عبر
+    مراسل/صندوق طرف ثالث، مثال §١-٥). المستدعي يمرِّر أحدهما حصراً —
+    التحقق من الحصرية عند طبقة HTTP (`ExchangeRatesRequest`)، لا هنا.
+
+    القطبية معكوسة بين النطاقين لأن حساب العميل `LIABILITY` وحساب
+    الخزينة `ASSET` (مدين يُنقِص أحدهما ويزيد الآخر): في نطاق العميل
+    `client_from` مدين/`client_to` دائن (نفس ما كان دائماً)؛ في نطاق
+    الخزينة `source` دائن (يفرغ) و`destination` مدين (يمتلئ) — ومعهما
+    حسابا المقاصة `1900.x` بنفس الانعكاس. الربح كذلك معكوس الصيغة:
+    عميل = تكلفة−عميل (فارق يُبقيه الوسيط)، خزينة = تنفيذ−تكلفة (فارق
+    تحقَّق فعلياً من السعر الحقيقي مقابل السعر الداخلي المرجعي) — كلا
+    الصيغتين تُغذّيان `profit.account_and_side` نفسها دون تغيير فيها.
+    """
+    is_treasury = source_account_code is not None
     _today = clock.local_entry_date(now, work_timezone)
 
     entry_date = entry_date or _today
@@ -73,18 +91,25 @@ def execute_via_rates(
             to_ccy_row.decimals,
             RoundingKind.INTERNAL,
         )
-        diff = to_amount_cost - to_amount_client
+        diff = (to_amount_client - to_amount_cost) if is_treasury else (to_amount_cost - to_amount_client)
         if diff < 0 and not negative_margin_reason:
             raise NegativeMarginReasonRequiredError("هامش سالب — سبب مكتوب إلزامي قبل الترحيل")
 
-        client_from = accounts_repo.get_or_create_client_account(
-            db, client=client, currency_code=from_currency, location_code=from_location_code
-        )
-        client_to = accounts_repo.get_or_create_client_account(
-            db, client=client, currency_code=to_currency, location_code=to_location_code
-        )
         clearing_from = clearing.clearing_account(db, from_currency)
         clearing_to = clearing.clearing_account(db, to_currency)
+
+        if is_treasury:
+            from_account = accounts_repo.get_account_by_code(db, source_account_code)
+            to_account = accounts_repo.get_account_by_code(db, destination_account_code)
+            entry_client_id = None
+        else:
+            from_account = accounts_repo.get_or_create_client_account(
+                db, client=client, currency_code=from_currency, location_code=from_location_code
+            )
+            to_account = accounts_repo.get_or_create_client_account(
+                db, client=client, currency_code=to_currency, location_code=to_location_code
+            )
+            entry_client_id = client.id
 
         draft = posting.create_draft_entry(
             db,
@@ -93,7 +118,7 @@ def execute_via_rates(
             is_backdated=entry_date != _today,
             backdate_reason=backdate_reason,
             created_by=created_by,
-            client_id=client.id,
+            client_id=entry_client_id,
             from_currency=from_currency,
             to_currency=to_currency,
             cost_rate=cost_rate,
@@ -104,10 +129,16 @@ def execute_via_rates(
             chain_seq=chain_seq,
             chain_total=chain_total,
         )
-        draft.add(account_id=client_from.id, currency_code=from_currency, debit=amount)
-        draft.add(account_id=clearing_from.id, currency_code=from_currency, credit=amount)
-        draft.add(account_id=clearing_to.id, currency_code=to_currency, debit=to_amount_cost)
-        draft.add(account_id=client_to.id, currency_code=to_currency, credit=to_amount_client)
+        if is_treasury:
+            draft.add(account_id=from_account.id, currency_code=from_currency, credit=amount)
+            draft.add(account_id=clearing_from.id, currency_code=from_currency, debit=amount)
+            draft.add(account_id=clearing_to.id, currency_code=to_currency, credit=to_amount_cost)
+            draft.add(account_id=to_account.id, currency_code=to_currency, debit=to_amount_client)
+        else:
+            draft.add(account_id=from_account.id, currency_code=from_currency, debit=amount)
+            draft.add(account_id=clearing_from.id, currency_code=from_currency, credit=amount)
+            draft.add(account_id=clearing_to.id, currency_code=to_currency, debit=to_amount_cost)
+            draft.add(account_id=to_account.id, currency_code=to_currency, credit=to_amount_client)
 
         pl_account, pl_amounts = profit.account_and_side(db, diff=diff, currency_code=to_currency)
         if pl_account is not None:
@@ -122,7 +153,9 @@ def execute_via_rates(
         idempotency_key=idempotency_key,
         request_payload={
             "op": "EXCHANGE_VIA_RATES",
-            "client_id": client.id,
+            "client_id": client.id if client else None,
+            "source_account_code": source_account_code,
+            "destination_account_code": destination_account_code,
             "from_currency": from_currency,
             "to_currency": to_currency,
             "amount": amount,

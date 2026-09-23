@@ -28,6 +28,7 @@ class ProfitByPeriodRow(BaseModel):
     period_label: str  # "2026-W25" · "2026-06" · "2026"
     transfer_fee: list[CurrencyAmount]
     exchange_spread: list[CurrencyAmount]
+    treasury_exchange: list[CurrencyAmount] = []  # صرافة الخزينة (EXCHANGE بلا عميل) — ٢٠٢٦-٠٩-٢٤
     net_by_currency: list[CurrencyAmount]
 
 

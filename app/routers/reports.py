@@ -29,7 +29,12 @@ from app.models import (
     User,
 )
 from app.models.enums import AccountType, EntryStatus, OperationType, ReconciliationStatus
-from app.routers.dashboard import _EXCHANGE_SPREAD_OPS, _TRANSFER_FEE_OPS, _group_currency_amounts
+from app.routers.dashboard import (
+    _TRANSFER_FEE_OPS,
+    _group_currency_amounts,
+    _is_client_facing_spread,
+    _is_treasury_exchange,
+)
 from app.schemas.reports import (
     ActivityRow,
     BalanceOverrideRow,
@@ -99,13 +104,19 @@ def profit_by_period(
     rows = []
     for period, period_entries in sorted(by_period.items()):
         transfer_pairs = [(e.profit_currency, e.profit_amount) for e in period_entries if e.operation_type in _TRANSFER_FEE_OPS and e.profit_currency]
-        exchange_pairs = [(e.profit_currency, e.profit_amount) for e in period_entries if e.operation_type in _EXCHANGE_SPREAD_OPS and e.profit_currency]
+        exchange_pairs = [(e.profit_currency, e.profit_amount) for e in period_entries if _is_client_facing_spread(e) and e.profit_currency]
+        treasury_pairs = [(e.profit_currency, e.profit_amount) for e in period_entries if _is_treasury_exchange(e) and e.profit_currency]
         transfer_totals = _group_currency_amounts(transfer_pairs)
         exchange_totals = _group_currency_amounts(exchange_pairs)
-        net_pairs = [(c.currency_code, c.amount) for c in transfer_totals] + [(c.currency_code, c.amount) for c in exchange_totals]
+        treasury_totals = _group_currency_amounts(treasury_pairs)
+        net_pairs = (
+            [(c.currency_code, c.amount) for c in transfer_totals]
+            + [(c.currency_code, c.amount) for c in exchange_totals]
+            + [(c.currency_code, c.amount) for c in treasury_totals]
+        )
         rows.append(ProfitByPeriodRow(
             period_label=period, transfer_fee=transfer_totals, exchange_spread=exchange_totals,
-            net_by_currency=_group_currency_amounts(net_pairs),
+            treasury_exchange=treasury_totals, net_by_currency=_group_currency_amounts(net_pairs),
         ))
     return rows
 

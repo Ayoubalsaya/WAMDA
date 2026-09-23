@@ -209,6 +209,101 @@ def test_exchange_via_rates_lyd_to_usd(db, client, now):
     assert body["profit_currency"] == "USD"
 
 
+def test_exchange_treasury_scope_between_company_accounts_no_client(db, client, now):
+    """٢٠٢٦-٠٩-٢٤: صرافة خزينة — نفس مثال المالك الحرفي بالضبط: ١٠٬٠٠٠ د.ل
+    عند مكتب ١ ← دولار عند مكتب ١، تكلفة ٧٫٩٠ · تنفيذ ٧٫٨٦ → ربح ٦٫٤٤$."""
+    admin = _login(db, client, role="ADMIN")
+    source = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    destination = f.make_correspondent_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1310")
+
+    from app.engine.operations import opening_balance
+    from app.models.enums import ConfidenceLevel, OpeningSourceType
+    opening_balance.execute(
+        db, account_code=source.code, currency_code="LYD", amount=Decimal("10000.000"), is_debit=True,
+        as_of_date=now.date(), source_type=OpeningSourceType.KNOWN_BALANCE, confidence=ConfidenceLevel.HIGH,
+        approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+
+    resp = client.post(
+        "/operations/exchange",
+        json={"source_account_code": source.code, "destination_account_code": destination.code,
+              "from_currency": "LYD", "to_currency": "USD", "amount": "10000.000",
+              "cost_rate": "7.90", "client_rate": "7.86"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["profit_currency"] == "USD"
+    assert Decimal(body["profit_amount"]) == Decimal("6.44")
+
+    from app.models import JournalEntry
+    entry = db.get(JournalEntry, body["id"])
+    assert entry.client_id is None  # لا عميل في قيد صرافة الخزينة إطلاقاً
+
+    source_balance = db.get(AccountBalance, source.id).balance
+    dest_balance = db.get(AccountBalance, destination.id).balance
+    assert source_balance == Decimal("0.000000")  # اللادينار خرج بالكامل من المصدر
+    assert dest_balance == Decimal("1272.260000")  # وصل الوجهة بسعر التنفيذ (١٠٠٠٠/٧.٨٦)
+
+
+def test_exchange_chain_treasury_scope_two_steps_no_client(db, client, now):
+    """٢٠٢٦-٠٩-٢٤: معالج الخطوتين يعمل لصرافة الخزينة أيضاً (طلب مالك
+    صريح) — LYD→USD→CNY بين حسابات شركة فقط، لا client_id في الطلب،
+    ومبلغ الخطوة ٢ يُشتقّ من المبلغ الفعلي الذي وصل حساب وجهة الخطوة ١."""
+    admin = _login(db, client, role="ADMIN")
+    lyd_box = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    usd_box = f.make_correspondent_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1310")
+    cny_box = f.make_bank_account(db, currency_code="CNY", location_code="CHINA")
+
+    from app.engine.operations import opening_balance
+    from app.models.enums import ConfidenceLevel, OpeningSourceType
+    opening_balance.execute(
+        db, account_code=lyd_box.code, currency_code="LYD", amount=Decimal("10000.000"), is_debit=True,
+        as_of_date=now.date(), source_type=OpeningSourceType.KNOWN_BALANCE, confidence=ConfidenceLevel.HIGH,
+        approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+
+    resp = client.post(
+        "/operations/exchange-chain",
+        json={
+            "step1": {"from_currency": "LYD", "to_currency": "USD", "amount": "10000.000",
+                      "cost_rate": "5.15", "client_rate": "5.10",
+                      "source_account_code": lyd_box.code, "destination_account_code": usd_box.code},
+            # USD مصدرها هنا (pivot) → الضرب لا القسمة (fx.convert) — تنفيذ
+            # أعلى من التكلفة = ربح خزينة في هذا الاتجاه بالذات (عكس ساق
+            # LYD→USD أعلاه حيث القسمة تعكس الاتجاه).
+            "step2": {"to_currency": "CNY", "cost_rate": "6.90", "client_rate": "6.95",
+                      "destination_account_code": cny_box.code},
+        },
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["step1"]["chain_ref"] == body["step2"]["chain_ref"] == body["chain_ref"]
+    assert body["step1"]["profit_currency"] == "USD"
+    assert body["step2"]["profit_currency"] == "CNY"
+
+    from app.models import JournalEntry
+    assert db.get(JournalEntry, body["step1"]["id"]).client_id is None
+    assert db.get(JournalEntry, body["step2"]["id"]).client_id is None
+    # usd_box لعب دورين (وجهة الخطوة ١ ثم مصدر الخطوة ٢) — الخطوة ٢ استهلكت
+    # بالضبط ما أدخلته الخطوة ١ فيه (لا مبلغ مصطنع)، فيعود لصفر تماماً
+    assert db.get(AccountBalance, usd_box.id).balance == Decimal("0.000000")
+
+
+def test_exchange_treasury_scope_rejects_client_id_and_account_codes_together(db, client, now):
+    _login(db, client)
+    c = f.make_client(db)
+    resp = client.post(
+        "/operations/exchange",
+        json={"client_id": c.id, "source_account_code": "1101", "destination_account_code": "1104",
+              "from_currency": "LYD", "to_currency": "USD", "amount": "100.000",
+              "cost_rate": "5.15", "client_rate": "5.10"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 422
+
+
 def test_exchange_chain_two_steps_share_chain_ref_with_separate_profits(db, client, now):
     _login(db, client)
     c = f.make_client(db)

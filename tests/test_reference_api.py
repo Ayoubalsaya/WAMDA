@@ -229,6 +229,24 @@ def test_accounts_for_operation_cash_transfer_source_execution_include_correspon
     assert turkey_correspondent.code in {a["code"] for a in resp_execution.json()}
 
 
+def test_accounts_for_operation_exchange_treasury_excludes_client_accounts(db, client, now):
+    """٢٠٢٦-٠٩-٢٤: حقلا source/destination الجديدان لصرافة الخزينة —
+    أي حساب شركة بالعملة المطلوبة، أي موقع، وحسابات العملاء لا تظهر أبداً."""
+    _login(db, client)
+    c = f.make_client(db)
+    f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("10.000"),
+        receiving_account_code="1101", user=f.make_user(db), now=now,
+    )
+    correspondent = f.make_correspondent_account(db, currency_code="LYD", location_code="TURKEY", parent_code="1320")
+    resp = client.get("/reference/accounts/for-operation?operation_type=EXCHANGE&field=source&currency_code=LYD")
+    assert resp.status_code == 200
+    codes = {a["code"] for a in resp.json()}
+    assert "1101" in codes  # صندوق — بلا قيد موقع
+    assert correspondent.code in codes  # مراسل بموقع مختلف تماماً (تركيا) — لا قيد موقع أيضاً
+    assert not any(code.startswith(f"2100-{c.code}-") for code in codes)  # حساب عميل — لا يظهر أبداً
+
+
 def test_accounts_for_operation_unknown_combo_rejected(db, client):
     _login(db, client)
     resp = client.get("/reference/accounts/for-operation?operation_type=EXCHANGE&field=from&currency_code=USD")

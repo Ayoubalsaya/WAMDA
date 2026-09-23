@@ -14,7 +14,12 @@ from sqlalchemy.orm import Session as OrmSession
 from app.database import get_db
 from app.engine import chain
 from app.engine import clock as _clock
-from app.engine.accounts_repo import AccountNotFoundError, InvalidClientLocationError, get_or_create_client_account
+from app.engine.accounts_repo import (
+    AccountNotFoundError,
+    InvalidClientLocationError,
+    get_account_by_code,
+    get_or_create_client_account,
+)
 from app.engine.clock import system_clock
 from app.engine.idempotency import IdempotencyConflict
 from app.engine.operations import (
@@ -174,11 +179,12 @@ def create_exchange(
     current_user: User = Depends(require_role(Action.POST_ENTRY)),
     idempotency_key: str = Depends(_idempotency_key),
 ) -> EntryResponse:
-    client = _get_client(db, payload.client_id)
+    client = _get_client(db, payload.client_id) if payload.client_id is not None else None
     now = system_clock()
     entry = _run(lambda: exchange_op.execute_via_rates(
         db, client=client, from_currency=payload.from_currency, from_location_code=payload.from_location_code,
         to_currency=payload.to_currency, to_location_code=payload.to_location_code, amount=payload.amount,
+        source_account_code=payload.source_account_code, destination_account_code=payload.destination_account_code,
         cost_rate=payload.cost_rate, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
@@ -222,7 +228,15 @@ def create_exchange_chain(
     GIVEN_TO_CLIENT)، فلا يمكن لواجهة أن تُرسل مبلغاً مصطنعاً للخطوة ٢
     يخالف ما رحّلته الخطوة ١ فعلياً.
     """
-    client = _get_client(db, payload.client_id)
+    # ٢٠٢٦-٠٩-٢٤: نطاق خزينة (لا عميل) في المعالج أيضاً — payload.client_id
+    # غائب حينها، step1.source_account_code/destination_account_code +
+    # step2.destination_account_code إلزامية بدلاً من المواقع (تحقَّق ذلك
+    # في ExchangeChainRequest._one_scope). حساب "من" الخطوة ٢ يُشتَقّ من
+    # حساب "وجهة" الخطوة ١ نفسه (نفس الصندوق يُستهلَك منه ثانيةً) — لا
+    # get_or_create_client_account هنا، والسطر المقروء **مدين** لا دائن
+    # (قطبية الخزينة معكوسة، انظر توثيق exchange.execute_via_rates).
+    client = _get_client(db, payload.client_id) if payload.client_id is not None else None
+    is_treasury = client is None
     now = system_clock()
     resolved_entry_date = payload.entry_date or _clock.local_entry_date(now, settings.work_timezone)
     step1_holder: dict = {}
@@ -231,7 +245,10 @@ def create_exchange_chain(
         entry = exchange_op.execute_via_rates(
             db, client=client, from_currency=payload.step1.from_currency,
             from_location_code=payload.step1.from_location_code, to_currency=payload.step1.to_currency,
-            to_location_code=payload.step1.to_location_code, amount=payload.step1.amount,
+            to_location_code=payload.step1.to_location_code,
+            source_account_code=payload.step1.source_account_code,
+            destination_account_code=payload.step1.destination_account_code,
+            amount=payload.step1.amount,
             cost_rate=payload.step1.cost_rate, client_rate=payload.step1.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
             entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
@@ -244,21 +261,36 @@ def create_exchange_chain(
 
     def _step2(chain_ref: str, chain_seq: int, chain_total: int) -> JournalEntry:
         step1_entry = step1_holder["entry"]
-        step2_from_account = get_or_create_client_account(
-            db, client=client, currency_code=payload.step1.to_currency, location_code=payload.step1.to_location_code
-        )
-        credited_line = db.execute(
-            select(JournalLine).where(
-                JournalLine.entry_id == step1_entry.id,
-                JournalLine.account_id == step2_from_account.id,
-                JournalLine.credit > 0,
+        if is_treasury:
+            step2_from_account = get_account_by_code(db, payload.step1.destination_account_code)
+            moved_line = db.execute(
+                select(JournalLine).where(
+                    JournalLine.entry_id == step1_entry.id,
+                    JournalLine.account_id == step2_from_account.id,
+                    JournalLine.debit > 0,
+                )
+            ).scalar_one()
+            moved_amount = moved_line.debit
+        else:
+            step2_from_account = get_or_create_client_account(
+                db, client=client, currency_code=payload.step1.to_currency, location_code=payload.step1.to_location_code
             )
-        ).scalar_one()
+            moved_line = db.execute(
+                select(JournalLine).where(
+                    JournalLine.entry_id == step1_entry.id,
+                    JournalLine.account_id == step2_from_account.id,
+                    JournalLine.credit > 0,
+                )
+            ).scalar_one()
+            moved_amount = moved_line.credit
         return exchange_op.execute_via_rates(
             db, client=client, from_currency=payload.step1.to_currency,
-            from_location_code=payload.step1.to_location_code, to_currency=payload.step2.to_currency,
-            to_location_code=payload.step2.to_location_code, amount=credited_line.credit,
-            cost_rate=payload.step2.cost_rate, client_rate=payload.step2.client_rate,
+            from_location_code=None if is_treasury else payload.step1.to_location_code,
+            to_currency=payload.step2.to_currency,
+            to_location_code=None if is_treasury else payload.step2.to_location_code,
+            source_account_code=payload.step1.destination_account_code if is_treasury else None,
+            destination_account_code=payload.step2.destination_account_code if is_treasury else None,
+            amount=moved_amount, cost_rate=payload.step2.cost_rate, client_rate=payload.step2.client_rate,
             work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
             entry_date=resolved_entry_date, backdate_reason=payload.backdate_reason,
             idempotency_key=f"{idempotency_key}-2", description=payload.description,

@@ -129,6 +129,13 @@ export function OperationForm({
   const [costRate, setCostRate] = useState('')
   const [clientRate, setClientRate] = useState('')
   const [negativeMarginReason, setNegativeMarginReason] = useState('')
+  // ٢٠٢٦-٠٩-٢٤ (طلب مالك — لا نوع عملية ثالث عشر): EXCHANGE نفسه بمنطقه
+  // القائم، فقط بنطاق مختلف — CLIENT (الأصل) أو TREASURY (بين حسابي
+  // شركة عبر مراسل طرف ثالث، لا عميل في القيد إطلاقاً). "سعر العميل"
+  // يصبح مفهومياً "سعر التنفيذ" في نطاق الخزينة، لكن نفس الحقل/الحالة.
+  const [exchangeScope, setExchangeScope] = useState<'CLIENT' | 'TREASURY'>('CLIENT')
+  const [treasurySourceAccount, setTreasurySourceAccount] = useState('')
+  const [treasuryDestAccount, setTreasuryDestAccount] = useState('')
   const [fromLocation, setFromLocation] = useState('')
   const [toLocationCt, setToLocationCt] = useState('')
   const [sourceAccount, setSourceAccount] = useState('')
@@ -159,6 +166,7 @@ export function OperationForm({
     setClientCommission(''); setCostCommission(''); setSourceAccount(''); setExecutionAccount('')
     setCollectionAccount(''); setCollectFromCompanyAccount(false); setCollectionLocation('')
     setCostCorrespondentAccount(lastCostCorrespondent())
+    setExchangeScope('CLIENT'); setTreasurySourceAccount(''); setTreasuryDestAccount('')
     setFields({})
     setOpeningAccountMode('system')
     setIdemKey(newIdempotencyKey())
@@ -222,6 +230,13 @@ export function OperationForm({
       ? { mode: 'operation', operationType: tab, field: tab === 'RECEIPT' ? 'receiving' : 'paying', currencyCode, locationCode: locationCode || undefined }
       : null
 
+  // EXCHANGE نطاق الخزينة (٢٠٢٦-٠٩-٢٤) — بلا قيد موقع، أي حساب شركة
+  // بعملة كل طرف (المصدر بعملة "من"، الوجهة بعملة "إلى").
+  const exchangeSourceSpec: AccountPickerSpec | null =
+    tab === 'EXCHANGE' && exchangeScope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'source', currencyCode } : null
+  const exchangeDestSpec: AccountPickerSpec | null =
+    tab === 'EXCHANGE' && exchangeScope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'destination', currencyCode: toCurrency } : null
+
   const ctSourceSpec: AccountPickerSpec | null =
     tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
 
@@ -277,8 +292,11 @@ export function OperationForm({
     const costRaw = convertPreview(amount, costRate, currencyCode)
     const clientAmt = roundGivenToClient(clientRaw, toCcy.decimals)
     const costAmt = roundInternal(costRaw, toCcy.decimals)
-    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
-  }, [tab, currencyCode, toCurrency, amount, clientRate, costRate, currencies])
+    // نطاق الخزينة: القطبية معكوسة (انظر exchange.execute_via_rates) —
+    // الربح = تنفيذ−تكلفة لا تكلفة−عميل.
+    const diff = exchangeScope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
+    return { clientAmt, costAmt, diff }
+  }, [tab, exchangeScope, currencyCode, toCurrency, amount, clientRate, costRate, currencies])
 
   // §٤ رقم ٩: موجب = ربح (العميل دفع أكثر من التكلفة) — عكس إشارة الصرافة تماماً
   const remitPreview = useMemo(() => {
@@ -307,7 +325,11 @@ export function OperationForm({
         amount, paying_account_code: accountCode, note: fields.note || undefined,
       } }
     } else if (tab === 'EXCHANGE') {
-      return { url: '/operations/exchange', payload: {
+      return { url: '/operations/exchange', payload: exchangeScope === 'TREASURY' ? {
+        source_account_code: treasurySourceAccount, destination_account_code: treasuryDestAccount,
+        from_currency: currencyCode, to_currency: toCurrency, amount, cost_rate: costRate,
+        client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
+      } : {
         client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
         to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
         client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
@@ -415,7 +437,7 @@ export function OperationForm({
   }
 
   async function submit(printAfter = false) {
-    const needsClient = REQUIRES_CLIENT.has(tab)
+    const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY')
     if (needsClient && !client) {
       setError('اختر عميلاً أولاً')
       return
@@ -481,7 +503,7 @@ export function OperationForm({
     }
   }
 
-  const needsClient = REQUIRES_CLIENT.has(tab)
+  const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY')
   const adminBlocked = ADMIN_ONLY_TABS.has(tab) && currentUserRole !== 'ADMIN'
   const isEdit = mode === 'edit'
 
@@ -552,17 +574,33 @@ export function OperationForm({
           )
         )}
 
+        {tab === 'EXCHANGE' && (
+          <div className="op-tabs" style={{ marginBottom: 8 }}>
+            <button type="button" className={`op-tab${exchangeScope === 'CLIENT' ? ' is-active' : ''}`} onClick={() => setExchangeScope('CLIENT')}>عميل</button>
+            <button type="button" className={`op-tab${exchangeScope === 'TREASURY' ? ' is-active' : ''}`} onClick={() => setExchangeScope('TREASURY')}>خزينة (بين حسابي شركة)</button>
+          </div>
+        )}
+
         {tab !== 'CASH_TRANSFER' && (tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
           <div className="op-row">
             <div className="field">
               <label className="field-label">العملة</label>
               <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setLocationCode('') }} currencies={currencies} />
             </div>
-            <div className="field">
-              <label className="field-label">الموقع</label>
-              <LocationSelect value={locationCode} onChange={setLocationCode} locations={fromLocations} disabled={!currencyCode} />
-            </div>
+            {!(tab === 'EXCHANGE' && exchangeScope === 'TREASURY') && (
+              <div className="field">
+                <label className="field-label">الموقع</label>
+                <LocationSelect value={locationCode} onChange={setLocationCode} locations={fromLocations} disabled={!currencyCode} />
+              </div>
+            )}
           </div>
+        )}
+
+        {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
+          <AccountPicker
+            value={treasurySourceAccount} onChange={setTreasurySourceAccount} spec={exchangeSourceSpec} label="الحساب المصدر"
+            emptyMessage={!currencyCode ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+          />
         )}
 
         {tab === 'EXCHANGE' && (
@@ -575,11 +613,20 @@ export function OperationForm({
                 currencies={currencies.filter((c) => c.code === PIVOT_CODE || currencyCode === PIVOT_CODE)}
               />
             </div>
-            <div className="field">
-              <label className="field-label">إلى موقع</label>
-              <LocationSelect value={toLocation} onChange={setToLocation} locations={toLocations} disabled={!toCurrency} />
-            </div>
+            {exchangeScope !== 'TREASURY' && (
+              <div className="field">
+                <label className="field-label">إلى موقع</label>
+                <LocationSelect value={toLocation} onChange={setToLocation} locations={toLocations} disabled={!toCurrency} />
+              </div>
+            )}
           </div>
+        )}
+
+        {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
+          <AccountPicker
+            value={treasuryDestAccount} onChange={setTreasuryDestAccount} spec={exchangeDestSpec} label="الحساب الوجهة"
+            emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+          />
         )}
 
         {(tab === 'RECEIPT' || tab === 'PAYMENT') && (
@@ -999,13 +1046,13 @@ export function OperationForm({
             {tab === 'EXCHANGE' && (
               <>
                 <div className="field field-rate">
-                  <label className="field-label">سعر العميل</label>
+                  <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                   <input className="num" value={clientRate} onChange={(e) => setClientRate(e.target.value)} />
                 </div>
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
                   <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
-                  <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
+                  {exchangeScope !== 'TREASURY' && <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>}
                 </div>
               </>
             )}
@@ -1014,8 +1061,8 @@ export function OperationForm({
 
         {tab === 'EXCHANGE' && exchangePreview && (
           <div className="result-card">
-            <div className="result-row"><span>المبلغ الناتج للعميل</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
-            <div className="result-row result-dashed"><span>مبلغ التكلفة (داخلي)</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
+            <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'المبلغ الواصل فعلياً (سعر التنفيذ)' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
+            <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'مبلغ التكلفة الداخلي (المرجعي)' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
             <div className="result-row result-final">
               <span>ربح العملية</span>
               <span className={`num ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>

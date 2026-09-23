@@ -11,10 +11,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy import select
 
 from app.database import get_db
-from app.engine.operations import exchange as exchange_op, swift_in as swift_in_op, swift_out as swift_out_op
+from app.engine.operations import (
+    exchange as exchange_op,
+    opening_balance,
+    swift_in as swift_in_op,
+    swift_out as swift_out_op,
+)
 from app.main import app
 from app.models import CurrencyLot, JournalEntry, SwiftMovement
-from app.models.enums import EntryStatus, OperationType
+from app.models.enums import ConfidenceLevel, EntryStatus, OpeningSourceType, OperationType
 from app.security.passwords import hash_password
 from tests import factories as f
 
@@ -85,6 +90,34 @@ def test_dashboard_profit_split_transfer_fee_vs_exchange_spread(db, client, now,
     transfer_currencies = {r["currency_code"] for r in body["transfer_fee"]}
     assert "USD" in exchange_currencies
     assert "USD" not in transfer_currencies  # الصرافة لا تدخل فرق التحويل إطلاقاً
+
+
+def test_dashboard_profit_split_treasury_exchange_separate_from_client_spread(db, client, now, monkeypatch):
+    """٢٠٢٦-٠٩-٢٤: صرافة الخزينة (بلا عميل) تُحسَب في bucket منفصل تماماً
+    عن فروق صرافة العملاء، رغم أن كليهما OperationType.EXCHANGE."""
+    monkeypatch.setattr("app.routers.dashboard.system_clock", lambda: now)
+    _login(db, client)
+    admin = f.make_user(db, role="ADMIN")
+    source = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
+    destination = f.make_correspondent_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1310")
+    opening_balance.execute(
+        db, account_code=source.code, currency_code="LYD", amount=Decimal("10000.000"), is_debit=True,
+        as_of_date=now.date(), source_type=OpeningSourceType.KNOWN_BALANCE, confidence=ConfidenceLevel.HIGH,
+        approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+    exchange_op.execute_via_rates(
+        db, from_currency="LYD", to_currency="USD", amount=Decimal("10000.000"),
+        cost_rate=Decimal("7.90"), client_rate=Decimal("7.86"), work_timezone=WORK_TZ,
+        source_account_code=source.code, destination_account_code=destination.code,
+        created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+    resp = client.get("/dashboard/summary")
+    assert resp.status_code == 200
+    body = resp.json()["today_profit"]
+    treasury_currencies = {r["currency_code"] for r in body["treasury_exchange"]}
+    exchange_currencies = {r["currency_code"] for r in body["exchange_spread"]}
+    assert "USD" in treasury_currencies
+    assert "USD" not in exchange_currencies  # صرافة الخزينة لا تدخل فروق صرافة العملاء إطلاقاً
 
 
 def test_dashboard_alert_negative_asset_balance(db, client, now):
