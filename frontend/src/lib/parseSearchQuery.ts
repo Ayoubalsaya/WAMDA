@@ -21,7 +21,10 @@ export interface SearchParams {
   username?: string
 }
 
-const KNOWN_CURRENCIES = new Set(['LYD', 'USD', 'CNY'])
+// احتياطي فقط لحين توفر القائمة الحية من `/reference/currencies` — أي
+// عملة تُضاف من شاشة الإعدادات يجب أن تُمرَّر عبر `knownCurrencies` في
+// `parseSearchQuery` كي تُصنَّف رقاقة بحث بدل نص حر.
+const FALLBACK_CURRENCIES = new Set(['LYD', 'USD', 'CNY'])
 
 const OP_TYPE_BY_ARABIC: Record<string, string> = {
   'قبض': 'RECEIPT', 'صرف': 'PAYMENT', 'صرافة': 'EXCHANGE', 'تحويل بعمولة': 'CASH_TRANSFER',
@@ -30,7 +33,7 @@ const OP_TYPE_BY_ARABIC: Record<string, string> = {
   'مصروف': 'EXPENSE', 'رصيد افتتاحي': 'OPENING', 'تسوية': 'ADJUSTMENT',
 }
 
-function tokenClassify(token: string): SearchChip | null {
+function tokenClassify(token: string, knownCurrencies: Set<string>): SearchChip | null {
   if (!token) return null
   if (/^WMD-/i.test(token) || /^\d{4}-WMD-/i.test(token)) {
     return { id: `entryNo-${token}`, label: token, kind: 'entryNo', value: token }
@@ -42,7 +45,7 @@ function tokenClassify(token: string): SearchChip | null {
     const value = token.replace('>', '').trim()
     return { id: `minAmount-${value}`, label: `أكبر من ${value}`, kind: 'minAmount', value }
   }
-  if (KNOWN_CURRENCIES.has(token.toUpperCase())) {
+  if (knownCurrencies.has(token.toUpperCase())) {
     const code = token.toUpperCase()
     return { id: `currency-${code}`, label: code, kind: 'currency', value: code }
   }
@@ -64,7 +67,8 @@ function tokenClassify(token: string): SearchChip | null {
 
 // يُحلِّل السطر كاملاً أولاً كعبارات نوع عملية معروفة متعددة الكلمات
 // (مثل "تحويل بعمولة")، ثم يُقسِّم الباقي بمسافات مفردة.
-export function parseSearchQuery(raw: string): SearchChip[] {
+export function parseSearchQuery(raw: string, knownCurrencies?: Iterable<string>): SearchChip[] {
+  const currencies = knownCurrencies ? new Set([...knownCurrencies].map((c) => c.toUpperCase())) : FALLBACK_CURRENCIES
   let remaining = raw.trim()
   const chips: SearchChip[] = []
   for (const phrase of Object.keys(OP_TYPE_BY_ARABIC).sort((a, b) => b.length - a.length)) {
@@ -75,7 +79,7 @@ export function parseSearchQuery(raw: string): SearchChip[] {
   }
   const tokens = remaining.split(/\s+/).filter(Boolean)
   for (const token of tokens) {
-    const chip = tokenClassify(token)
+    const chip = tokenClassify(token, currencies)
     if (chip) chips.push(chip)
   }
   return chips

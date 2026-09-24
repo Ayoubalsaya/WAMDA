@@ -9,8 +9,18 @@ from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.engine import accounts_repo
-from app.models import Account, Location, Setting, User
-from app.schemas.settings import AccountOut, CompanyProfile, CreateBankAccountRequest
+from app.models import Account, AccountBalance, Currency, JournalLine, Location, Setting, User
+from app.schemas.settings import (
+    AccountOut,
+    CompanyProfile,
+    CreateBankAccountRequest,
+    CreateCurrencyRequest,
+    CreateLocationRequest,
+    CurrencyRow,
+    LocationRow,
+    UpdateCurrencyRequest,
+    UpdateLocationRequest,
+)
 from app.security.deps import require_password_changed, require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -80,3 +90,153 @@ def create_bank_account(
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     db.commit()
     return _account_out(db, account)
+
+
+# ═══ العملات (٢٠٢٦-٠٩-٢٥) — جدول · إضافة · تعديل محدود · تعطيل لا حذف ═══
+
+
+def _currency_row(c: Currency) -> CurrencyRow:
+    return CurrencyRow(
+        code=c.code, name_ar=c.name_ar, symbol=c.symbol, decimals=c.decimals,
+        is_pivot=c.is_pivot, is_active=c.is_active, sort_order=c.sort_order,
+    )
+
+
+def _currency_ever_used(db: OrmSession, code: str) -> bool:
+    """أي سطر قيد حقيقي بهذه العملة، بصرف النظر عن حالة القيد — قيد
+    مُلغى (REVERSED) لا يعني أن العملة لم تُستخدَم فعلياً وقتها."""
+    return db.execute(select(JournalLine.id).where(JournalLine.currency_code == code).limit(1)).first() is not None
+
+
+def _currency_has_nonzero_balance(db: OrmSession, code: str) -> bool:
+    rows = db.execute(
+        select(AccountBalance.balance)
+        .join(Account, Account.id == AccountBalance.account_id)
+        .where(Account.currency_code == code)
+    ).scalars().all()
+    return any(b != 0 for b in rows)
+
+
+@router.get("/currencies", response_model=list[CurrencyRow])
+def list_currencies_admin(db: OrmSession = Depends(get_db)) -> list[CurrencyRow]:
+    rows = db.execute(select(Currency).order_by(Currency.sort_order)).scalars().all()
+    return [_currency_row(c) for c in rows]
+
+
+@router.post(
+    "/currencies", response_model=CurrencyRow, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+def create_currency(
+    payload: CreateCurrencyRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> CurrencyRow:
+    code = payload.code.strip().upper()
+    if db.get(Currency, code) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"العملة {code} موجودة بالفعل")
+    currency = Currency(
+        code=code, name_ar=payload.name_ar, symbol=payload.symbol, decimals=payload.decimals,
+        is_pivot=False, is_active=True, sort_order=payload.sort_order,
+    )
+    db.add(currency)
+    db.flush()
+    # ٢٠٢٦-٠٩-٢٥: كل الحسابات الفرعية المرجعية لهذه العملة دفعة واحدة —
+    # بلا هذا، أول قبض/صرافة/مصروف بالعملة الجديدة يفشل بحساب ربح/تكلفة
+    # مفقود (accounts_repo.AccountNotFoundError من get_currency_subaccount).
+    accounts_repo.create_currency_chart_of_accounts(db, currency=currency)
+    db.commit()
+    return _currency_row(currency)
+
+
+@router.patch("/currencies/{code}", response_model=CurrencyRow, dependencies=[Depends(verify_csrf)])
+def update_currency(
+    code: str, payload: UpdateCurrencyRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> CurrencyRow:
+    currency = db.get(Currency, code.upper())
+    if currency is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {code}")
+    if payload.decimals is not None and payload.decimals != currency.decimals:
+        if _currency_ever_used(db, currency.code):
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"لا يمكن تعديل منازل {currency.code} العشرية — استُخدمت في قيد حقيقي بالفعل",
+            )
+        currency.decimals = payload.decimals
+    if payload.is_active is False and currency.is_active:
+        if _currency_has_nonzero_balance(db, currency.code):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"لا يمكن تعطيل {currency.code} — لها رصيد غير صفري في حساب واحد على الأقل")
+        currency.is_active = False
+    elif payload.is_active is True:
+        currency.is_active = True
+    if payload.name_ar is not None:
+        currency.name_ar = payload.name_ar
+    if payload.symbol is not None:
+        currency.symbol = payload.symbol
+    if payload.sort_order is not None:
+        currency.sort_order = payload.sort_order
+    db.commit()
+    return _currency_row(currency)
+
+
+# ═══ المواقع (٢٠٢٦-٠٩-٢٥) — نفس منطق العملات (بلا حسابات فرعية تلقائية:
+# لا تفريع بالموقع في شجرة الحسابات، خلافاً للعملة) ═══════════════════
+
+
+def _location_row(l: Location) -> LocationRow:
+    return LocationRow(code=l.code, name_ar=l.name_ar, country=l.country, is_active=l.is_active)
+
+
+def _location_has_nonzero_balance(db: OrmSession, location_id: int) -> bool:
+    rows = db.execute(
+        select(AccountBalance.balance)
+        .join(Account, Account.id == AccountBalance.account_id)
+        .where(Account.location_id == location_id)
+    ).scalars().all()
+    return any(b != 0 for b in rows)
+
+
+@router.get("/locations", response_model=list[LocationRow])
+def list_locations_admin(db: OrmSession = Depends(get_db)) -> list[LocationRow]:
+    rows = db.execute(select(Location).order_by(Location.code)).scalars().all()
+    return [_location_row(l) for l in rows]
+
+
+@router.post(
+    "/locations", response_model=LocationRow, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+def create_location(
+    payload: CreateLocationRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> LocationRow:
+    code = payload.code.strip().upper()
+    existing = db.execute(select(Location).where(Location.code == code)).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"الموقع {code} موجود بالفعل")
+    location = Location(code=code, name_ar=payload.name_ar, country=payload.country, is_active=True)
+    db.add(location)
+    db.commit()
+    return _location_row(location)
+
+
+@router.patch("/locations/{code}", response_model=LocationRow, dependencies=[Depends(verify_csrf)])
+def update_location(
+    code: str, payload: UpdateLocationRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> LocationRow:
+    location = db.execute(select(Location).where(Location.code == code.upper())).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا موقع بالكود {code}")
+    if payload.is_active is False and location.is_active:
+        if _location_has_nonzero_balance(db, location.id):
+            raise HTTPException(status.HTTP_409_CONFLICT, f"لا يمكن تعطيل {location.code} — له رصيد غير صفري في حساب واحد على الأقل")
+        location.is_active = False
+    elif payload.is_active is True:
+        location.is_active = True
+    if payload.name_ar is not None:
+        location.name_ar = payload.name_ar
+    if payload.country is not None:
+        location.country = payload.country
+    db.commit()
+    return _location_row(location)

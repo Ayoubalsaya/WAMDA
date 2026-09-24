@@ -3,6 +3,7 @@ import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
+import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 
 interface ExchangeWizardProps {
   client: ClientSearchResult | null
@@ -17,6 +18,15 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<ExchangeChainResponse | null>(null)
+
+  // ٢٠٢٦-٠٩-٢٥: نطاقان (طلب مالك، الفجوة المعلَنة في دفعة الخزينة
+  // السابقة) — عميل (الأصل) أو خزينة (بين حسابات شركة، لا عميل إطلاقاً،
+  // مثال المالك: دينار عند مكتب ١ ← دولار ← رمبي). نفس منطق OperationForm
+  // تماماً — القطبية/الربح معكوسان في نطاق الخزينة، الخادم يحسم ذلك.
+  const [scope, setScope] = useState<'CLIENT' | 'TREASURY'>('CLIENT')
+  const [step1SourceAccount, setStep1SourceAccount] = useState('')
+  const [step1DestAccount, setStep1DestAccount] = useState('')
+  const [step2DestAccount, setStep2DestAccount] = useState('')
 
   const [fromCurrency, setFromCurrency] = useState('LYD')
   const [fromLocation, setFromLocation] = useState('')
@@ -37,13 +47,22 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const step1ToLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
   const step2ToLocations = useMemo(() => locationsForCurrency(toCurrency), [toCurrency, locationsForCurrency])
 
+  const step1SourceSpec: AccountPickerSpec | null =
+    scope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'source', currencyCode: fromCurrency } : null
+  const step1DestSpec: AccountPickerSpec | null =
+    scope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'destination', currencyCode: PIVOT_CODE } : null
+  const step2DestSpec: AccountPickerSpec | null =
+    scope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'destination', currencyCode: toCurrency } : null
+
   const step1Preview = useMemo(() => {
     const usd = currencies.find((c) => c.code === PIVOT_CODE)
     if (!usd || !amount || !step1Client || !step1Cost) return null
     const clientAmt = roundGivenToClient(convertPreview(amount, step1Client, fromCurrency), usd.decimals)
     const costAmt = roundInternal(convertPreview(amount, step1Cost, fromCurrency), usd.decimals)
-    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
-  }, [amount, step1Client, step1Cost, fromCurrency, currencies])
+    // نطاق الخزينة: الربح = تنفيذ−تكلفة لا تكلفة−عميل (انظر exchange.execute_via_rates)
+    const diff = scope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
+    return { clientAmt, costAmt, diff }
+  }, [amount, step1Client, step1Cost, fromCurrency, currencies, scope])
 
   const step2Preview = useMemo(() => {
     const to = currencies.find((c) => c.code === toCurrency)
@@ -51,24 +70,33 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
     const baseAmount = step1Preview.clientAmt.toString()
     const clientAmt = roundGivenToClient(convertPreview(baseAmount, step2Client, PIVOT_CODE), to.decimals)
     const costAmt = roundInternal(convertPreview(baseAmount, step2Cost, PIVOT_CODE), to.decimals)
-    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
-  }, [step1Preview, step2Client, step2Cost, toCurrency, currencies])
+    const diff = scope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
+    return { clientAmt, costAmt, diff }
+  }, [step1Preview, step2Client, step2Cost, toCurrency, currencies, scope])
+
+  const step1Ready = scope === 'TREASURY' ? Boolean(step1SourceAccount && step1DestAccount) : Boolean(fromLocation && step1ToLocation)
+  const step2Ready = scope === 'TREASURY' ? Boolean(step2DestAccount) : Boolean(step2ToLocation)
 
   async function save() {
-    if (!client) return
+    if (scope === 'CLIENT' && !client) return
     setBusy(true)
     setError(null)
     try {
       const res = await api.post<ExchangeChainResponse>('/operations/exchange-chain', {
-        client_id: client.id,
+        client_id: scope === 'CLIENT' ? client!.id : undefined,
         step1: {
-          from_currency: fromCurrency, from_location_code: fromLocation, to_currency: PIVOT_CODE,
-          to_location_code: step1ToLocation, amount, cost_rate: step1Cost, client_rate: step1Client,
+          from_currency: fromCurrency, to_currency: PIVOT_CODE, amount, cost_rate: step1Cost, client_rate: step1Client,
           negative_margin_reason: step1Reason || undefined,
+          ...(scope === 'TREASURY'
+            ? { source_account_code: step1SourceAccount, destination_account_code: step1DestAccount }
+            : { from_location_code: fromLocation, to_location_code: step1ToLocation }),
         },
         step2: {
-          to_currency: toCurrency, to_location_code: step2ToLocation, cost_rate: step2Cost,
-          client_rate: step2Client, negative_margin_reason: step2Reason || undefined,
+          to_currency: toCurrency, cost_rate: step2Cost, client_rate: step2Client,
+          negative_margin_reason: step2Reason || undefined,
+          ...(scope === 'TREASURY'
+            ? { destination_account_code: step2DestAccount }
+            : { to_location_code: step2ToLocation }),
         },
         note: note || undefined,
       }, idemKey)
@@ -90,7 +118,12 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
         </div>
         <button type="button" className="btn-text wizard-close" onClick={onClose}>إغلاق ×</button>
 
-        {!client && <div className="alert alert-info">اختر عميلاً من دفتر اليومية أولاً ثم أعد فتح المعالج</div>}
+        <div className="op-tabs" style={{ marginBottom: 8 }}>
+          <button type="button" className={`op-tab${scope === 'CLIENT' ? ' is-active' : ''}`} onClick={() => setScope('CLIENT')}>عميل</button>
+          <button type="button" className={`op-tab${scope === 'TREASURY' ? ' is-active' : ''}`} onClick={() => setScope('TREASURY')}>خزينة (بين حسابات شركة)</button>
+        </div>
+
+        {scope === 'CLIENT' && !client && <div className="alert alert-info">اختر عميلاً من دفتر اليومية أولاً ثم أعد فتح المعالج</div>}
 
         {step === 1 && (
           <div>
@@ -98,32 +131,48 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             <div className="op-row">
               <div className="field">
                 <label className="field-label">من عملة</label>
-                <select value={fromCurrency} onChange={(e) => { setFromCurrency(e.target.value); setFromLocation('') }}>
+                <select value={fromCurrency} onChange={(e) => { setFromCurrency(e.target.value); setFromLocation(''); setStep1SourceAccount('') }}>
                   {currencies.filter((c) => c.code !== PIVOT_CODE).map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
                 </select>
               </div>
-              <div className="field">
-                <label className="field-label">من موقع</label>
-                <select value={fromLocation} onChange={(e) => setFromLocation(e.target.value)}>
-                  <option value="" disabled>اختر</option>
-                  {step1FromLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
-                </select>
-              </div>
-              <div className="field">
-                <label className="field-label">موقع الدولار</label>
-                <select value={step1ToLocation} onChange={(e) => setStep1ToLocation(e.target.value)}>
-                  <option value="" disabled>اختر</option>
-                  {step1ToLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
-                </select>
-              </div>
+              {scope === 'CLIENT' && (
+                <>
+                  <div className="field">
+                    <label className="field-label">من موقع</label>
+                    <select value={fromLocation} onChange={(e) => setFromLocation(e.target.value)}>
+                      <option value="" disabled>اختر</option>
+                      {step1FromLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label className="field-label">موقع الدولار</label>
+                    <select value={step1ToLocation} onChange={(e) => setStep1ToLocation(e.target.value)}>
+                      <option value="" disabled>اختر</option>
+                      {step1ToLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
+            {scope === 'TREASURY' && (
+              <div className="op-row">
+                <AccountPicker
+                  value={step1SourceAccount} onChange={setStep1SourceAccount} spec={step1SourceSpec} label="الحساب المصدر"
+                  emptyMessage={!fromCurrency ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+                />
+                <AccountPicker
+                  value={step1DestAccount} onChange={setStep1DestAccount} spec={step1DestSpec} label="الحساب الوجهة (دولار)"
+                  emptyMessage="لا حسابات شركة بالدولار"
+                />
+              </div>
+            )}
             <div className="op-row">
               <div className="field field-amount">
                 <label className="field-label">المبلغ</label>
                 <input className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
               </div>
               <div className="field field-rate">
-                <label className="field-label">سعر العميل</label>
+                <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step1Client} onChange={(e) => setStep1Client(e.target.value)} />
               </div>
               <div className="field field-rate">
@@ -144,7 +193,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step1Reason} onChange={(e) => setStep1Reason(e.target.value)} /></div>
             )}
-            <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => setStep(2)} disabled={!step1Preview}>
+            <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => setStep(2)} disabled={!step1Preview || !step1Ready}>
               التالي
             </button>
           </div>
@@ -152,28 +201,36 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
         {step === 2 && (
           <div>
-            <h3 className="card-title">الخطوة ٢ — من الدولار إلى الرمبي</h3>
+            <h3 className="card-title">الخطوة ٢ — من الدولار إلى {scope === 'TREASURY' ? 'عملة أخرى' : 'الرمبي'}</h3>
             <div className="derived-field">
               المبلغ المُرحَّل من الخطوة ١: <span className="num">{step1Preview?.clientAmt.toString() ?? '—'} USD</span> (مقفل)
             </div>
             <div className="op-row">
               <div className="field">
                 <label className="field-label">إلى عملة</label>
-                <select value={toCurrency} onChange={(e) => { setToCurrency(e.target.value); setStep2ToLocation('') }}>
+                <select value={toCurrency} onChange={(e) => { setToCurrency(e.target.value); setStep2ToLocation(''); setStep2DestAccount('') }}>
                   {currencies.filter((c) => c.code !== PIVOT_CODE).map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
                 </select>
               </div>
-              <div className="field">
-                <label className="field-label">إلى موقع</label>
-                <select value={step2ToLocation} onChange={(e) => setStep2ToLocation(e.target.value)}>
-                  <option value="" disabled>اختر</option>
-                  {step2ToLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
-                </select>
-              </div>
+              {scope === 'CLIENT' && (
+                <div className="field">
+                  <label className="field-label">إلى موقع</label>
+                  <select value={step2ToLocation} onChange={(e) => setStep2ToLocation(e.target.value)}>
+                    <option value="" disabled>اختر</option>
+                    {step2ToLocations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
+            {scope === 'TREASURY' && (
+              <AccountPicker
+                value={step2DestAccount} onChange={setStep2DestAccount} spec={step2DestSpec} label="الحساب الوجهة"
+                emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+              />
+            )}
             <div className="op-row">
               <div className="field field-rate">
-                <label className="field-label">سعر العميل</label>
+                <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step2Client} onChange={(e) => setStep2Client(e.target.value)} />
               </div>
               <div className="field field-rate">
@@ -183,11 +240,11 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             </div>
             {step2Preview && (
               <div className="result-card">
-                <div className="result-row"><span>الرمبي الناتج</span><span className="num">{step2Preview.clientAmt.toString()} CNY</span></div>
+                <div className="result-row"><span>{toCurrency} الناتج</span><span className="num">{step2Preview.clientAmt.toString()} {toCurrency}</span></div>
                 <div className="result-row result-dashed"><span>ربح الخطوة ١</span><span className="num">{step1Preview?.diff.toString()} USD</span></div>
                 <div className="result-row">
                   <span>ربح الخطوة ٢</span>
-                  <span className={`num ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{step2Preview.diff.toString()} CNY</span>
+                  <span className={`num ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{step2Preview.diff.toString()} {toCurrency}</span>
                 </div>
                 <div className="result-row result-final"><span>الإجمالي (لأغراض العرض فقط — ربحان منفصلان دائماً في السجلات)</span></div>
               </div>
@@ -213,7 +270,10 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             ) : (
               <div className="op-row">
                 <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>السابق</button>
-                <button type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }} disabled={busy || !client} onClick={save}>
+                <button
+                  type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }}
+                  disabled={busy || !step2Ready || (scope === 'CLIENT' && !client)} onClick={save}
+                >
                   حفظ السلسلة
                 </button>
               </div>

@@ -1,0 +1,150 @@
+import { useEffect, useState } from 'react'
+import { api, ApiError } from '../../api/client'
+import type { LocationAdminRow } from '../../api/types'
+
+function CreateLocationForm({ onCreated }: { onCreated: () => void }) {
+  const [code, setCode] = useState('')
+  const [nameAr, setNameAr] = useState('')
+  const [country, setCountry] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    setError(null)
+    try {
+      await api.post('/settings/locations', { code, name_ar: nameAr, country })
+      setCode(''); setNameAr(''); setCountry('')
+      onCreated()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الموقع')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+      <div className="field" style={{ maxWidth: 110 }}>
+        <label className="field-label" htmlFor="cl-code">الكود</label>
+        <input id="cl-code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={32} required />
+      </div>
+      <div className="field"><label className="field-label" htmlFor="cl-name">الاسم</label><input id="cl-name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} required /></div>
+      <div className="field"><label className="field-label" htmlFor="cl-country">الدولة</label><input id="cl-country" value={country} onChange={(e) => setCountry(e.target.value)} required /></div>
+      <button type="submit" className="btn btn-primary" disabled={busy}>+ موقع جديد</button>
+      {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+    </form>
+  )
+}
+
+function LocationEditRow({ row, onSaved, onCancel }: { row: LocationAdminRow; onSaved: () => void; onCancel: () => void }) {
+  const [nameAr, setNameAr] = useState(row.name_ar)
+  const [country, setCountry] = useState(row.country)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.patch(`/settings/locations/${row.code}`, { name_ar: nameAr, country })
+      onSaved()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر الحفظ')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <tr>
+      <td className="num text-muted">{row.code}</td>
+      <td><input value={nameAr} onChange={(e) => setNameAr(e.target.value)} style={{ width: '100%' }} /></td>
+      <td><input value={country} onChange={(e) => setCountry(e.target.value)} style={{ width: '100%' }} /></td>
+      <td><span className={`badge ${row.is_active ? 'badge-status-posted' : 'badge-status-reversed'}`}>{row.is_active ? 'نشط' : 'معطَّل'}</span></td>
+      <td>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>حفظ</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCancel}>إلغاء</button>
+        </div>
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+      </td>
+    </tr>
+  )
+}
+
+function LocationDisplayRow({ row, onEdit, onToggled }: { row: LocationAdminRow; onEdit: () => void; onToggled: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function toggle() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.patch(`/settings/locations/${row.code}`, { is_active: !row.is_active })
+      onToggled()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر تغيير الحالة')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <tr>
+      <td className="num text-muted">{row.code}</td>
+      <td>{row.name_ar}</td>
+      <td>{row.country}</td>
+      <td><span className={`badge ${row.is_active ? 'badge-status-posted' : 'badge-status-reversed'}`}>{row.is_active ? 'نشط' : 'معطَّل'}</span></td>
+      <td>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onEdit}>تعديل</button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void toggle()}>
+            {row.is_active ? 'تعطيل' : 'تفعيل'}
+          </button>
+        </div>
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+      </td>
+    </tr>
+  )
+}
+
+export function LocationsTab() {
+  const [rows, setRows] = useState<LocationAdminRow[] | null>(null)
+  const [editingCode, setEditingCode] = useState<string | null>(null)
+
+  async function reload() {
+    const data = await api.get<LocationAdminRow[]>('/settings/locations')
+    setRows(data)
+  }
+
+  useEffect(() => { void reload() }, [])
+
+  return (
+    <>
+      <CreateLocationForm onCreated={() => void reload()} />
+      {!rows ? <p className="text-muted">...جارٍ التحميل</p> : (
+        <table className="data-table">
+          <thead><tr><th>الكود</th><th>الاسم</th><th>الدولة</th><th>الحالة</th><th></th></tr></thead>
+          <tbody>
+            {rows.map((r) => r.code === editingCode ? (
+              <LocationEditRow
+                key={r.code} row={r}
+                onSaved={() => { setEditingCode(null); void reload() }}
+                onCancel={() => setEditingCode(null)}
+              />
+            ) : (
+              <LocationDisplayRow
+                key={r.code} row={r}
+                onEdit={() => setEditingCode(r.code)}
+                onToggled={() => void reload()}
+              />
+            ))}
+            {rows.length === 0 && <tr><td colSpan={5} className="text-muted">لا مواقع مسجَّلة بعد</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </>
+  )
+}

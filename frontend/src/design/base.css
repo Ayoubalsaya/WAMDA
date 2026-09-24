@@ -170,6 +170,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .badge-lyd { color: var(--ccy-lyd-text); background: var(--ccy-lyd-bg); }
 .badge-usd { color: var(--ccy-usd-text); background: var(--ccy-usd-bg); }
 .badge-cny { color: var(--ccy-cny-text); background: var(--ccy-cny-bg); }
+.badge-other { color: var(--text-secondary); background: var(--border); }
 .badge-chain { color: var(--sky-700); background: var(--sky-100); }
 .badge-status-posted { color: var(--money-in-text); background: var(--money-in-bg); }
 .badge-status-draft { color: var(--pending-text); background: var(--pending-bg); }

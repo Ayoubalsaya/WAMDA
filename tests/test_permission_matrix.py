@@ -92,6 +92,8 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /periods/founding": STAFF,
     "GET /settings/company": STAFF,
     "GET /settings/bank-accounts": STAFF,
+    "GET /settings/currencies": STAFF,
+    "GET /settings/locations": STAFF,
     # مدير + محاسب (POST_ENTRY)
     "GET /clients": POST_ENTRY,
     "GET /clients/search": POST_ENTRY,
@@ -142,6 +144,10 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /periods/founding/close": ADMIN,
     "PUT /settings/company": ADMIN,
     "POST /settings/bank-accounts": ADMIN,
+    "POST /settings/currencies": ADMIN,
+    "PATCH /settings/currencies/{code}": ADMIN,
+    "POST /settings/locations": ADMIN,
+    "PATCH /settings/locations/{code}": ADMIN,
     "GET /audit-log": ADMIN,
     "GET /reconciliation/statements": ADMIN,
     "POST /reconciliation/statements": ADMIN,
@@ -174,7 +180,7 @@ _PARAM_SAMPLE = {
     "lot_id": "1", "entry_id": "1", "client_id": "1", "account_code": "1000",
     "chain_ref": "X", "report_key": "trial-balance", "partner_id": "1",
     "user_id": "1", "currency_code": "USD", "statement_id": "1",
-    "line_id": "1",
+    "line_id": "1", "code": "USD",
 }
 
 

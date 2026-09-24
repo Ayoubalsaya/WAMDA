@@ -203,3 +203,73 @@ def create_bank_account(
     db.add(account)
     db.flush()
     return account
+
+
+# ٢٠٢٦-٠٩-٢٥ (شاشة العملات — طلب مالك): كل الآباء المفرَّعين بعملة في شجرة
+# الحسابات المرجعية — نفس القائمة الحرفية في `app.cli.seed._seed_chart_of_accounts`
+# (استدعاءات `sub(...)`). ١٢ أباً لا ١٠ — طلب المالك ذكر عشرة، لكن ٥٢٠٠/٥٣٠٠
+# (مصروفات تشغيلية/رسوم بنكية وسويفت) مفرَّعان بالعملة أيضاً في الشجرة
+# الفعلية منذ المرحلة ١ (تعديل معتمد وقتها)، فأُضيفا هنا للاتساق — عملة
+# جديدة بلا حساب مصروفات/رسوم خاص بها ستكسر ترحيل أول مصروف/رسم سويفت بها.
+CURRENCY_SUBDIVIDED_PARENTS = [
+    "1900", "3100", "3200", "3900", "4110", "4120", "4900", "5120", "5200", "5300", "5410", "5910",
+]
+
+
+def get_or_create_account(
+    db: Session, *, code: str, name_ar: str, type_: AccountType,
+    currency_code: str | None = None, location_id: int | None = None,
+    form: AccountForm | None = None, parent_code: str | None = None, is_system: bool = True,
+) -> Account:
+    """إنشاء/استرجاع حساب **بكود صريح** (لا ترقيم آلي) — نفس منطق
+    `app.cli.seed._get_or_create_account` بالضبط، مشترك الآن مع الترقيم
+    الحيّ عند إضافة عملة من الواجهة، لا نسخة مكرَّرة منه."""
+    existing = db.execute(select(Account).where(Account.code == code)).scalar_one_or_none()
+    if existing is not None:
+        return existing
+    parent_id = get_account_by_code(db, parent_code).id if parent_code else None
+    account = Account(
+        code=code, name_ar=name_ar, type=type_, currency_code=currency_code, location_id=location_id,
+        form=form, parent_id=parent_id, is_system=is_system, is_active=True,
+    )
+    db.add(account)
+    db.flush()
+    return account
+
+
+def subdivide_account_for_currency(db: Session, *, parent_code: str, currency: Currency) -> Account:
+    """الحساب الفرعي بعملة `currency` تحت `parent_code` — ينشئه إن غاب.
+    نفس آلية `account_number_counters`/`account_number_assignments` في
+    `app.cli.seed._subdivide_by_currency` بالضبط، بعملة واحدة بدل قائمة
+    كاملة (تمديد لا تكرار: عملة جديدة تُضاف لاحقاً بلا إعادة زرع الشجرة
+    كلها، والدالتان تقرآن/تكتبان نفس الجدولين فتبقيان متوافقتين تماماً)."""
+    parent = get_account_by_code(db, parent_code)
+    counter = db.execute(
+        select(AccountNumberCounter).where(AccountNumberCounter.parent_id == parent.id).with_for_update()
+    ).scalar_one_or_none()
+    if counter is None:
+        counter = AccountNumberCounter(parent_id=parent.id, next_suffix=1)
+        db.add(counter)
+        db.flush()
+    assignment = db.get(AccountNumberAssignment, (parent.id, currency.code))
+    if assignment is None:
+        suffix = counter.next_suffix
+        if suffix > 9:
+            raise AccountNumberExhaustedError(
+                f"لا مجال لعملة فرعية جديدة تحت {parent.code} — الأرقام الفرعية (١-٩) استُهلكت بالكامل"
+            )
+        assigned_code = f"{parent.code[:-1]}{suffix}"
+        assignment = AccountNumberAssignment(parent_id=parent.id, currency_code=currency.code, assigned_code=assigned_code)
+        db.add(assignment)
+        counter.next_suffix = suffix + 1
+        db.flush()
+    return get_or_create_account(
+        db, code=assignment.assigned_code, name_ar=f"{parent.name_ar} · {currency.name_ar}",
+        type_=parent.type, currency_code=currency.code, form=parent.form, parent_code=parent.code,
+    )
+
+
+def create_currency_chart_of_accounts(db: Session, *, currency: Currency) -> list[Account]:
+    """كل الحسابات الفرعية اللازمة لعملة جديدة دفعة واحدة — يُستدعى عند
+    إضافة عملة من شاشة الإعدادات فقط (`POST /settings/currencies`)."""
+    return [subdivide_account_for_currency(db, parent_code=p, currency=currency) for p in CURRENCY_SUBDIVIDED_PARENTS]

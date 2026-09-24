@@ -130,6 +130,30 @@ def test_cancel_already_reversed_is_conflict(db, client, now):
     assert second.status_code == 409
 
 
+def test_cancel_out_of_lifo_order_rejects_cleanly_not_500(db, client, now):
+    """اكتُشف حياً (٢٠٢٦-٠٩-٢٥، تحقُّق معالج صرافة الخزينة): إلغاء قبضٍ
+    بعد إنفاق قيمته بدفعة لاحقة يدفع رصيد العميل سالباً — كان
+    `CreditLimitExceededError` غير مُعالَج في `_run_reversal` فيصل ٥٠٠
+    خام بدل ٤٠٩ واضح مطابق لأي قيد جديد يخالف حد الائتمان."""
+    from app.engine.operations import payment as payment_op
+
+    user = _login(db, client)
+    c = f.make_client(db, name="عميل ترتيب إلغاء غير LIFO")
+    entry = f.fund_client(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("500.000"),
+        receiving_account_code="1101", user=user, now=now,
+    )
+    payment_op.execute(
+        db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("500.000"),
+        paying_account_code="1101", work_timezone=WORK_TZ, created_by=user.id, now=now,
+        idempotency_key=f.uid(),
+    )
+
+    resp = client.post(f"/operations/{entry.id}/cancel", json={"reason": "إلغاء بعد إنفاق الرصيد"}, headers=_csrf(client))
+    assert resp.status_code == 409
+    assert resp.status_code != 500
+
+
 def test_cancel_cascades_whole_chain(db, client, now):
     user = _login(db, client)
     c = f.make_client(db, name="عميل إلغاء سلسلة فريد")

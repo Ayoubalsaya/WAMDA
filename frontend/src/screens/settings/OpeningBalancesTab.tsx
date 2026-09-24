@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
-import type { AccountOut, ClientSearchResult, Location, OpeningBalanceRow } from '../../api/types'
+import type { ClientSearchResult, OpeningBalanceRow } from '../../api/types'
 import { AccountPicker } from '../../components/AccountPicker'
+import { useReferenceData } from '../../hooks/useReferenceData'
 
 const SOURCE_TYPES: { v: string; label: string }[] = [
   { v: 'VERIFIED', label: 'مؤكَّد (مستند/كشف)' },
@@ -16,15 +17,14 @@ const CONFIDENCE: { v: string; label: string }[] = [
 ]
 
 export function OpeningBalancesTab() {
-  const [accounts, setAccounts] = useState<AccountOut[]>([])
-  const [locations, setLocations] = useState<Location[]>([])
+  const { currencies, locations, accounts } = useReferenceData()
   const [rows, setRows] = useState<OpeningBalanceRow[] | null>(null)
   const [mode, setMode] = useState<'system' | 'client'>('system')
   const [accountCode, setAccountCode] = useState('')
   const [clientQuery, setClientQuery] = useState('')
   const [clientResults, setClientResults] = useState<ClientSearchResult[]>([])
   const [client, setClient] = useState<ClientSearchResult | null>(null)
-  const [clientCurrency, setClientCurrency] = useState('LYD')
+  const [clientCurrency, setClientCurrency] = useState('')
   const [clientLocation, setClientLocation] = useState('')
   const [amount, setAmount] = useState('')
   const [isDebit, setIsDebit] = useState(true)
@@ -43,13 +43,12 @@ export function OpeningBalancesTab() {
     setRows(await api.get<OpeningBalanceRow[]>('/periods/opening-balances'))
   }
   useEffect(() => {
-    void api.get<AccountOut[]>('/reference/accounts').then(setAccounts)
-    void api.get<Location[]>('/reference/locations').then((ls) => {
-      setLocations(ls)
-      if (ls[0]) setClientLocation(ls[0].code)
-    })
     void reload()
   }, [])
+  useEffect(() => {
+    if (locations[0] && !clientLocation) setClientLocation(locations[0].code)
+    if (currencies[0] && !clientCurrency) setClientCurrency(currencies[0].code)
+  }, [locations, currencies, clientLocation, clientCurrency])
 
   useEffect(() => {
     if (clientQuery.trim().length < 2) { setClientResults([]); return }
@@ -127,7 +126,7 @@ export function OpeningBalancesTab() {
               <div className="field" style={{ flex: 1 }}>
                 <label className="field-label" htmlFor="ob-cccy">العملة</label>
                 <select id="ob-cccy" value={clientCurrency} onChange={(e) => setClientCurrency(e.target.value)}>
-                  <option value="LYD">LYD</option><option value="USD">USD</option><option value="CNY">CNY</option>
+                  {currencies.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
                 </select>
               </div>
               <div className="field" style={{ flex: 1 }}>

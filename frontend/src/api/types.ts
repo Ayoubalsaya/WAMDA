@@ -516,6 +516,24 @@ export interface AccountOut {
   partner_id: number | null
 }
 
+// ٢٠٢٦-٠٩-٢٥ — إدارة العملات والمواقع من شاشة الإعدادات
+export interface CurrencyAdminRow {
+  code: string
+  name_ar: string
+  symbol: string
+  decimals: number
+  is_pivot: boolean
+  is_active: boolean
+  sort_order: number
+}
+
+export interface LocationAdminRow {
+  code: string
+  name_ar: string
+  country: string
+  is_active: boolean
+}
+
 // §٩ المرحلة ١١ — إقفال الفترات
 export interface PeriodRow {
   year: number

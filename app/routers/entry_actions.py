@@ -303,6 +303,11 @@ def _run_reversal(fn: Callable[[], object]):
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except SwiftOutAlreadyProgressedError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except CreditLimitExceededError as exc:
+        # ٢٠٢٦-٠٩-٢٥ (اكتُشف أثناء تحقق حي لصرافة الخزينة): عكس قيد بترتيب
+        # غير LIFO قد يدفع رصيداً سالباً فيفشل بهذا الخطأ تماماً كأي قيد
+        # جديد — كان يُترك بلا معالجة هنا فيصل 500 خاماً بدل 409 واضح.
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except UnbalancedEntryError as exc:  # pragma: no cover — خط دفاع أخير، لا يُتوقَّع بلوغه
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(exc)) from exc
 

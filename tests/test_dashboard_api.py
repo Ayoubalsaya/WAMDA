@@ -50,8 +50,15 @@ def _login(db, client: TestClient, *, role: str = "ACCOUNTANT"):
 
 
 def test_dashboard_summary_kpis_split_funds_from_liabilities(db, client, now):
+    # فرق (delta) لا قيمة مطلقة — قاعدة التطوير المشتركة تحمل عملاء
+    # وحركات حقيقية بالفعل، فقد يكون صافي التزامات LYD الحالي سالباً؛
+    # المهم أن مساهمة هذا الاختبار تحديداً ظهرت بصورة صحيحة في الطرفين.
     _login(db, client)
     user = f.make_user(db)
+    before = client.get("/dashboard/summary").json()["kpis"]
+    funds_before = {r["currency_code"]: Decimal(r["amount"]) for r in before["funds"]}
+    liabilities_before = {r["currency_code"]: Decimal(r["amount"]) for r in before["client_liabilities"]}
+
     c = f.make_client(db)
     f.fund_client(
         db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("500.000"),
@@ -62,8 +69,8 @@ def test_dashboard_summary_kpis_split_funds_from_liabilities(db, client, now):
     body = resp.json()
     funds = {r["currency_code"]: Decimal(r["amount"]) for r in body["kpis"]["funds"]}
     liabilities = {r["currency_code"]: Decimal(r["amount"]) for r in body["kpis"]["client_liabilities"]}
-    assert funds["LYD"] >= Decimal("500.000")  # حساب 1101 (صندوق) — أصل
-    assert liabilities["LYD"] >= Decimal("500.000")  # حساب 2100-* العميل — التزام مقابل
+    assert funds["LYD"] - funds_before.get("LYD", Decimal(0)) >= Decimal("500.000")  # حساب 1101 (صندوق) — أصل
+    assert liabilities["LYD"] - liabilities_before.get("LYD", Decimal(0)) >= Decimal("500.000")  # حساب 2100-* العميل — التزام مقابل
 
 
 def test_dashboard_profit_split_transfer_fee_vs_exchange_spread(db, client, now, monkeypatch):

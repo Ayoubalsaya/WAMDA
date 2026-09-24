@@ -15,6 +15,7 @@ import { NewOperationPanel } from './components/NewOperationPanel'
 import { SearchResultsPanel } from './components/SearchResultsPanel'
 import { NotificationsBell } from './components/NotificationsBell'
 import { type SearchChip, parseSearchQuery } from './lib/parseSearchQuery'
+import { useReferenceData } from './hooks/useReferenceData'
 import './App.css'
 
 const SCREEN_TITLES: Record<ScreenId, string> = {
@@ -49,9 +50,10 @@ export default function App() {
   const [searchChips, setSearchChips] = useState<SearchChip[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
+  const { currencies } = useReferenceData()
 
   function runSearch() {
-    const chips = parseSearchQuery(searchQuery)
+    const chips = parseSearchQuery(searchQuery, currencies.map((c) => c.code))
     setSearchChips(chips)
     setSearchOpen(true)
   }

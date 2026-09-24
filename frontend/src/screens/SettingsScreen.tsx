@@ -3,17 +3,21 @@ import { api, ApiError } from '../api/client'
 import type { AccountOut, CompanyProfile, PartnerRow, UserListRow } from '../api/types'
 import { useReferenceData } from '../hooks/useReferenceData'
 import { AuditLogTab } from './settings/AuditLogTab'
+import { CurrenciesTab } from './settings/CurrenciesTab'
+import { LocationsTab } from './settings/LocationsTab'
 import { OpeningBalancesTab } from './settings/OpeningBalancesTab'
 import { PeriodsTab } from './settings/PeriodsTab'
 import './SettingsScreen.css'
 
-type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts' | 'opening-balances' | 'periods' | 'audit-log'
+type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts' | 'currencies' | 'locations' | 'opening-balances' | 'periods' | 'audit-log'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'company', label: 'ملف الشركة' },
   { id: 'users', label: 'المستخدمون' },
   { id: 'partners', label: 'الشركاء' },
   { id: 'bank-accounts', label: 'الحسابات البنكية' },
+  { id: 'currencies', label: 'العملات' },
+  { id: 'locations', label: 'المواقع' },
   { id: 'opening-balances', label: 'الأرصدة الافتتاحية' },
   { id: 'periods', label: 'الفترات المحاسبية' },
   { id: 'audit-log', label: 'سجل التدقيق' },
@@ -181,13 +185,18 @@ function CreatePartnerForm({ onCreated }: { onCreated: () => void }) {
 }
 
 function CreatePartnerAccountForm({ partnerId, onCreated }: { partnerId: number; onCreated: () => void }) {
-  const { currencies, locationsForCurrency } = useReferenceData()
+  // ملاحظة (٢٠٢٦-٠٩-٢٥، اكتُشفت أثناء تحقق العملة الرابعة حياً):
+  // `locationsForCurrency` يُقيَّد بـ`client_currency_locations` — قائمة
+  // بيضاء لحسابات العملاء حصراً (§٢-٢). حساب مراسل/بنك مملوك (طرف الشركة)
+  // لا يخضع لهذا القيد إطلاقاً — لا تحقق مطابق في accounts_repo.create_bank_account
+  // ولا في مسار إنشاء حساب الشريك، فاستخدام القائمة المُصفّاة هنا كان يمنع
+  // إنشاء أول حساب مراسل بعملة جديدة (لا صفوف whitelist لها بعد أبداً).
+  const { currencies, locations } = useReferenceData()
   const [parentCode, setParentCode] = useState('1320')
   const [currency, setCurrency] = useState('')
   const [location, setLocation] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const locations = locationsForCurrency(currency)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -301,12 +310,13 @@ function PartnersTab() {
 }
 
 function CreateBankAccountForm({ onCreated }: { onCreated: () => void }) {
-  const { currencies, locationsForCurrency } = useReferenceData()
+  // نفس ملاحظة CreatePartnerAccountForm أعلاه — حساب بنكي مملوك ليس حساب
+  // عميل، فلا يُقيَّد بقائمة client_currency_locations البيضاء.
+  const { currencies, locations } = useReferenceData()
   const [currency, setCurrency] = useState('')
   const [location, setLocation] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const locations = locationsForCurrency(currency)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -390,6 +400,8 @@ export function SettingsScreen({ currentUserRole }: { currentUserRole: 'ADMIN' |
         {tab === 'users' && (currentUserRole === 'ADMIN' ? <UsersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'partners' && (currentUserRole === 'ADMIN' ? <PartnersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'bank-accounts' && (currentUserRole === 'ADMIN' ? <BankAccountsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
+        {tab === 'currencies' && (currentUserRole === 'ADMIN' ? <CurrenciesTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
+        {tab === 'locations' && (currentUserRole === 'ADMIN' ? <LocationsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'opening-balances' && (currentUserRole === 'ADMIN' ? <OpeningBalancesTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'periods' && (currentUserRole === 'ADMIN' ? <PeriodsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'audit-log' && (currentUserRole === 'ADMIN' ? <AuditLogTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
