@@ -9,11 +9,13 @@ from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.engine import accounts_repo
-from app.models import Account, AccountBalance, Currency, JournalLine, Location, Setting, User
+from app.models import Account, AccountBalance, ClientCurrencyLocation, Currency, JournalLine, Location, Setting, User
 from app.schemas.settings import (
     AccountOut,
+    ClientCurrencyLocationRow,
     CompanyProfile,
     CreateBankAccountRequest,
+    CreateClientCurrencyLocationRequest,
     CreateCurrencyRequest,
     CreateLocationRequest,
     CurrencyRow,
@@ -240,3 +242,43 @@ def update_location(
         location.country = payload.country
     db.commit()
     return _location_row(location)
+
+
+# ═══ تركيبات عملة×موقع لحسابات العملاء (٢٠٢٦-٠٩-٢٥) — سدّ فجوة: عملة
+# جديدة بلا هذا كانت تُرفَض عند أول قبض/صرافة لعميل بها (InvalidClientLocationError)
+# رغم أن الحسابات المحاسبية للشركة نفسها (شجرة العملة الفرعية) تُبنى فوراً
+# عند الإنشاء. لا حذف — نفس فلسفة `client_currency_locations` كجدول بيانات
+# فقط يُضاف إليه، موثَّقة في `app/models/core.py::ClientCurrencyLocation`. ═══
+
+
+@router.get("/client-currency-locations", response_model=list[ClientCurrencyLocationRow])
+def list_client_currency_locations_admin(db: OrmSession = Depends(get_db)) -> list[ClientCurrencyLocationRow]:
+    rows = db.execute(
+        select(ClientCurrencyLocation.currency_code, Location.code)
+        .join(Location, Location.id == ClientCurrencyLocation.location_id)
+        .order_by(ClientCurrencyLocation.currency_code, Location.code)
+    ).all()
+    return [ClientCurrencyLocationRow(currency_code=ccy, location_code=loc) for ccy, loc in rows]
+
+
+@router.post(
+    "/client-currency-locations", response_model=ClientCurrencyLocationRow, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(verify_csrf)],
+)
+def create_client_currency_location(
+    payload: CreateClientCurrencyLocationRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> ClientCurrencyLocationRow:
+    currency_code = payload.currency_code.strip().upper()
+    location_code = payload.location_code.strip().upper()
+    currency = db.get(Currency, currency_code)
+    if currency is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {currency_code}")
+    location = db.execute(select(Location).where(Location.code == location_code)).scalar_one_or_none()
+    if location is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا موقع بالكود {location_code}")
+    if db.get(ClientCurrencyLocation, (currency_code, location.id)) is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"التركيبة {currency_code}·{location_code} مسموحة بالفعل")
+    db.add(ClientCurrencyLocation(currency_code=currency_code, location_id=location.id))
+    db.commit()
+    return ClientCurrencyLocationRow(currency_code=currency_code, location_code=location_code)

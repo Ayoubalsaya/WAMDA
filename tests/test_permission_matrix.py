@@ -94,6 +94,7 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /settings/bank-accounts": STAFF,
     "GET /settings/currencies": STAFF,
     "GET /settings/locations": STAFF,
+    "GET /settings/client-currency-locations": STAFF,
     # مدير + محاسب (POST_ENTRY)
     "GET /clients": POST_ENTRY,
     "GET /clients/search": POST_ENTRY,
@@ -148,6 +149,7 @@ ROUTE_AUTH: dict[str, str] = {
     "PATCH /settings/currencies/{code}": ADMIN,
     "POST /settings/locations": ADMIN,
     "PATCH /settings/locations/{code}": ADMIN,
+    "POST /settings/client-currency-locations": ADMIN,
     "GET /audit-log": ADMIN,
     "GET /reconciliation/statements": ADMIN,
     "POST /reconciliation/statements": ADMIN,

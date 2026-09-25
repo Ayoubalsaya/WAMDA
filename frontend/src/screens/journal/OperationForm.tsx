@@ -4,7 +4,7 @@ import type {
   ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
-import { PIVOT_CODE, convertPreview, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
+import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 
@@ -1060,11 +1060,17 @@ export function OperationForm({
         )}
 
         {tab === 'EXCHANGE' && exchangePreview && (
+          <div className={exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
+            {rateDirectionHint(exchangePreview.diff).text}
+          </div>
+        )}
+
+        {tab === 'EXCHANGE' && exchangePreview && (
           <div className="result-card">
-            <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'المبلغ الواصل فعلياً (سعر التنفيذ)' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
-            <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'مبلغ التكلفة الداخلي (المرجعي)' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
+            <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'بسعر التنفيذ ← ما أعطيته فعلاً' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
+            <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'بسعر التكلفة ← ما كان يجب أن أحصل عليه' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
             <div className="result-row result-final">
-              <span>ربح العملية</span>
+              <span>{profitOrLossLabel(exchangePreview.diff)} العملية</span>
               <span className={`num ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
                 {exchangePreview.diff.toString()} {toCurrency}
               </span>

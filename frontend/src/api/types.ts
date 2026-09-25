@@ -534,6 +534,11 @@ export interface LocationAdminRow {
   is_active: boolean
 }
 
+export interface ClientCurrencyLocationRow {
+  currency_code: string
+  location_code: string
+}
+
 // §٩ المرحلة ١١ — إقفال الفترات
 export interface PeriodRow {
   year: number

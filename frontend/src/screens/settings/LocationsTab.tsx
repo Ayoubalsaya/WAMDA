@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../../api/client'
-import type { LocationAdminRow } from '../../api/types'
+import type { ClientCurrencyLocationRow, LocationAdminRow } from '../../api/types'
+import { useReferenceData } from '../../hooks/useReferenceData'
 
 function CreateLocationForm({ onCreated }: { onCreated: () => void }) {
   const [code, setCode] = useState('')
@@ -110,6 +111,90 @@ function LocationDisplayRow({ row, onEdit, onToggled }: { row: LocationAdminRow;
   )
 }
 
+function AddClientCurrencyLocationForm({ onAdded }: { onAdded: () => void }) {
+  const { currencies, locations } = useReferenceData()
+  const [currencyCode, setCurrencyCode] = useState('')
+  const [locationCode, setLocationCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!currencyCode || !locationCode) return
+    setBusy(true)
+    setError(null)
+    try {
+      await api.post('/settings/client-currency-locations', { currency_code: currencyCode, location_code: locationCode })
+      setCurrencyCode(''); setLocationCode('')
+      onAdded()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'تعذّر إضافة التركيبة')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
+      <div className="field">
+        <label className="field-label" htmlFor="ccl-ccy">العملة</label>
+        <select id="ccl-ccy" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} required>
+          <option value="" disabled>اختر عملة</option>
+          {currencies.map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
+        </select>
+      </div>
+      <div className="field">
+        <label className="field-label" htmlFor="ccl-loc">الموقع</label>
+        <select id="ccl-loc" value={locationCode} onChange={(e) => setLocationCode(e.target.value)} required>
+          <option value="" disabled>اختر موقعاً</option>
+          {locations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+        </select>
+      </div>
+      <button type="submit" className="btn btn-primary" disabled={busy}>+ سماح تركيبة</button>
+      {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+    </form>
+  )
+}
+
+// عملة جديدة تُبني لها شجرة حسابات الشركة فوراً عند الإنشاء (CurrenciesTab)
+// لكن حسابات العملاء 2100-* تظل مرفوضة (InvalidClientLocationError) لأي
+// موقع حتى تُضاف تركيبة صريحة هنا — بلا هذا لا يمكن لأي عميل قبض/صرافة
+// بعملة جديدة في أي مكان (٢٠٢٦-٠٩-٢٥، سدّ فجوة).
+function ClientCurrencyLocationsSection() {
+  const [rows, setRows] = useState<ClientCurrencyLocationRow[] | null>(null)
+
+  async function reload() {
+    const data = await api.get<ClientCurrencyLocationRow[]>('/settings/client-currency-locations')
+    setRows(data)
+  }
+
+  useEffect(() => { void reload() }, [])
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <h3 className="card-title">تركيبات العملة والموقع المسموحة لحسابات العملاء</h3>
+      <p className="text-muted" style={{ marginTop: -4, marginBottom: 12, fontSize: 13 }}>
+        عميل لا يمكنه القبض أو الصرافة بعملة في موقع إلا بعد إضافة التركيبة هنا — لا حذف، إضافة فقط.
+      </p>
+      <AddClientCurrencyLocationForm onAdded={() => void reload()} />
+      {!rows ? <p className="text-muted">...جارٍ التحميل</p> : (
+        <table className="data-table">
+          <thead><tr><th>العملة</th><th>الموقع</th></tr></thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={`${r.currency_code}-${r.location_code}`}>
+                <td className="num">{r.currency_code}</td>
+                <td>{r.location_code}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && <tr><td colSpan={2} className="text-muted">لا تركيبات مسجَّلة بعد</td></tr>}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
 export function LocationsTab() {
   const [rows, setRows] = useState<LocationAdminRow[] | null>(null)
   const [editingCode, setEditingCode] = useState<string | null>(null)
@@ -145,6 +230,7 @@ export function LocationsTab() {
           </tbody>
         </table>
       )}
+      <ClientCurrencyLocationsSection />
     </>
   )
 }

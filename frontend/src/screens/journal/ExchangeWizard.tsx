@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
-import { PIVOT_CODE, convertPreview, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
+import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 
 interface ExchangeWizardProps {
@@ -127,7 +127,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
         {step === 1 && (
           <div>
-            <h3 className="card-title">الخطوة ١ — من الدينار إلى الدولار</h3>
+            <h3 className="card-title">الخطوة ١ — من {currencies.find((c) => c.code === fromCurrency)?.name_ar ?? fromCurrency} إلى الدولار</h3>
             <div className="op-row">
               <div className="field">
                 <label className="field-label">من عملة</label>
@@ -181,10 +181,16 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               </div>
             </div>
             {step1Preview && (
+              <div className={step1Preview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
+                {rateDirectionHint(step1Preview.diff).text}
+              </div>
+            )}
+            {step1Preview && (
               <div className="result-card">
-                <div className="result-row"><span>الدولار الناتج</span><span className="num">{step1Preview.clientAmt.toString()} USD</span></div>
+                <div className="result-row"><span>بسعر التنفيذ ← ما أعطيته فعلاً</span><span className="num">{step1Preview.clientAmt.toString()} USD</span></div>
+                <div className="result-row result-dashed"><span>بسعر التكلفة ← ما كان يجب أن أحصل عليه</span><span className="num text-muted">{step1Preview.costAmt.toString()} USD</span></div>
                 <div className="result-row result-final">
-                  <span>ربح الخطوة ١</span>
+                  <span>{profitOrLossLabel(step1Preview.diff)} الخطوة ١</span>
                   <span className={`num ${step1Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{step1Preview.diff.toString()} USD</span>
                 </div>
               </div>
@@ -201,7 +207,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
         {step === 2 && (
           <div>
-            <h3 className="card-title">الخطوة ٢ — من الدولار إلى {scope === 'TREASURY' ? 'عملة أخرى' : 'الرمبي'}</h3>
+            <h3 className="card-title">الخطوة ٢ — من الدولار إلى {scope === 'TREASURY' ? 'عملة أخرى' : (currencies.find((c) => c.code === toCurrency)?.name_ar ?? toCurrency)}</h3>
             <div className="derived-field">
               المبلغ المُرحَّل من الخطوة ١: <span className="num">{step1Preview?.clientAmt.toString() ?? '—'} USD</span> (مقفل)
             </div>
@@ -239,11 +245,17 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               </div>
             </div>
             {step2Preview && (
+              <div className={step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
+                {rateDirectionHint(step2Preview.diff).text}
+              </div>
+            )}
+            {step2Preview && (
               <div className="result-card">
-                <div className="result-row"><span>{toCurrency} الناتج</span><span className="num">{step2Preview.clientAmt.toString()} {toCurrency}</span></div>
-                <div className="result-row result-dashed"><span>ربح الخطوة ١</span><span className="num">{step1Preview?.diff.toString()} USD</span></div>
+                <div className="result-row"><span>بسعر التنفيذ ← ما أعطيته فعلاً</span><span className="num">{step2Preview.clientAmt.toString()} {toCurrency}</span></div>
+                <div className="result-row result-dashed"><span>بسعر التكلفة ← ما كان يجب أن أحصل عليه</span><span className="num text-muted">{step2Preview.costAmt.toString()} {toCurrency}</span></div>
+                <div className="result-row result-dashed"><span>{profitOrLossLabel(step1Preview!.diff)} الخطوة ١</span><span className="num">{step1Preview!.diff.toString()} USD</span></div>
                 <div className="result-row">
-                  <span>ربح الخطوة ٢</span>
+                  <span>{profitOrLossLabel(step2Preview.diff)} الخطوة ٢</span>
                   <span className={`num ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{step2Preview.diff.toString()} {toCurrency}</span>
                 </div>
                 <div className="result-row result-final"><span>الإجمالي (لأغراض العرض فقط — ربحان منفصلان دائماً في السجلات)</span></div>

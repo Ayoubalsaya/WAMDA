@@ -25,3 +25,17 @@ export function roundCollectedFromClient(value: Decimal, decimals: number): Deci
 export function roundInternal(value: Decimal, decimals: number): Decimal {
   return value.toDecimalPlaces(decimals, Decimal.ROUND_HALF_UP)
 }
+
+// ٢٠٢٦-٠٩-٢٥ (بلاغ مالك — سعرا التكلفة/التنفيذ أُدخلا مقلوبَين لتشابه
+// التسميتين): لا يحسب اتجاه "الأفضل" بقاعدة قسمة/ضرب منفصلة — يقرأ إشارة
+// `diff` نفسها التي يحسبها الخادم فعلياً (نفس الصيغة تماماً)، فلا يمكن أن
+// يختلف عنها أبداً بتعريفه.
+export function rateDirectionHint(diff: Decimal): { text: string; isBetter: boolean } {
+  return diff.gte(0)
+    ? { text: '✓ سعر التنفيذ أفضل لك', isBetter: true }
+    : { text: '⚠ سعر التنفيذ أسوأ لك — هذه خسارة', isBetter: false }
+}
+
+export function profitOrLossLabel(diff: Decimal): string {
+  return diff.gte(0) ? 'ربح' : 'خسارة'
+}

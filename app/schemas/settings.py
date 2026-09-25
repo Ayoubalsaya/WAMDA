@@ -115,3 +115,13 @@ class CreateBankAccountRequest(BaseModel):
     currency_code: str
     location_code: str
     name_ar: Optional[str] = None
+
+
+class ClientCurrencyLocationRow(BaseModel):
+    currency_code: str
+    location_code: str
+
+
+class CreateClientCurrencyLocationRequest(BaseModel):
+    currency_code: str
+    location_code: str
