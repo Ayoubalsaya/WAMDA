@@ -29,7 +29,7 @@ const FALLBACK_CURRENCIES = new Set(['LYD', 'USD', 'CNY'])
 const OP_TYPE_BY_ARABIC: Record<string, string> = {
   'قبض': 'RECEIPT', 'صرف': 'PAYMENT', 'صرافة': 'EXCHANGE', 'تحويل بعمولة': 'CASH_TRANSFER',
   'نقل داخلي': 'LOCAL_MOVE', 'سويفت خروج': 'SWIFT_OUT', 'سويفت وصول': 'SWIFT_IN',
-  'سويفت مرتجع': 'SWIFT_RETURN', 'إرسال': 'REMIT_OUT', 'إرسال لمستفيد': 'REMIT_OUT',
+  'سويفت مرتجع': 'SWIFT_RETURN', 'إرسال': 'REMIT_OUT', 'إرسال خارجي': 'REMIT_OUT', 'إرسال لمستفيد': 'REMIT_OUT',
   'مصروف': 'EXPENSE', 'رصيد افتتاحي': 'OPENING', 'تسوية': 'ADJUSTMENT',
 }
 

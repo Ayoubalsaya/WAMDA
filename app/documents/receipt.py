@@ -24,7 +24,7 @@ from app.models.enums import EntryStatus
 
 _OP_LABELS_AR: dict[str, str] = {
     "RECEIPT": "إيصال قبض", "PAYMENT": "إيصال تسليم", "EXCHANGE": "إيصال صرافة",
-    "CASH_TRANSFER": "إيصال تحويل", "LOCAL_MOVE": "إيصال نقل داخلي", "REMIT_OUT": "إيصال إرسال لمستفيد",
+    "CASH_TRANSFER": "إيصال تحويل", "LOCAL_MOVE": "إيصال نقل داخلي", "REMIT_OUT": "إيصال إرسال خارجي",
     "SWIFT_OUT": "إيصال سويفت", "SWIFT_IN": "إيصال سويفت وصول", "SWIFT_RETURN": "إيصال سويفت مرتجع",
     "EXPENSE": "إيصال مصروف", "OPENING": "إيصال رصيد افتتاحي", "ADJUSTMENT": "إيصال تسوية",
 }

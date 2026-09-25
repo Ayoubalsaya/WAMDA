@@ -1,4 +1,4 @@
-"""REMIT_OUT — إرسال لمستفيد نهائي عبر شركة مراسلة. §٤ رقم ٩ · مثال §١-٣-ب.
+"""REMIT_OUT — إرسال خارجي (لمستلم نهائي) عبر شركة مراسلة. §٤ رقم ٩ · مثال §١-٣-ب.
 
 لا رمبي يُقيَّد في دفاترنا هنا؛ الشركة المراسلة تصرف وترسل من عندها،
 فالعملية بأكملها تبقى بعملة الدولار فقط (لا حاجة لمقاصة 1900، ولا دفعة
@@ -88,7 +88,7 @@ def execute(
             from_currency=pivot.code,
             cost_rate=cost_rate,
             client_rate=client_rate,
-            description=description or "إرسال لمستفيد",
+            description=description or "إرسال خارجي",
             negative_margin_reason=negative_margin_reason,
         )
         draft.add(account_id=client_account.id, currency_code=pivot.code, debit=client_amt_usd)

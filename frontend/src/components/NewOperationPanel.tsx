@@ -14,7 +14,7 @@ const LEVEL1: OperationTile[] = [
   { id: 'PAYMENT', label: 'صرف', desc: 'تسليم لعميل', color: 'var(--money-out-text)', Icon: Wallet2 },
   { id: 'EXCHANGE', label: 'صرافة', desc: 'تحويل بين عملتين', color: 'var(--exchange-text)', Icon: ArrowDownUp },
   { id: 'CASH_TRANSFER', label: 'تحويل بعمولة', desc: 'نفس العملة بين موقعين', color: 'var(--sky-500)', Icon: Repeat },
-  { id: 'REMIT_OUT', label: 'إرسال لمستفيد', desc: 'عبر شركة مراسلة', color: 'var(--commission-text)', Icon: Send },
+  { id: 'REMIT_OUT', label: 'إرسال خارجي', desc: 'عبر شركة مراسلة', color: 'var(--commission-text)', Icon: Send },
   { id: 'EXPENSE', label: 'مصروف', desc: 'بند تشغيلي', color: 'var(--text-secondary)', Icon: Receipt },
 ]
 

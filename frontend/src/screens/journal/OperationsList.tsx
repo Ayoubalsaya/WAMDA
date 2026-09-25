@@ -7,7 +7,7 @@ import { CommentsPanel, EditedBadge, EntryActionsBar } from '../../components/En
 
 const OP_LABELS: Record<string, string> = {
   RECEIPT: 'قبض', PAYMENT: 'صرف', EXCHANGE: 'صرافة', CASH_TRANSFER: 'تحويل بعمولة',
-  LOCAL_MOVE: 'نقل داخلي', REMIT_OUT: 'إرسال', SWIFT_OUT: 'سويفت خروج', SWIFT_IN: 'سويفت وصول',
+  LOCAL_MOVE: 'نقل داخلي', REMIT_OUT: 'إرسال خارجي', SWIFT_OUT: 'سويفت خروج', SWIFT_IN: 'سويفت وصول',
   SWIFT_RETURN: 'سويفت مرتجع', EXPENSE: 'مصروف', OPENING: 'رصيد افتتاحي', ADJUSTMENT: 'تسوية',
 }
 

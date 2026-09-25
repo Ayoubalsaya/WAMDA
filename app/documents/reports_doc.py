@@ -16,7 +16,7 @@ from app.documents.formatting import currency_decimals_map, format_amount, forma
 
 _OP_LABELS_AR: dict[str, str] = {
     "RECEIPT": "قبض", "PAYMENT": "صرف", "EXCHANGE": "صرافة", "CASH_TRANSFER": "تحويل بعمولة",
-    "LOCAL_MOVE": "نقل داخلي", "REMIT_OUT": "إرسال لمستفيد", "SWIFT_OUT": "سويفت خروج", "SWIFT_IN": "سويفت وصول",
+    "LOCAL_MOVE": "نقل داخلي", "REMIT_OUT": "إرسال خارجي", "SWIFT_OUT": "سويفت خروج", "SWIFT_IN": "سويفت وصول",
     "SWIFT_RETURN": "سويفت مرتجع", "EXPENSE": "مصروف", "OPENING": "رصيد افتتاحي", "ADJUSTMENT": "تسوية",
 }
 

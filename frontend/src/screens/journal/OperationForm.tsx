@@ -44,7 +44,7 @@ const LEVEL1: { id: OpTab; label: string }[] = [
   { id: 'PAYMENT', label: 'صرف' },
   { id: 'EXCHANGE', label: 'صرافة' },
   { id: 'CASH_TRANSFER', label: 'تحويل بعمولة' },
-  { id: 'REMIT_OUT', label: 'إرسال لمستفيد' },
+  { id: 'REMIT_OUT', label: 'إرسال خارجي' },
   { id: 'EXPENSE', label: 'مصروف' },
 ]
 const LEVEL2: { id: OpTab; label: string }[] = [
