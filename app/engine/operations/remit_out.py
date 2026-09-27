@@ -53,20 +53,27 @@ def execute(
     def _create():
         pivot = accounts_repo.get_pivot_currency(db)
 
+        def _to_usd(rate: Decimal) -> Decimal:
+            # ٢٠٢٦-٠٩-٢٧ (بلاغ مالك — إرسال دولار مباشر كان يعيد HTTP 500):
+            # currency_code == pivot.code سيناريو حقيقي شائع (عميل يُسلِّم
+            # دولاراً ليُرسَل دولاراً لمستلم في تركيا/الصين) — لا fx.convert
+            # هنا لأن assert_pivot_pair يرفض عمداً "عملتان متطابقتان"، وهذا
+            # رفض صحيح في EXCHANGE/CASH_TRANSFER (يمنع خطأ استخدام حقيقياً
+            # هناك) لكنه هنا حالة عمل صحيحة تماماً: لا حاجة لعبور "الدولار
+            # كنقطة تحويل" لأن الدولار هو العملة أصلاً. الضرب المباشر هنا
+            # يطابق حرفياً فرع from_currency==pivot_code داخل fx.convert
+            # نفسه — rate=1 يعني بلا هامش، أي رقم آخر هامش مقصود، بنفس
+            # صيغة الهامش المستخدمة في كل عملية أخرى بالنظام.
+            if currency_code == pivot.code:
+                return amount * rate
+            return fx.convert(amount, rate, from_currency=currency_code, to_currency=pivot.code, pivot_code=pivot.code)
+
         # المبلغ يُحصَّل من العميل — ROUND_UP (§٢-٥)
         client_amt_usd = round_amount(
-            fx.convert(
-                amount, client_rate, from_currency=currency_code, to_currency=pivot.code, pivot_code=pivot.code
-            ),
-            pivot.decimals,
-            RoundingKind.COLLECTED_FROM_CLIENT,
+            _to_usd(client_rate), pivot.decimals, RoundingKind.COLLECTED_FROM_CLIENT,
         )
         cost_amt_usd = round_amount(
-            fx.convert(
-                amount, cost_rate, from_currency=currency_code, to_currency=pivot.code, pivot_code=pivot.code
-            ),
-            pivot.decimals,
-            RoundingKind.INTERNAL,
+            _to_usd(cost_rate), pivot.decimals, RoundingKind.INTERNAL,
         )
         diff = client_amt_usd - cost_amt_usd  # موجب = ربح (العميل دفع أكثر من التكلفة)
         if diff < 0 and not negative_margin_reason:

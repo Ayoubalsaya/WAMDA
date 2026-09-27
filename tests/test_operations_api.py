@@ -480,6 +480,52 @@ def test_remit_out_direct_currency_amount_no_beneficiary(db, client, now):
     assert resp.json()["profit_amount"] == "147.060000"
 
 
+def test_remit_out_direct_usd_no_conversion_succeeds(db, client, now):
+    """انحدار (بلاغ مالك ٢٠٢٦-٠٩-٢٧): عميل يُسلِّم دولاراً ليُرسَل دولاراً
+    (currency_code == pivot) — كان يعيد HTTP 500 خام (InvalidCurrencyPairError
+    غير مُعالَج، fx.convert يرفض "عملتان متطابقتان" وهو رفض صحيح في
+    EXCHANGE لكنه خطأ هنا). لا هامش (كلا السعرين ١) → ربح صفر."""
+    _login(db, client)
+    user = f.make_user(db)
+    c = f.make_client(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    resp = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
+              "currency_code": "USD", "amount": "500.00", "cost_rate": "1", "client_rate": "1"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["profit_amount"] == "0.000000"
+
+
+def test_remit_out_direct_usd_with_markup_computes_profit(db, client, now):
+    """نفس سيناريو الدولار المباشر أعلاه، لكن بهامش حقيقي (سعرا العميل/
+    التكلفة مختلفان) — يتحقق أن الضرب المباشر (لا fx.convert) يُنتج نفس
+    صيغة الربح المستخدمة في كل عملية أخرى بالنظام."""
+    _login(db, client)
+    user = f.make_user(db)
+    c = f.make_client(db)
+    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    f.fund_client(
+        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
+        receiving_account_code=partner_acct.code, user=user, now=now,
+    )
+    resp = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
+              "currency_code": "USD", "amount": "500.00", "cost_rate": "1.00", "client_rate": "1.02"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    # client_amt = 500*1.02 = 510.00 · cost_amt = 500*1.00 = 500.00 · ربح = 10.00
+    assert resp.json()["profit_amount"] == "10.000000"
+
+
 def test_swift_out_then_swift_in(db, client, now):
     _login(db, client)
     user = f.make_user(db)

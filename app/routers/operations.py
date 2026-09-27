@@ -21,6 +21,7 @@ from app.engine.accounts_repo import (
     get_or_create_client_account,
 )
 from app.engine.clock import system_clock
+from app.engine.fx import InvalidCurrencyPairError
 from app.engine.idempotency import IdempotencyConflict
 from app.engine.operations import (
     adjustment as adjustment_op,
@@ -74,6 +75,11 @@ _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
     (NegativeMarginReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (OverrideReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidClientLocationError, status.HTTP_422_UNPROCESSABLE_ENTITY),
+    # ٢٠٢٦-٠٩-٢٧: شبكة أمان — كان REMIT_OUT بالدولار (currency_code==pivot)
+    # يُسقِط هذا الاستثناء غير المُعالَج فيصل ٥٠٠ خام (أُصلح جذرياً في
+    # remit_out.py نفسه، انظر _to_usd هناك). هذا السطر يمنع أي طريق آخر لم
+    # نكتشفه بعد من نفس المصير — ٤٢٢ برسالة عربية واضحة بدل ٥٠٠ صامت.
+    (InvalidCurrencyPairError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (AccountNotFoundError, status.HTTP_404_NOT_FOUND),
     (CreditLimitExceededError, status.HTTP_409_CONFLICT),
     (InsufficientBalanceError, status.HTTP_409_CONFLICT),
