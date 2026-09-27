@@ -16,3 +16,10 @@ app/static/app/
 # لقطات تحقُّق Playwright المحلية (سكربتات scripts/verify_*)
 scripts/_*.png
 backups/
+
+# لقطات إعادة تصميم دفتر اليومية (scripts/qa_journal_redesign.py) — تُلتزَم
+# فقط النتيجتان النهائيتان before/ وafter/ (شرط القبول: لقطة قبل وبعد لكل
+# نوع)؛ أي تشغيل تجريبي آخر (--label dbg/before-dry/cleanup/…) مُتجاهَل.
+docs/design/journal-redesign-shots/*
+!docs/design/journal-redesign-shots/before
+!docs/design/journal-redesign-shots/after

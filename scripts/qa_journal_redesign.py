@@ -29,12 +29,21 @@ import pyotp
 from sqlalchemy import select
 
 from app.database import SessionLocal
-from app.models import Client, Session as SessionModel, User
+from app.engine import accounts_repo
+from app.models import Account, Client, Session as SessionModel, User
 from app.models.enums import SessionSubjectType
 from app.security.passwords import hash_password
 
 QA_USER, QA_PASS, QA_SECRET = "qa_jrnl_admin", "QaJrnl!Pass9", "JBSWY3DPEHPK3PXP"
 QA_CLIENT_CODE, QA_CLIENT_NAME = "QA-JRNL-001", "عميل QA — دفتر اليومية"
+# ٢٠٢٦-٠٩-٢٧: حساب SWIFT_IN "الحساب المستقبِل" الوحيد النشط لعملة CNY في
+# قاعدة التطوير المشتركة (1403) رصيده الفعلي سالب بعمق (تلوّث بيانات سابق
+# لا علاقة له بهذه المهمة) — أي سويفت وصول إضافي سيُرفَض ٤٠٩ دائماً، ولا
+# مسار تجاوز إطلاقاً (SwiftInRequest لا يحمل allow_negative). بدل تلويث
+# شجرة الحسابات بحساب بنكي دائم جديد (لا حذف للحسابات في هذا النظام)، هذا
+# الحساب بالضبط تُرك معطَّلاً برصيد صفر من جلسة سابقة لنفس الغرض تحديداً
+# ("بنك اختبار رمبي QA فارغ") — يُعاد تفعيله هنا فقط، لا يُنشأ حساب جديد.
+QA_SWIFT_IN_BANK_CODE = "140005"
 ROOT = Path(__file__).resolve().parent.parent
 TYPES = [
     "OPENING", "RECEIPT", "PAYMENT", "EXCHANGE", "CASH_TRANSFER", "REMIT_OUT", "EXPENSE",
@@ -64,6 +73,14 @@ def setup_db() -> None:
             c = Client(code=QA_CLIENT_CODE, name_ar=QA_CLIENT_NAME, search_name=QA_CLIENT_NAME, credit_allowed=False)
             db.add(c)
         c.is_active = True
+        bank = db.execute(select(Account).where(Account.code == QA_SWIFT_IN_BANK_CODE)).scalar_one_or_none()
+        if bank is None:
+            # لم يبقَ الفِكستور من الجلسة السابقة (بيئة نظيفة) — يُنشأ الآن
+            # بنفس مسار الإنشاء الحقيقي (accounts_repo.create_bank_account،
+            # ما تستدعيه شاشة الإعدادات فعلياً)، لا إدراج SQL يدوي.
+            bank = accounts_repo.create_bank_account(
+                db, currency_code="CNY", location_code="CHINA", name_ar="بنك اختبار رمبي QA فارغ")
+        bank.is_active = True
         db.commit()
     finally:
         db.close()
@@ -259,7 +276,7 @@ class Runner:
             self.fill("المبلغ الواصل", "300")
             self.fill("الرسوم الفعلية", "3")
             self.fill("سعر تحويل البنك للرمبي (اختياري)", "7.1")
-            self.pick("الحساب المستقبِل", "1403")
+            self.pick("الحساب المستقبِل", QA_SWIFT_IN_BANK_CODE)
         elif op == "SWIFT_RETURN":
             self.select("الحركة المعلَّقة المطلوب ارتجاعها", self._movement_value(self.swift_out_nos[1]))
             self.fill("المبلغ المرتجع كاملاً", "300")
