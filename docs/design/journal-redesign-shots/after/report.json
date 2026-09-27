@@ -1,0 +1,50 @@
+{
+  "label": "after",
+  "results": {
+    "OPENING": "POSTED WMD-2026-016033",
+    "RECEIPT": "POSTED WMD-2026-016034",
+    "PAYMENT": "POSTED WMD-2026-016035",
+    "EXCHANGE": "POSTED WMD-2026-016036",
+    "CASH_TRANSFER": "POSTED WMD-2026-016037",
+    "REMIT_OUT": "POSTED WMD-2026-016038",
+    "EXPENSE": "POSTED WMD-2026-016039",
+    "SWIFT_OUT": "POSTED WMD-2026-016040",
+    "SWIFT_IN": "POSTED WMD-2026-016042",
+    "SWIFT_RETURN": "POSTED WMD-2026-016043",
+    "LOCAL_MOVE": "POSTED WMD-2026-016044",
+    "ADJUSTMENT": "POSTED WMD-2026-016045"
+  },
+  "entries": [
+    "WMD-2026-016032",
+    "WMD-2026-016033",
+    "WMD-2026-016034",
+    "WMD-2026-016035",
+    "WMD-2026-016036",
+    "WMD-2026-016037",
+    "WMD-2026-016038",
+    "WMD-2026-016039",
+    "WMD-2026-016040",
+    "WMD-2026-016041",
+    "WMD-2026-016042",
+    "WMD-2026-016043",
+    "WMD-2026-016044",
+    "WMD-2026-016045"
+  ],
+  "cancel": {
+    "WMD-2026-016045": "200 {\"cancelled_entry_ids\":[120026],\"chain_cascade\":false}",
+    "WMD-2026-016044": "200 {\"cancelled_entry_ids\":[120025],\"chain_cascade\":false}",
+    "WMD-2026-016043": "200 {\"cancelled_entry_ids\":[120024],\"chain_cascade\":false}",
+    "WMD-2026-016042": "200 {\"cancelled_entry_ids\":[120023],\"chain_cascade\":false}",
+    "WMD-2026-016041": "200 {\"cancelled_entry_ids\":[120022],\"chain_cascade\":false}",
+    "WMD-2026-016040": "200 {\"cancelled_entry_ids\":[120021],\"chain_cascade\":false}",
+    "WMD-2026-016039": "200 {\"cancelled_entry_ids\":[120020],\"chain_cascade\":false}",
+    "WMD-2026-016038": "200 {\"cancelled_entry_ids\":[120019],\"chain_cascade\":false}",
+    "WMD-2026-016037": "200 {\"cancelled_entry_ids\":[120018],\"chain_cascade\":false}",
+    "WMD-2026-016036": "200 {\"cancelled_entry_ids\":[120017],\"chain_cascade\":false}",
+    "WMD-2026-016035": "200 {\"cancelled_entry_ids\":[120016],\"chain_cascade\":false}",
+    "WMD-2026-016034": "200 {\"cancelled_entry_ids\":[120015],\"chain_cascade\":false}",
+    "WMD-2026-016033": "200 {\"cancelled_entry_ids\":[120014],\"chain_cascade\":false}",
+    "WMD-2026-016032": "200 {\"cancelled_entry_ids\":[120013],\"chain_cascade\":false}"
+  },
+  "teardown": "kept"
+}
