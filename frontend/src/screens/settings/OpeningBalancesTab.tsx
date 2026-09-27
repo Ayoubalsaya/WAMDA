@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, OpeningBalanceRow } from '../../api/types'
 import { AccountPicker } from '../../components/AccountPicker'
+import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
 
 const SOURCE_TYPES: { v: string; label: string }[] = [
@@ -88,9 +89,11 @@ export function OpeningBalancesTab() {
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title" style={{ marginBottom: 12 }}>تسجيل رصيد افتتاحي</div>
-        <div className="op-tabs" style={{ marginBottom: 12 }}>
-          <button type="button" className={`op-tab${mode === 'system' ? ' is-active' : ''}`} onClick={() => setMode('system')}>حساب نظامي (صندوق/بنك/مراسل)</button>
-          <button type="button" className={`op-tab${mode === 'client' ? ' is-active' : ''}`} onClick={() => setMode('client')}>حساب عميل</button>
+        <div style={{ marginBottom: 12 }}>
+          <SegmentedTabs
+            variant="pill" ariaLabel="نوع الحساب" value={mode} onChange={setMode}
+            items={[{ id: 'system', label: 'حساب نظامي (صندوق/بنك/مراسل)' }, { id: 'client', label: 'حساب عميل' }]}
+          />
         </div>
         <form onSubmit={submit}>
           {mode === 'system' ? (

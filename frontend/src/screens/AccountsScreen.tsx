@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from 'react'
 import { api } from '../api/client'
+import { SegmentedTabs } from '../components/SegmentedTabs'
 import type {
   AccountBalanceRow, BanksResponse, BoxesResponse, CorrespondentsResponse, Currency, CurrencyAmount, LotDetail, LotRow,
   PendingSwiftMovement,
@@ -228,12 +229,8 @@ export function AccountsScreen() {
           </div>
         )}
       </div>
-      <div className="op-tabs" style={{ marginBottom: 12 }}>
-        {TABS.map((t) => (
-          <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedTabs variant="dock" ariaLabel="نوع الحساب" value={tab} onChange={setTab} items={TABS} />
       </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         {tab === 'boxes' && <BoxesTab currencies={currencies} />}

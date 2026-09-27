@@ -39,13 +39,31 @@
   .seg-pill, .seg-clip-window { transition: none; }
 }
 
-/* ── dock: أنواع العمليات باليومية ────────────────────────────────────
- * لا خلفية/حدود خاصة بها — تُعرَض داخل حاوية `.operation-dock` الأب التي
- * تحمل الخلفية والحدود (وتضمّ أيضاً زر «المزيد» غير المنضمّ للمجموعة). */
-.seg-tabs-dock { flex: 1; min-width: 0; }
-.seg-tabs-dock .seg-row { gap: var(--space-1); }
-.seg-tabs-dock .seg-pill { background: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
-.seg-tabs-dock .seg-tab { height: 40px; padding: 0 var(--space-2); border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+/* ── dock: تبويبات بارزة بخلفية زرقاء فاتحة (أنواع العمليات باليومية ·
+ * أنواع الحسابات · تبويبات الإعدادات/التقارير/عملات العميل) ──────────
+ * مكتفية بذاتها افتراضياً (خلفية/حدود/حشو). داخل `.operation-dock` في
+ * OperationForm.tsx تحديداً (يضمّ أيضاً زر «المزيد» خارج المجموعة) الأب
+ * هو من يحمل هذه الخلفية بدلاً منها — القاعدة الثانية أدناه تُصفِّرها
+ * هناك فقط لتفادي صندوق مزدوج. */
+.seg-tabs-dock {
+  flex: 1; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--sky-50);
+}
+.operation-dock .seg-tabs-dock { border: 0; background: none; }
+/* الحشو على الصفّين (لا على الحاوية) عمداً: كل من .seg-row-base/
+ * .seg-clip-window مُموضَعان بـinset:0 (أي يملآن صندوق الحشو الخاص
+ * بالحاوية بالضبط، متجاهلَين حشوها الخاص) — الحشو الفعلي يجب أن يكون
+ * حشو الصفّ نفسه ليدفع الأزرار داخلياً بشكل صحيح. */
+.seg-tabs-dock .seg-row { padding: var(--space-1); gap: var(--space-1); }
+.operation-dock .seg-tabs-dock .seg-row { padding: 0; }
+/* الكبسولة تُحصَر بين حشو الصفّ (لا height:100% من صندوق الحاوية) — الصفّ
+ * الحقيقي (.seg-row-base) في التدفّق الطبيعي فعلاً (position:relative لا
+ * absolute)، فارتفاعه = ارتفاع الزر الطبيعي + حشو الصفّ حوله؛ لو استعملت
+ * الكبسولة height:100% من صندوق الحاوية لظهرت أطول من الزر نفسه بمقدار
+ * الحشو تماماً. */
+.seg-tabs-dock .seg-pill { top: var(--space-1); bottom: var(--space-1); height: auto; background: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
+.operation-dock .seg-tabs-dock .seg-pill { top: 0; bottom: 0; }
+.seg-tabs-dock .seg-tab { min-height: 40px; padding: 0 var(--space-2); border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
 .seg-tabs-dock .seg-row-overlay .seg-tab { color: #fff; }
 .seg-tabs-dock .tab-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; flex: none; }
 .seg-tabs-dock .seg-row-overlay .tab-icon { background: rgba(255, 255, 255, .2); color: #fff; }
@@ -55,11 +73,13 @@
 .seg-tabs-dock .seg-row-base .tab-icon.tone-commission { color: var(--commission-text); }
 .seg-tabs-dock .seg-row-base .tab-icon.tone-neutral { color: var(--sky-700); }
 
-/* ── pill: نطاق الصرافة · يوم/نطاق السجل · تبويبات فرعية عامة ────────── */
-.seg-tabs-pill { padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--sky-50); }
+/* ── pill: نطاق الصرافة · يوم/نطاق السجل · تبويبات فرعية عامة ──────────
+ * الحشو على الصفّ لا الحاوية (نفس سبب dock أعلاه — الحاوية بلا حشو
+ * خاص بها كي لا يُحسَب مرتين مع حشو الصفّ فتطول الكبسولة عن الزر). */
+.seg-tabs-pill { border: 1px solid var(--border); border-radius: 10px; background: var(--sky-50); }
 .seg-tabs-pill .seg-row { padding: 3px; gap: 3px; }
-.seg-tabs-pill .seg-pill { background: #fff; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
-.seg-tabs-pill .seg-tab { height: 32px; padding: 0 var(--space-3); border-radius: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.seg-tabs-pill .seg-pill { top: 3px; bottom: 3px; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
+.seg-tabs-pill .seg-tab { min-height: 32px; padding: 0 var(--space-3); border-radius: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
 .seg-tabs-pill .seg-row-overlay .seg-tab { color: var(--sky-800); font-weight: 600; }
 
 /* ── rail: الشريط الجانبي رأسياً (أيقونات فقط) ───────────────────────── */

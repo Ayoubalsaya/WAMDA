@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { AccountOut, CompanyProfile, PartnerRow, UserListRow } from '../api/types'
 import { useReferenceData } from '../hooks/useReferenceData'
+import { SegmentedTabs } from '../components/SegmentedTabs'
 import { AuditLogTab } from './settings/AuditLogTab'
 import { CurrenciesTab } from './settings/CurrenciesTab'
 import { LocationsTab } from './settings/LocationsTab'
@@ -388,12 +389,8 @@ export function SettingsScreen({ currentUserRole }: { currentUserRole: 'ADMIN' |
   return (
     <div className="journal-screen">
       <h2 className="screen-title" style={{ marginBottom: 16 }}>الإعدادات</h2>
-      <div className="op-tabs" style={{ marginBottom: 12 }}>
-        {TABS.map((t) => (
-          <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedTabs variant="dock" ariaLabel="أقسام الإعدادات" value={tab} onChange={setTab} items={TABS} />
       </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         {tab === 'company' && <CompanyTab currentUserRole={currentUserRole} />}

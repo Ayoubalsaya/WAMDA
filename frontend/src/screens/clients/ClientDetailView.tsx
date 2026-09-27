@@ -6,6 +6,7 @@ import type { ClientDetail, StatementResponse } from '../../api/types'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
+import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
 
 interface ClientDetailViewProps {
@@ -129,15 +130,11 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
         {!detail.credit_allowed && <span className="badge badge-status-reversed">بلا ائتمان مسموح</span>}
       </div>
 
-      <div className="op-tabs" style={{ marginBottom: 12 }}>
-        {currencies.map((c) => (
-          <button
-            key={c.code} type="button" className={`op-tab${activeCcy === c.code ? ' is-active' : ''}`}
-            onClick={() => setActiveCcy(c.code)}
-          >
-            {c.name_ar}
-          </button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedTabs
+          variant="dock" ariaLabel="عملة كشف الحساب" value={activeCcy} onChange={setActiveCcy}
+          items={currencies.map((c) => ({ id: c.code, label: c.name_ar }))}
+        />
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>

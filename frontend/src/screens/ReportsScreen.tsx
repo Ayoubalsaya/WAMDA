@@ -6,6 +6,7 @@ import type {
   LossMakingEntryRow, ProfitByPeriodRow, SwiftHistoryRow, TrialBalanceResponse,
 } from '../api/types'
 import { CurrencyBadge } from '../components/CurrencyBadge'
+import { SegmentedTabs } from '../components/SegmentedTabs'
 import { useReferenceData } from '../hooks/useReferenceData'
 import { formatAmount } from '../lib/formatAmount'
 import './ReportsScreen.css'
@@ -76,12 +77,11 @@ function ProfitByPeriodTab({ currencies }: { currencies: Currency[] }) {
   }, [granularity])
   return (
     <>
-      <div className="op-tabs" style={{ marginBottom: 12 }}>
-        {(['weekly', 'monthly', 'yearly'] as const).map((g) => (
-          <button key={g} type="button" className={`op-tab${granularity === g ? ' is-active' : ''}`} onClick={() => setGranularity(g)}>
-            {g === 'weekly' ? 'أسبوعي' : g === 'monthly' ? 'شهري' : 'سنوي'}
-          </button>
-        ))}
+      <div style={{ marginBottom: 12 }}>
+        <SegmentedTabs
+          variant="dock" ariaLabel="تجميع الفترة" value={granularity} onChange={setGranularity}
+          items={[{ id: 'weekly', label: 'أسبوعي' }, { id: 'monthly', label: 'شهري' }, { id: 'yearly', label: 'سنوي' }]}
+        />
       </div>
       {!rows ? <p className="text-muted">...جارٍ التحميل</p> : (
         <table className="data-table">
