@@ -64,18 +64,13 @@
 }
 
 /* ── عمود عمليات اليوم (يسار) ─────────────────────────────────────── */
-.today-ops-list { display: flex; flex-direction: column; gap: var(--space-2); }
-.today-op-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
-.today-op-summary {
-  width: 100%; display: flex; justify-content: space-between; align-items: center;
-  padding: var(--space-3); background: transparent; border: none; cursor: pointer; text-align: start;
-}
-.today-op-type { font-weight: 600; font-size: 13.5px; }
-.today-op-actions { display: flex; align-items: center; gap: var(--space-2); color: var(--text-muted); }
+/* .today-ops-list/-row/-summary/-type/-actions/-line/-print-row كانت هنا
+ * (حصرية لـOperationsList.tsx) — انتقلت إلى مفردات journal-design.css
+ * (.activity-list/-row/-item/-icon/-copy/-side/-detail) عند إعادة التصميم.
+ * .today-op-detail وحدها تبقى — EntryActions.tsx (خارج نطاق هذه المهمة،
+ * يُستعمَل أيضاً من ClientDetailView.tsx وSearchResultsPanel.tsx) يعيد
+ * استخدامها لصندوق "السجل الكامل" الخاص به. */
 .today-op-detail { padding: 0 var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: 4px; }
-.today-op-line { display: flex; justify-content: space-between; font-size: 12.5px; }
-.today-op-print-row { display: flex; gap: var(--space-3); margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
-.today-op-print-row .btn-text { font-size: 12px; }
 
 /* ── معالج الخطوتين ────────────────────────────────────────────────── */
 .modal-veil {
