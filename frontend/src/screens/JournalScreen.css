@@ -27,20 +27,12 @@
 .balance-amount { font-weight: 700; margin-inline-start: auto; }
 
 /* ── عمود العملية (وسط) ───────────────────────────────────────────── */
-.op-tabs { display: flex; gap: var(--space-2); align-items: center; margin-bottom: var(--space-3); }
-.op-tab {
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--text-secondary);
-  padding: var(--space-2) var(--space-4);
-  font-weight: 600;
-  font-size: 13.5px;
-  cursor: pointer;
-}
-.op-tab.is-active { background: var(--sky-500); color: #fff; border-color: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
-
-.op-form-card { display: flex; flex-direction: column; gap: var(--space-4); }
+/* .op-tabs/.op-tab كانتا هنا — كل مستهلكيها (اليومية والحسابات والعملاء
+ * والتقارير والإعدادات) صاروا يستعملون <SegmentedTabs> (الكبسولة النابضة
+ * الموحَّدة، طلب مالك ٢٠٢٦-٠٩-٢٧)؛ لا مستهلك متبقٍّ (تحقَّق: grep فارغ).
+ * .op-form-card أيضاً كانت هنا — OperationForm.tsx صار composer-panel
+ * (journal-design.css). .op-row تبقى — لا تزال مُستعمَلة فعلياً في شاشات
+ * كثيرة غير مرتبطة. */
 .op-row { display: flex; gap: var(--space-3); }
 .op-row .field { flex: 1; min-width: 0; }
 
