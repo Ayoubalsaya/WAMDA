@@ -176,7 +176,9 @@ class Runner:
 
     def select_client(self):
         self.pg.fill("#client-search", "QA-JRNL")
-        self.pg.locator(".client-search-row", has_text=QA_CLIENT_CODE).first.click()
+        # ٢٠٢٦-٠٩-٢٧: الصنف صار .client-result بعد إعادة تصميم ClientPanel —
+        # .client-search-row كان اسم التصميم القديم قبل إعادة الهيكلة.
+        self.pg.locator(".client-result", has_text=QA_CLIENT_CODE).first.click()
         self.pg.wait_for_timeout(400)
 
     def _post_and_wait(self, action):

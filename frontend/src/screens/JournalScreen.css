@@ -12,35 +12,12 @@
 .text-muted { color: var(--text-muted); }
 
 /* ── عمود العميل (يمين) ────────────────────────────────────────────── */
-.client-search-results {
-  margin-top: var(--space-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-.client-search-row {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  padding: var(--space-2) var(--space-3);
-  background: #fff;
-  border: none;
-  border-bottom: 1px solid var(--divider);
-  cursor: pointer;
-  font-size: 13.5px;
-}
-.client-search-row:hover { background: var(--sky-50); }
-
-.client-selected-card { align-items: center; text-align: center; }
-.client-avatar {
-  width: 48px; height: 48px;
-  border-radius: var(--radius-sm);
-  background: var(--sky-100);
-  color: var(--sky-700);
-  display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 18px;
-  margin-bottom: var(--space-2);
-}
+/* .client-search-results/-row · .client-selected-card · .client-avatar
+ * كانت هنا (حصرية لـClientPanel.tsx) — انتقلت إلى journalUi.tsx.CLIENT
+ * design vocabulary (journal-design.css: .client-search-box/-results،
+ * .client-profile، إلخ) عند إعادة تصميم دفتر اليومية. .client-balances/
+ * -balance-row/.location-label/.balance-amount أدناه تبقى — مُستعملة
+ * أيضاً في screens/clients/ClientDetailView.tsx (خارج نطاق هذه المهمة). */
 .client-balances { width: 100%; margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
 .client-balance-row {
   display: flex; align-items: center; justify-content: space-between; gap: var(--space-2);
