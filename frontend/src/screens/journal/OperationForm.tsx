@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowDownUp, Ban, CreditCard, HandCoins, Landmark, MoreHorizontal, PlusCircle, Receipt, Repeat, Scale, Send, Wallet2,
+} from 'lucide-react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type {
   ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
@@ -7,6 +10,8 @@ import type {
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { AmountStage, FormGuide, PillTabs, SelectWrap } from './journalUi'
+import './journal-design.css'
 
 // ٢٠٢٦-٠٩-٢٢: "اليوم" بتوقيت العمل (Africa/Tripoli) — لا `new Date()` خام
 // (قد يختلف يوم العمل عن يوم المتصفح المحلي قرب منتصف الليل). صيغة
@@ -38,22 +43,27 @@ type OpTab =
   | 'RECEIPT' | 'PAYMENT' | 'EXCHANGE' | 'CASH_TRANSFER' | 'REMIT_OUT' | 'EXPENSE'
   | 'SWIFT_OUT' | 'SWIFT_IN' | 'SWIFT_RETURN' | 'LOCAL_MOVE' | 'OPENING' | 'ADJUSTMENT'
 
-// ج-٣: ١٢ عملية في مستويين — الأول يغطي أكثر من ٩٠٪ من الحركة اليومية
-const LEVEL1: { id: OpTab; label: string }[] = [
-  { id: 'RECEIPT', label: 'قبض' },
-  { id: 'PAYMENT', label: 'صرف' },
-  { id: 'EXCHANGE', label: 'صرافة' },
-  { id: 'CASH_TRANSFER', label: 'تحويل بعمولة' },
-  { id: 'REMIT_OUT', label: 'إرسال خارجي' },
-  { id: 'EXPENSE', label: 'مصروف' },
+type TabTone = 'in' | 'out' | 'exchange' | 'commission' | 'neutral'
+interface TabMeta { id: OpTab; label: string; icon: typeof HandCoins; tone: TabTone }
+
+// ج-٣: ١٢ عملية في مستويين — الأول يغطي أكثر من ٩٠٪ من الحركة اليومية.
+// نفس الأيقونة/اللون لكل نوع في NewOperationPanel.tsx — هوية بصرية واحدة
+// للعملية بصرف النظر عن أين تظهر في النظام.
+const LEVEL1: TabMeta[] = [
+  { id: 'RECEIPT', label: 'قبض', icon: HandCoins, tone: 'in' },
+  { id: 'PAYMENT', label: 'صرف', icon: Wallet2, tone: 'out' },
+  { id: 'EXCHANGE', label: 'صرافة', icon: ArrowDownUp, tone: 'exchange' },
+  { id: 'CASH_TRANSFER', label: 'تحويل بعمولة', icon: Repeat, tone: 'neutral' },
+  { id: 'REMIT_OUT', label: 'إرسال خارجي', icon: Send, tone: 'commission' },
+  { id: 'EXPENSE', label: 'مصروف', icon: Receipt, tone: 'neutral' },
 ]
-const LEVEL2: { id: OpTab; label: string }[] = [
-  { id: 'SWIFT_OUT', label: 'سويفت خروج' },
-  { id: 'SWIFT_IN', label: 'سويفت وصول' },
-  { id: 'SWIFT_RETURN', label: 'سويفت مرتجع' },
-  { id: 'LOCAL_MOVE', label: 'نقل داخلي' },
-  { id: 'OPENING', label: 'رصيد افتتاحي' },
-  { id: 'ADJUSTMENT', label: 'تسوية' },
+const LEVEL2: TabMeta[] = [
+  { id: 'SWIFT_OUT', label: 'سويفت خروج', icon: Send, tone: 'neutral' },
+  { id: 'SWIFT_IN', label: 'سويفت وصول', icon: Landmark, tone: 'neutral' },
+  { id: 'SWIFT_RETURN', label: 'سويفت مرتجع', icon: Ban, tone: 'out' },
+  { id: 'LOCAL_MOVE', label: 'نقل داخلي', icon: CreditCard, tone: 'neutral' },
+  { id: 'OPENING', label: 'رصيد افتتاحي', icon: PlusCircle, tone: 'neutral' },
+  { id: 'ADJUSTMENT', label: 'تسوية', icon: Scale, tone: 'exchange' },
 ]
 const ALL_TABS = [...LEVEL1, ...LEVEL2]
 
@@ -63,19 +73,23 @@ const ADMIN_ONLY_TABS = new Set<OpTab>(['OPENING', 'ADJUSTMENT'])
 
 function CurrencySelect({ value, onChange, currencies }: { value: string; onChange: (v: string) => void; currencies: Currency[] }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="" disabled>العملة</option>
-      {currencies.map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
-    </select>
+    <SelectWrap>
+      <select value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="" disabled>العملة</option>
+        {currencies.map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
+      </select>
+    </SelectWrap>
   )
 }
 
 function LocationSelect({ value, onChange, locations, disabled }: { value: string; onChange: (v: string) => void; locations: Location[]; disabled?: boolean }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
-      <option value="" disabled>الموقع</option>
-      {locations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
-    </select>
+    <SelectWrap>
+      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+        <option value="" disabled>الموقع</option>
+        {locations.map((l) => <option key={l.code} value={l.code}>{l.name_ar}</option>)}
+      </select>
+    </SelectWrap>
   )
 }
 
@@ -506,665 +520,676 @@ export function OperationForm({
   const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY')
   const adminBlocked = ADMIN_ONLY_TABS.has(tab) && currentUserRole !== 'ADMIN'
   const isEdit = mode === 'edit'
+  const activeMeta = ALL_TABS.find((t) => t.id === tab)
+
+  function renderTab(t: TabMeta) {
+    const Icon = t.icon
+    return (
+      <button
+        key={t.id} type="button" role="tab" aria-selected={tab === t.id}
+        className={`operation-tab${tab === t.id ? ' is-active' : ''}`}
+        onClick={() => { setTab(t.id); setMoreOpen(false) }}
+      >
+        <span className={`tab-icon tone-${t.tone}`}><Icon size={15} strokeWidth={2} /></span>
+        <span>{t.label}</span>
+      </button>
+    )
+  }
 
   return (
     <section className="journal-col journal-col-center">
       {!isEdit && (
-        <div className="op-tabs">
-          {LEVEL1.map((t) => (
-            <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => { setTab(t.id); setMoreOpen(false) }}>
-              {t.label}
-            </button>
-          ))}
-          <button type="button" className={`op-tab${moreOpen ? ' is-active' : ''}`} onClick={() => setMoreOpen((v) => !v)}>
-            المزيد
-          </button>
-          <button type="button" className="btn-text" style={{ marginInlineStart: 'auto' }} onClick={onOpenWizard}>
-            معالج الخطوتين (دينار → دولار → رمبي)
+        <div className="operation-dock" role="tablist" aria-label="نوع العملية">
+          {LEVEL1.map(renderTab)}
+          <button
+            type="button" className={`operation-tab more-tab${moreOpen ? ' is-active' : ''}`}
+            aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)}
+          >
+            <MoreHorizontal size={16} strokeWidth={2} />
+            <span>المزيد</span>
           </button>
         </div>
       )}
 
       {!isEdit && moreOpen && (
-        <div className="op-tabs" style={{ marginBottom: 12 }}>
-          {LEVEL2.map((t) => (
-            <button key={t.id} type="button" className={`op-tab${tab === t.id ? ' is-active' : ''}`} onClick={() => setTab(t.id)}>
-              {t.label}
-            </button>
-          ))}
+        <div className="operation-dock" role="tablist" aria-label="أنواع إضافية">
+          {LEVEL2.map(renderTab)}
         </div>
       )}
 
-      <div className="card op-form-card" onKeyDown={handleKeyDown}>
-        {isEdit && <div className="alert alert-warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — أدخل القيم الكاملة للعملية.</div>}
+      {!isEdit && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+          <button type="button" className="btn-text" onClick={onOpenWizard}>
+            معالج الخطوتين (دينار → دولار → رمبي)
+          </button>
+        </div>
+      )}
+
+      <div className="composer-panel" onKeyDown={handleKeyDown}>
+        <div className="composer-head">
+          <div>
+            <h2>{isEdit ? `تعديل — ${activeMeta?.label ?? tab}` : (activeMeta?.label ?? tab)}</h2>
+            <p>أدخل بيانات العملية — الحسابات المتاحة تُصفَّى تلقائياً حسب العملة والموقع.</p>
+          </div>
+        </div>
+
+        {isEdit && <FormGuide tone="warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — أدخل القيم الكاملة للعملية.</FormGuide>}
         {isEdit && client && (
-          <div className="text-muted" style={{ fontSize: 13 }}>العميل: {client.name_ar} ({client.code})</div>
+          <p className="text-muted" style={{ fontSize: 13 }}>العميل: {client.name_ar} ({client.code})</p>
         )}
-        {needsClient && !client && <div className="alert alert-info">اختر عميلاً من العمود الأيمن أولاً</div>}
-        {adminBlocked && <div className="alert alert-warning">هذه العملية تتطلب صلاحية مدير — لن يقبلها الخادم لدورك الحالي.</div>}
+        {needsClient && !client && <FormGuide tone="info">اختر عميلاً من العمود الأيمن أولاً</FormGuide>}
+        {adminBlocked && <FormGuide tone="warning">هذه العملية تتطلب صلاحية مدير — لن يقبلها الخادم لدورك الحالي.</FormGuide>}
 
-        {/* ج: تاريخ العملية — مشترك لكل التبويبات، ما عدا OPENING (حقله
-            الخاص "التاريخ" أدناه بنفس الدور) ووضع التعديل (خارج نطاق هذا
-            التعديل). الافتراضي اليوم بتوقيت العمل؛ يقبل أي تاريخ ماضٍ
-            بحرّية ما دامت الفترة التأسيسية مفتوحة — بعد إقفال فترة شهرية
-            الضوابط القائمة في الخادم تُطبَّق (مدير + سبب إلزامي، ٤٢٢/٤٠٣). */}
-        {!isEdit && tab !== 'OPENING' && (
-          <div className="op-row">
-            <div className="field">
-              <label className="field-label" htmlFor="op-entry-date">تاريخ العملية</label>
-              <input id="op-entry-date" type="date" max={todayInTripoli()} value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
-            </div>
-            {entryDate && entryDate !== todayInTripoli() && (
-              <div className="field" style={{ flex: 2 }}>
-                <label className="field-label" htmlFor="op-backdate-reason">سبب القيد بأثر رجعي (إن كانت الفترة مقفلة)</label>
-                <input id="op-backdate-reason" value={backdateReason} onChange={(e) => setBackdateReason(e.target.value)} placeholder="اختياري — يُطلَب فقط إن رفضه الخادم" />
-              </div>
-            )}
-          </div>
-        )}
-        {!isEdit && tab !== 'OPENING' && (
-          entryDate === todayInTripoli() ? (
-            <div className="text-muted" style={{ fontSize: 12, marginTop: -4, marginBottom: 6 }}>
-              سيُسجَّل بتاريخ اليوم ({entryDate})
-            </div>
-          ) : (
-            <div className="alert alert-warning" style={{ fontSize: 12, marginBottom: 6 }}>
-              ⚠ سيُسجَّل بتاريخ ماضٍ: {entryDate} — تحقَّق قبل الحفظ
-            </div>
-          )
-        )}
-
-        {tab === 'EXCHANGE' && (
-          <div className="op-tabs" style={{ marginBottom: 8 }}>
-            <button type="button" className={`op-tab${exchangeScope === 'CLIENT' ? ' is-active' : ''}`} onClick={() => setExchangeScope('CLIENT')}>عميل</button>
-            <button type="button" className={`op-tab${exchangeScope === 'TREASURY' ? ' is-active' : ''}`} onClick={() => setExchangeScope('TREASURY')}>خزينة (بين حسابي شركة)</button>
-          </div>
-        )}
-
-        {tab !== 'CASH_TRANSFER' && (tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
-          <div className="op-row">
-            <div className="field">
-              <label className="field-label">العملة</label>
-              <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setLocationCode('') }} currencies={currencies} />
-            </div>
-            {!(tab === 'EXCHANGE' && exchangeScope === 'TREASURY') && (
+        <form className="entry-form" onSubmit={(e) => e.preventDefault()}>
+          {/* ج: تاريخ العملية — مشترك لكل التبويبات، ما عدا OPENING (حقله
+              الخاص "التاريخ" أدناه بنفس الدور) ووضع التعديل (خارج نطاق هذا
+              التعديل). الافتراضي اليوم بتوقيت العمل؛ يقبل أي تاريخ ماضٍ
+              بحرّية ما دامت الفترة التأسيسية مفتوحة — بعد إقفال فترة شهرية
+              الضوابط القائمة في الخادم تُطبَّق (مدير + سبب إلزامي، ٤٢٢/٤٠٣). */}
+          {!isEdit && tab !== 'OPENING' && (
+            <div className="date-row">
               <div className="field">
-                <label className="field-label">الموقع</label>
-                <LocationSelect value={locationCode} onChange={setLocationCode} locations={fromLocations} disabled={!currencyCode} />
+                <label className="field-label" htmlFor="op-entry-date">تاريخ العملية</label>
+                <input id="op-entry-date" type="date" max={todayInTripoli()} value={entryDate} onChange={(e) => setEntryDate(e.target.value)} />
               </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
-          <AccountPicker
-            value={treasurySourceAccount} onChange={setTreasurySourceAccount} spec={exchangeSourceSpec} label="الحساب المصدر"
-            emptyMessage={!currencyCode ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
-          />
-        )}
-
-        {tab === 'EXCHANGE' && (
-          <div className="op-row">
-            <div className="field">
-              <label className="field-label">إلى عملة</label>
-              <CurrencySelect
-                value={toCurrency}
-                onChange={(v) => { setToCurrency(v); setToLocation('') }}
-                currencies={currencies.filter((c) => c.code === PIVOT_CODE || currencyCode === PIVOT_CODE)}
-              />
-            </div>
-            {exchangeScope !== 'TREASURY' && (
-              <div className="field">
-                <label className="field-label">إلى موقع</label>
-                <LocationSelect value={toLocation} onChange={setToLocation} locations={toLocations} disabled={!toCurrency} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
-          <AccountPicker
-            value={treasuryDestAccount} onChange={setTreasuryDestAccount} spec={exchangeDestSpec} label="الحساب الوجهة"
-            emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
-          />
-        )}
-
-        {(tab === 'RECEIPT' || tab === 'PAYMENT') && (
-          <AccountPicker
-            value={accountCode} onChange={setAccountCode} spec={receivingPayingSpec}
-            label={tab === 'RECEIPT' ? 'الحساب المستقبِل' : 'الحساب المصروف منه'}
-            emptyMessage={!currencyCode || !locationCode ? 'اختر العملة والموقع أولاً' : 'لا حسابات صناديق/مراسلين/بنوك بهذه العملة والموقع'}
-          />
-        )}
-
-        {tab === 'CASH_TRANSFER' && (
-          <>
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">العملة</label>
-                <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setFromLocation(''); setToLocationCt('') }} currencies={currencies} />
-              </div>
-              <div className="field">
-                <label className="field-label">من موقع</label>
-                <LocationSelect value={fromLocation} onChange={setFromLocation} locations={ctFromLocations} disabled={!currencyCode} />
-              </div>
-              <div className="field">
-                <label className="field-label">إلى موقع (يشمل بنغازي — عمولة فرق دائماً)</label>
-                <LocationSelect value={toLocationCt} onChange={setToLocationCt} locations={ctToLocations} disabled={!currencyCode} />
-              </div>
-            </div>
-            {/* ٢٠٢٦-٠٩-٢٢: حقل المبلغ المنقول كان غائباً كلياً هنا — buildRequest()
-                كان يرسل `amount` الحالة المشتركة (فارغة دائماً بعد resetForm()
-                عند تبديل التبويب) بلا أي وسيلة لملئها؛ أي CASH_TRANSFER حقيقي
-                كان سيُرفَض بمبلغ فارغ. اكتُشف أثناء اختبار حي كامل للإصلاح أعلاه. */}
-            <div className="field field-amount">
-              <label className="field-label">المبلغ المنقول ({currencyCode || '—'})</label>
-              <input className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
-            </div>
-            <AccountPicker
-              value={sourceAccount} onChange={setSourceAccount} spec={ctSourceSpec} label="حساب المصدر (الشركة)"
-              emptyMessage={!currencyCode || !fromLocation ? 'اختر العملة وموقع المصدر أولاً' : 'لا حسابات بهذه العملة في موقع المصدر'}
-            />
-            <AccountPicker
-              value={executionAccount} onChange={setExecutionAccount} spec={ctExecutionSpec} label="الحساب المنفِّذ"
-              emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا حسابات بهذه العملة في موقع الوجهة'}
-            />
-            {/* ٢٠٢٦-٠٩-٢٣ (توضيح مالك): عملة/حساب العمولة مستقلّان تماماً عن
-                موقع الوجهة — عمولة دينار تُحصَّل وتُسوَّى في ليبيا لتحويل
-                هدفه تركيا مثلاً. عملة العمولة أولاً هنا كي تُبنى قوائم
-                الحسابات أدناه عليها مباشرة، لا بعد فوات الأوان. */}
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">عملة العمولة</label>
-                <CurrencySelect
-                  value={commissionCurrency}
-                  onChange={(v) => {
-                    setCommissionCurrency(v)
-                    const valid = locationsForCurrency(v).some((l) => l.code === fromLocation)
-                    setCollectionLocation(valid ? fromLocation : '')
-                  }}
-                  currencies={currencies}
-                />
-              </div>
-              <div className="field">
-                <label className="field-label">عمولة العميل (تحصيل)</label>
-                <input className="num" value={clientCommission} onChange={(e) => setClientCommission(e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">تكلفة العمولة</label>
-                <input className="num" value={costCommission} onChange={(e) => setCostCommission(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="field">
-              <label className="field-label">حساب تحصيل العمولة</label>
-              <div className="op-tabs" style={{ marginBottom: 8 }}>
-                <button type="button" className={`op-tab${!collectFromCompanyAccount ? ' is-active' : ''}`} onClick={() => setCollectFromCompanyAccount(false)}>من رصيد العميل</button>
-                <button type="button" className={`op-tab${collectFromCompanyAccount ? ' is-active' : ''}`} onClick={() => setCollectFromCompanyAccount(true)}>حساب شركة</button>
-              </div>
-            </div>
-            {collectFromCompanyAccount ? (
-              <AccountPicker
-                value={collectionAccount} onChange={setCollectionAccount} spec={ctCollectionSpec} label="الحساب"
-                emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات بعملة العمولة'}
-              />
-            ) : (
-              <div className="field">
-                <label className="field-label">موقع رصيد العميل المخصوم منه</label>
-                <LocationSelect value={collectionLocation} onChange={setCollectionLocation} locations={ctCollectionLocations} disabled={!commissionCurrency} />
-              </div>
-            )}
-            <AccountPicker
-              value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} spec={ctCostCorrespondentSpec} label="حساب تكلفة العمولة (المراسل)"
-              emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات مراسلين بعملة العمولة'}
-            />
-          </>
-        )}
-
-        {tab === 'REMIT_OUT' && (
-          <>
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">الموقع المخصوم من العميل</label>
-                <LocationSelect value={fields.from_location_code ?? ''} onChange={(v) => setField('from_location_code', v)} locations={remitLocations} />
-              </div>
-              <AccountPicker
-                value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)}
-                spec={remitOutPartnerSpec} label="حساب المراسل"
-                emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
-              />
-            </div>
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">عملة المبلغ المُرسَل</label>
-                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
-              </div>
-              <div className="field field-amount">
-                <label className="field-label">المبلغ ({fields.currency_code || '—'})</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-            </div>
-            <div className="op-row">
-              <div className="field field-rate">
-                <label className="field-label">سعر العميل</label>
-                <input className="num" value={fields.client_rate ?? ''} onChange={(e) => setField('client_rate', e.target.value)} />
-              </div>
-              <div className="field field-rate">
-                <label className="field-label">سعر التكلفة</label>
-                <input className="num" value={fields.cost_rate ?? ''} onChange={(e) => setField('cost_rate', e.target.value)} />
-                <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
-              </div>
-            </div>
-            {remitPreview && (
-              <div className="result-card">
-                <div className="result-row"><span>يُحصَّل من العميل</span><span className="num">{remitPreview.clientAmt.toString()} USD</span></div>
-                <div className="result-row result-dashed"><span>التكلفة (داخلي)</span><span className="num text-muted">{remitPreview.costAmt.toString()} USD</span></div>
-                <div className="result-row result-final">
-                  <span>ربح العملية</span>
-                  <span className={`num ${remitPreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{remitPreview.diff.toString()} USD</span>
+              {entryDate && entryDate !== todayInTripoli() && (
+                <div className="field" style={{ flex: 2 }}>
+                  <label className="field-label" htmlFor="op-backdate-reason">سبب القيد بأثر رجعي (إن كانت الفترة مقفلة)</label>
+                  <input id="op-backdate-reason" value={backdateReason} onChange={(e) => setBackdateReason(e.target.value)} placeholder="اختياري — يُطلَب فقط إن رفضه الخادم" />
                 </div>
-              </div>
-            )}
-            {remitPreview && remitPreview.diff.lt(0) && (
-              <div className="field">
-                <label className="field-label">سبب الهامش السالب (إلزامي)</label>
-                <input value={fields.negative_margin_reason ?? ''} onChange={(e) => setField('negative_margin_reason', e.target.value)} />
-              </div>
-            )}
-          </>
-        )}
-
-        {tab === 'EXPENSE' && (
-          <>
-            <div className="op-row">
-              <AccountPicker value={fields.expense_account_code ?? ''} onChange={(v) => setField('expense_account_code', v)} spec={expenseCategorySpec} typeFilter={['EXPENSE']} label="بند المصروف" />
-              <div className="field">
-                <label className="field-label">العملة</label>
-                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
-              </div>
-            </div>
-            <AccountPicker
-              value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} spec={expensePayingSpec} label="الحساب المصروف منه"
-              emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا صناديق/بنوك بهذه العملة'}
-            />
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">البيان (إلزامي)</label>
-                <input value={fields.description ?? ''} onChange={(e) => setField('description', e.target.value)} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {tab === 'SWIFT_OUT' && (
-          <>
-            <AccountPicker
-              value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} spec={swiftOutPartnerSpec} label="حساب المراسل (تركيا)"
-              emptyMessage="لا حسابات مراسلين بالدولار في تركيا — سجّل الشريك من شاشة الشركاء أولاً"
-            />
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ (USD)</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">مرجع خارجي (اختياري)</label>
-                <input className="num" value={fields.external_ref ?? ''} onChange={(e) => setField('external_ref', e.target.value)} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {tab === 'SWIFT_IN' && (
-          <>
-            <div className="field">
-              <label className="field-label">الحركة المعلَّقة (أُرسلت ولم تُستقبَل بعد)</label>
-              <select value={fields.swift_movement_id ?? ''} onChange={(e) => setField('swift_movement_id', e.target.value)}>
-                <option value="" disabled>{pendingSwift.length ? 'اختر حركة' : 'لا حركات معلَّقة'}</option>
-                {pendingSwift.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.out_entry_no ?? m.id} — {m.amount} {m.currency_code} — {m.partner_name_ar ?? 'مراسل'}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ الواصل</label>
-                <input className="num" value={fields.total_amount ?? ''} onChange={(e) => setField('total_amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">الرسوم الفعلية</label>
-                <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
-              </div>
-            </div>
-            <AccountPicker
-              value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} spec={swiftInReceivingSpec} label="الحساب المستقبِل"
-              emptyMessage={`لا بنوك صينية بعملة ${swiftInCurrency} — سجّل البنك من شاشة الشركاء أولاً`}
-            />
-            <div className="field">
-              <label className="field-label">سعر تحويل البنك للرمبي (اختياري)</label>
-              <input className="num" value={fields.bank_conversion_rate ?? ''} onChange={(e) => setField('bank_conversion_rate', e.target.value)} />
-              <span className="rate-hint">
-                {fields.bank_conversion_rate
-                  ? 'سيُفتَح دفعة رمبي جديدة تلقائياً بهذا السعر عند الترحيل'
-                  : 'بلا سعر — إيداع دولار مباشر بلا فتح دفعة'}
-              </span>
-            </div>
-          </>
-        )}
-
-        {tab === 'SWIFT_RETURN' && (
-          <>
-            <div className="field">
-              <label className="field-label">الحركة المعلَّقة المطلوب ارتجاعها</label>
-              <select value={fields.swift_movement_id ?? ''} onChange={(e) => setField('swift_movement_id', e.target.value)}>
-                <option value="" disabled>{pendingSwift.length ? 'اختر حركة' : 'لا حركات معلَّقة'}</option>
-                {pendingSwift.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.out_entry_no ?? m.id} — {m.amount} {m.currency_code} — {m.partner_name_ar ?? 'مراسل'}
-                  </option>
-                ))}
-              </select>
-              {/* بلا حقل اختيار حساب مراسل إطلاقاً — يُشتق آلياً من partner_account_code
-                  الذي تحمله الحركة المختارة نفسها (انظر submit()). أي اختيار
-                  يدوي هنا خطر حقيقي: قد يُعيد المال لمراسل خاطئ. */}
-              {fields.swift_movement_id && (
-                <span className="rate-hint">
-                  حساب المراسل يُشتق تلقائياً من الحركة المختارة: {selectedReturnMovement?.partner_account_code ?? '—'}
-                </span>
               )}
             </div>
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ المرتجع كاملاً</label>
-                <input className="num" value={fields.total_amount ?? ''} onChange={(e) => setField('total_amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">رسوم على العميل</label>
-                <input className="num" value={fields.return_fee_amount ?? ''} onChange={(e) => setField('return_fee_amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">موقع العميل</label>
-                <LocationSelect value={fields.client_location_code ?? ''} onChange={(v) => setField('client_location_code', v)} locations={remitLocations} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {tab === 'LOCAL_MOVE' && (
-          <>
-            <div className="alert alert-info">نقل داخلي بين حسابات الشركة فقط — لا يمسّ أي حساب عميل إطلاقاً.</div>
-            <div className="field">
-              <label className="field-label">العملة</label>
-              <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
-            </div>
-            <div className="op-row">
-              <AccountPicker
-                value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} spec={localMoveFromSpec} label="من حساب"
-                emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
-              />
-              <AccountPicker
-                value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} spec={localMoveToSpec} label="إلى حساب"
-                emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
-              />
-            </div>
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">رسوم (اختياري — تُقيَّد في 5200)</label>
-                <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
-              </div>
-            </div>
-          </>
-        )}
-
-        {tab === 'OPENING' && (
-          <>
-            <div className="op-row">
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="opening-mode" checked={openingAccountMode === 'system'} onChange={() => setOpeningAccountMode('system')} />
-                حساب نظامي
-              </label>
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="opening-mode" checked={openingAccountMode === 'client'} onChange={() => setOpeningAccountMode('client')} disabled={!client} />
-                حساب عميل {!client && '(اختر عميلاً من العمود الأيمن أولاً)'}
-              </label>
-            </div>
-            {openingAccountMode === 'system' ? (
-              // استثناء مقصود — لا تصفية عبر /reference/accounts/for-operation هنا:
-              // رصيد افتتاحي قد يمسّ أي حساب في الشجرة، فتضييق الاختيار كان
-              // سيمنع حالات مشروعة لا يمكن حصرها مسبقاً (انظر توثيق الاستثناء
-              // الكامل في app/engine/account_filters.py).
-              <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
+          )}
+          {!isEdit && tab !== 'OPENING' && (
+            entryDate === todayInTripoli() ? (
+              <p className="text-muted" style={{ fontSize: 12, margin: '-6px 0 0' }}>سيُسجَّل بتاريخ اليوم ({entryDate})</p>
             ) : (
-              <div className="field">
-                <label className="field-label">حساب العميل (يجب أن يكون موجوداً فعلاً)</label>
-                <select value={fields.account_code ?? ''} onChange={(e) => setField('account_code', e.target.value)}>
-                  <option value="" disabled>{clientBalancesForOpening.length ? 'اختر حساباً' : 'لا حسابات بعد لهذا العميل'}</option>
-                  {clientBalancesForOpening.map((b) => (
-                    <option key={b.account_code} value={b.account_code}>{b.currency_code} — {b.location_code} ({b.account_code})</option>
-                  ))}
-                </select>
-              </div>
-            )}
-            <div className="op-row">
+              <FormGuide tone="warning">⚠ سيُسجَّل بتاريخ ماضٍ: {entryDate} — تحقَّق قبل الحفظ</FormGuide>
+            )
+          )}
+
+          {tab === 'EXCHANGE' && (
+            <PillTabs
+              label="نطاق الصرافة"
+              value={exchangeScope}
+              onChange={setExchangeScope}
+              options={[{ id: 'CLIENT', label: 'عميل' }, { id: 'TREASURY', label: 'خزينة (بين حسابي شركة)' }]}
+            />
+          )}
+
+          {tab !== 'CASH_TRANSFER' && (tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
+            <div className="form-row">
               <div className="field">
                 <label className="field-label">العملة</label>
-                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+                <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setLocationCode('') }} currencies={currencies} />
               </div>
-              <div className="field field-amount">
-                <label className="field-label">المبلغ</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-              <div className="field">
-                <label className="field-label">التاريخ (يقبل الماضي بحرّية في الفترة التأسيسية)</label>
-                <input type="date" value={fields.as_of_date ?? ''} onChange={(e) => setField('as_of_date', e.target.value)} />
-              </div>
+              {!(tab === 'EXCHANGE' && exchangeScope === 'TREASURY') && (
+                <div className="field">
+                  <label className="field-label">الموقع</label>
+                  <LocationSelect value={locationCode} onChange={setLocationCode} locations={fromLocations} disabled={!currencyCode} />
+                </div>
+              )}
             </div>
-            <div className="op-row">
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="opening-side" checked={fields.is_debit === 'true'} onChange={() => setField('is_debit', 'true')} />مدين
-              </label>
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="opening-side" checked={fields.is_debit === 'false'} onChange={() => setField('is_debit', 'false')} />دائن
-              </label>
-            </div>
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">مصدر الرصيد</label>
-                <select value={fields.source_type ?? ''} onChange={(e) => setField('source_type', e.target.value)}>
-                  <option value="" disabled>اختر</option>
-                  <option value="VERIFIED">مُتحقَّق منه</option>
-                  <option value="RECONSTRUCTED">مُعاد بناؤه</option>
-                  <option value="KNOWN_BALANCE">رصيد معروف</option>
-                  <option value="ADJUSTMENT">تسوية</option>
-                </select>
-              </div>
-              <div className="field">
-                <label className="field-label">درجة الثقة (تُحدِّد الطرف المقابل تلقائياً)</label>
-                <select value={fields.confidence ?? ''} onChange={(e) => setField('confidence', e.target.value)}>
-                  <option value="" disabled>اختر</option>
-                  <option value="HIGH">عالية → 3100 رأس المال</option>
-                  <option value="MEDIUM">متوسطة → 3900 فروق تأسيسية</option>
-                  <option value="LOW">منخفضة → 3900 فروق تأسيسية</option>
-                </select>
-              </div>
-            </div>
-            <div className="field">
-              <label className="field-label">ملاحظة (اختياري)</label>
-              <input value={fields.source_note ?? ''} onChange={(e) => setField('source_note', e.target.value)} />
-            </div>
-          </>
-        )}
+          )}
 
-        {tab === 'ADJUSTMENT' && (
-          <>
-            {/* استثناء مقصود — بلا تصفية عبر for-operation، نفس سبب OPENING أعلاه:
-                تسوية قد تمسّ أي حساب في الشجرة، لا الصندوق وحده. */}
-            <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
-            <div className="op-row">
-              <div className="field">
-                <label className="field-label">العملة</label>
-                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
-              </div>
-              <div className="field field-amount">
-                <label className="field-label">المبلغ</label>
-                <input className="num" value={fields.amount ?? ''} onChange={(e) => setField('amount', e.target.value)} />
-              </div>
-            </div>
-            <div className="op-row">
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="adj-side" checked={fields.is_debit === 'true'} onChange={() => setField('is_debit', 'true')} />
-                زيادة في الصندوق (فائض جرد)
-              </label>
-              <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input type="radio" name="adj-side" checked={fields.is_debit === 'false'} onChange={() => setField('is_debit', 'false')} />
-                عجز في الصندوق (نقص جرد)
-              </label>
-            </div>
-            <div className="field">
-              <label className="field-label">السبب (إلزامي)</label>
-              <input value={fields.reason ?? ''} onChange={(e) => setField('reason', e.target.value)} />
-            </div>
-          </>
-        )}
+          {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
+            <AccountPicker
+              value={treasurySourceAccount} onChange={setTreasurySourceAccount} spec={exchangeSourceSpec} label="الحساب المصدر"
+              emptyMessage={!currencyCode ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+            />
+          )}
 
-        {(tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE' || tab === 'CASH_TRANSFER') && (
-          <div className="op-row">
-            <div className="field field-amount">
-              <label className="field-label">المبلغ</label>
-              <input className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
+          {tab === 'EXCHANGE' && (
+            <div className="form-row">
+              <div className="field">
+                <label className="field-label">إلى عملة</label>
+                <CurrencySelect
+                  value={toCurrency}
+                  onChange={(v) => { setToCurrency(v); setToLocation('') }}
+                  currencies={currencies.filter((c) => c.code === PIVOT_CODE || currencyCode === PIVOT_CODE)}
+                />
+              </div>
+              {exchangeScope !== 'TREASURY' && (
+                <div className="field">
+                  <label className="field-label">إلى موقع</label>
+                  <LocationSelect value={toLocation} onChange={setToLocation} locations={toLocations} disabled={!toCurrency} />
+                </div>
+              )}
             </div>
-            {tab === 'EXCHANGE' && (
-              <>
+          )}
+
+          {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
+            <AccountPicker
+              value={treasuryDestAccount} onChange={setTreasuryDestAccount} spec={exchangeDestSpec} label="الحساب الوجهة"
+              emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+            />
+          )}
+
+          {(tab === 'RECEIPT' || tab === 'PAYMENT') && (
+            <AccountPicker
+              value={accountCode} onChange={setAccountCode} spec={receivingPayingSpec}
+              label={tab === 'RECEIPT' ? 'الحساب المستقبِل' : 'الحساب المصروف منه'}
+              emptyMessage={!currencyCode || !locationCode ? 'اختر العملة والموقع أولاً' : 'لا حسابات صناديق/مراسلين/بنوك بهذه العملة والموقع'}
+            />
+          )}
+
+          {tab === 'CASH_TRANSFER' && (
+            <>
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">العملة</label>
+                  <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setFromLocation(''); setToLocationCt('') }} currencies={currencies} />
+                </div>
+                <div className="field">
+                  <label className="field-label">من موقع</label>
+                  <LocationSelect value={fromLocation} onChange={setFromLocation} locations={ctFromLocations} disabled={!currencyCode} />
+                </div>
+                <div className="field">
+                  <label className="field-label">إلى موقع (يشمل بنغازي — عمولة فرق دائماً)</label>
+                  <LocationSelect value={toLocationCt} onChange={setToLocationCt} locations={ctToLocations} disabled={!currencyCode} />
+                </div>
+              </div>
+              {/* ٢٠٢٦-٠٩-٢٢: حقل المبلغ المنقول كان غائباً كلياً هنا — buildRequest()
+                  كان يرسل `amount` الحالة المشتركة (فارغة دائماً بعد resetForm()
+                  عند تبديل التبويب) بلا أي وسيلة لملئها؛ أي CASH_TRANSFER حقيقي
+                  كان سيُرفَض بمبلغ فارغ. اكتُشف أثناء اختبار حي كامل للإصلاح أعلاه. */}
+              <AmountStage id="ct-amount" label={`المبلغ المنقول (${currencyCode || '—'})`} value={amount} onChange={setAmount} currencyCode={currencyCode || undefined} />
+              <AccountPicker
+                value={sourceAccount} onChange={setSourceAccount} spec={ctSourceSpec} label="حساب المصدر (الشركة)"
+                emptyMessage={!currencyCode || !fromLocation ? 'اختر العملة وموقع المصدر أولاً' : 'لا حسابات بهذه العملة في موقع المصدر'}
+              />
+              <AccountPicker
+                value={executionAccount} onChange={setExecutionAccount} spec={ctExecutionSpec} label="الحساب المنفِّذ"
+                emptyMessage={!currencyCode || !toLocationCt ? 'اختر العملة وموقع الوجهة أولاً' : 'لا حسابات بهذه العملة في موقع الوجهة'}
+              />
+              {/* ٢٠٢٦-٠٩-٢٣ (توضيح مالك): عملة/حساب العمولة مستقلّان تماماً عن
+                  موقع الوجهة — عمولة دينار تُحصَّل وتُسوَّى في ليبيا لتحويل
+                  هدفه تركيا مثلاً. عملة العمولة أولاً هنا كي تُبنى قوائم
+                  الحسابات أدناه عليها مباشرة، لا بعد فوات الأوان. */}
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">عملة العمولة</label>
+                  <CurrencySelect
+                    value={commissionCurrency}
+                    onChange={(v) => {
+                      setCommissionCurrency(v)
+                      const valid = locationsForCurrency(v).some((l) => l.code === fromLocation)
+                      setCollectionLocation(valid ? fromLocation : '')
+                    }}
+                    currencies={currencies}
+                  />
+                </div>
+                <div className="field">
+                  <label className="field-label">عمولة العميل (تحصيل)</label>
+                  <input className="num" value={clientCommission} onChange={(e) => setClientCommission(e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">تكلفة العمولة</label>
+                  <input className="num" value={costCommission} onChange={(e) => setCostCommission(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="field">
+                <label className="field-label">حساب تحصيل العمولة</label>
+                <PillTabs
+                  label="حساب تحصيل العمولة"
+                  value={collectFromCompanyAccount ? 'COMPANY' : 'CLIENT'}
+                  onChange={(v) => setCollectFromCompanyAccount(v === 'COMPANY')}
+                  options={[{ id: 'CLIENT', label: 'من رصيد العميل' }, { id: 'COMPANY', label: 'حساب شركة' }]}
+                />
+              </div>
+              {collectFromCompanyAccount ? (
+                <AccountPicker
+                  value={collectionAccount} onChange={setCollectionAccount} spec={ctCollectionSpec} label="الحساب"
+                  emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات بعملة العمولة'}
+                />
+              ) : (
+                <div className="field">
+                  <label className="field-label">موقع رصيد العميل المخصوم منه</label>
+                  <LocationSelect value={collectionLocation} onChange={setCollectionLocation} locations={ctCollectionLocations} disabled={!commissionCurrency} />
+                </div>
+              )}
+              <AccountPicker
+                value={costCorrespondentAccount} onChange={setCostCorrespondentAccount} spec={ctCostCorrespondentSpec} label="حساب تكلفة العمولة (المراسل)"
+                emptyMessage={!commissionCurrency ? 'اختر عملة العمولة أولاً' : 'لا حسابات مراسلين بعملة العمولة'}
+              />
+            </>
+          )}
+
+          {tab === 'REMIT_OUT' && (
+            <>
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">الموقع المخصوم من العميل</label>
+                  <LocationSelect value={fields.from_location_code ?? ''} onChange={(v) => setField('from_location_code', v)} locations={remitLocations} />
+                </div>
+                <AccountPicker
+                  value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)}
+                  spec={remitOutPartnerSpec} label="حساب المراسل"
+                  emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
+                />
+              </div>
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">عملة المبلغ المُرسَل</label>
+                  <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+                </div>
+                <AmountStage id="remit-amount" label={`المبلغ (${fields.currency_code || '—'})`} value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} />
+              </div>
+              <div className="form-row">
                 <div className="field field-rate">
-                  <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
-                  <input className="num" value={clientRate} onChange={(e) => setClientRate(e.target.value)} />
+                  <label className="field-label">سعر العميل</label>
+                  <input className="num" value={fields.client_rate ?? ''} onChange={(e) => setField('client_rate', e.target.value)} />
                 </div>
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
-                  <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
-                  {exchangeScope !== 'TREASURY' && <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>}
+                  <input className="num" value={fields.cost_rate ?? ''} onChange={(e) => setField('cost_rate', e.target.value)} />
+                  <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
                 </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {tab === 'EXCHANGE' && exchangePreview && (
-          <div className={exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
-            {rateDirectionHint(exchangePreview.diff).text}
-          </div>
-        )}
-
-        {tab === 'EXCHANGE' && exchangePreview && (
-          <div className="result-card">
-            <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'بسعر التنفيذ ← ما أعطيته فعلاً' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
-            <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'بسعر التكلفة ← ما كان يجب أن أحصل عليه' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
-            <div className="result-row result-final">
-              <span>{profitOrLossLabel(exchangePreview.diff)} العملية</span>
-              <span className={`num ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
-                {exchangePreview.diff.toString()} {toCurrency}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {tab === 'EXCHANGE' && exchangePreview && exchangePreview.diff.lt(0) && (
-          <div className="field">
-            <label className="field-label">سبب الهامش السالب (إلزامي)</label>
-            <input value={negativeMarginReason} onChange={(e) => setNegativeMarginReason(e.target.value)} />
-          </div>
-        )}
-
-        <div className="field">
-          <label className="field-label" htmlFor="op-note">ملاحظة (اختياري)</label>
-          <textarea
-            id="op-note" value={fields.note ?? ''} onChange={(e) => setField('note', e.target.value)}
-            rows={2} placeholder="تظهر في الإيصال وكشف الحساب"
-          />
-        </div>
-
-        {isEdit && (
-          <div className="field">
-            <label className="field-label" htmlFor="edit-reason">سبب التعديل (إلزامي)</label>
-            <textarea
-              id="edit-reason" value={editReason} onChange={(e) => setEditReason(e.target.value)}
-              rows={2} placeholder="لماذا يُعدَّل هذا القيد؟"
-            />
-          </div>
-        )}
-
-        {error && <div className="alert alert-critical">{error}</div>}
-        {negOverride && (
-          <div className="alert alert-warning" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-            <div>سيصبح رصيد الحساب سالباً — هذا مسموح لكن يتطلب سبباً مكتوباً (مدير فقط، يُسجَّل في تقرير تجاوزات الرصيد).</div>
-            <textarea
-              value={negReason} onChange={(e) => setNegReason(e.target.value)} rows={2} autoFocus
-              placeholder="سبب تجاوز الرصيد — مثلاً: صرف عاجل قبل تغطية الصندوق"
-            />
-            <div className="op-row">
-              <button type="button" className="btn btn-secondary" onClick={() => setNegOverride(null)}>تراجع</button>
-              <button
-                type="button" className="btn btn-primary" style={{ flex: 1 }}
-                disabled={busy || !negReason.trim()} onClick={() => void confirmNegativeOverride()}
-              >
-                تأكيد الترحيل رغم الرصيد السالب
-              </button>
-            </div>
-          </div>
-        )}
-        {backdateOverride && (
-          <div className="alert alert-warning" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-            <div>الفترة الشهرية لهذا التاريخ مقفلة — القيد بأثر رجعي مسموح لمديرك الحالي لكن يتطلب سبباً مكتوباً.</div>
-            <textarea
-              value={backdateOverrideReason} onChange={(e) => setBackdateOverrideReason(e.target.value)} rows={2} autoFocus
-              placeholder="سبب القيد بأثر رجعي — مثلاً: تصحيح سهو مكتشف بعد الإقفال"
-            />
-            <div className="op-row">
-              <button type="button" className="btn btn-secondary" onClick={() => setBackdateOverride(null)}>تراجع</button>
-              <button
-                type="button" className="btn btn-primary" style={{ flex: 1 }}
-                disabled={busy || !backdateOverrideReason.trim()} onClick={() => void confirmBackdateOverride()}
-              >
-                تأكيد الترحيل بأثر رجعي
-              </button>
-            </div>
-          </div>
-        )}
-        {!isEdit && success && (
-          <div className="alert alert-info">
-            تم الترحيل — {success.entry_no}
-            {success.profit_amount && ` — ربح ${success.profit_amount} ${success.profit_currency}`}
-          </div>
-        )}
-
-        <div className="op-shortcuts">
-          <span className="kbd-chip">{isEdit ? 'Enter ترحيل التعديل' : 'Enter حفظ وترحيل'}</span>
-          {!isEdit && <span className="kbd-chip">Ctrl+Enter حفظ وطباعة</span>}
-          <span className="kbd-chip">Esc إلغاء</span>
-        </div>
-
-        <div className="op-row">
-          {isEdit && (
-            <button type="button" className="btn btn-secondary" onClick={onCancelEdit} disabled={busy}>تراجع</button>
+              </div>
+              {remitPreview && (
+                <div className={`rate-direction ${remitPreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
+                  {rateDirectionHint(remitPreview.diff).text}
+                </div>
+              )}
+              {remitPreview && (
+                <div className="result-card">
+                  <div className="result-row"><span>يُحصَّل من العميل</span><span className="num">{remitPreview.clientAmt.toString()} USD</span></div>
+                  <div className="result-row result-dashed"><span>التكلفة (داخلي)</span><span className="num text-muted">{remitPreview.costAmt.toString()} USD</span></div>
+                  <div className="result-row result-final">
+                    <span>{profitOrLossLabel(remitPreview.diff)} العملية</span>
+                    <span className={`num ${remitPreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{remitPreview.diff.toString()} USD</span>
+                  </div>
+                </div>
+              )}
+              {remitPreview && remitPreview.diff.lt(0) && (
+                <div className="field">
+                  <label className="field-label">سبب الهامش السالب (إلزامي)</label>
+                  <input value={fields.negative_margin_reason ?? ''} onChange={(e) => setField('negative_margin_reason', e.target.value)} />
+                </div>
+              )}
+            </>
           )}
-          <button
-            type="button" className="btn btn-primary btn-lg" style={{ width: '100%', flex: 1 }}
-            disabled={busy || (needsClient && !client) || adminBlocked || (isEdit && !editReason.trim())}
-            onClick={() => submit()}
-          >
-            {isEdit ? 'ترحيل التعديل' : 'حفظ وترحيل'}
-          </button>
-        </div>
+
+          {tab === 'EXPENSE' && (
+            <>
+              <div className="form-row">
+                <AccountPicker value={fields.expense_account_code ?? ''} onChange={(v) => setField('expense_account_code', v)} spec={expenseCategorySpec} typeFilter={['EXPENSE']} label="بند المصروف" />
+                <div className="field">
+                  <label className="field-label">العملة</label>
+                  <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+                </div>
+              </div>
+              <AccountPicker
+                value={fields.paying_account_code ?? ''} onChange={(v) => setField('paying_account_code', v)} spec={expensePayingSpec} label="الحساب المصروف منه"
+                emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا صناديق/بنوك بهذه العملة'}
+              />
+              <div className="form-row">
+                <AmountStage id="expense-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
+                <div className="field">
+                  <label className="field-label">البيان (إلزامي)</label>
+                  <input value={fields.description ?? ''} onChange={(e) => setField('description', e.target.value)} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'SWIFT_OUT' && (
+            <>
+              <AccountPicker
+                value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)} spec={swiftOutPartnerSpec} label="حساب المراسل (تركيا)"
+                emptyMessage="لا حسابات مراسلين بالدولار في تركيا — سجّل الشريك من شاشة الشركاء أولاً"
+              />
+              <div className="form-row">
+                <AmountStage id="swiftout-amount" label="المبلغ (USD)" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode="USD" />
+                <div className="field">
+                  <label className="field-label">مرجع خارجي (اختياري)</label>
+                  <input className="num" value={fields.external_ref ?? ''} onChange={(e) => setField('external_ref', e.target.value)} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'SWIFT_IN' && (
+            <>
+              <div className="field">
+                <label className="field-label">الحركة المعلَّقة (أُرسلت ولم تُستقبَل بعد)</label>
+                <SelectWrap>
+                  <select value={fields.swift_movement_id ?? ''} onChange={(e) => setField('swift_movement_id', e.target.value)}>
+                    <option value="" disabled>{pendingSwift.length ? 'اختر حركة' : 'لا حركات معلَّقة'}</option>
+                    {pendingSwift.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.out_entry_no ?? m.id} — {m.amount} {m.currency_code} — {m.partner_name_ar ?? 'مراسل'}
+                      </option>
+                    ))}
+                  </select>
+                </SelectWrap>
+              </div>
+              <div className="form-row">
+                <AmountStage id="swiftin-total" label="المبلغ الواصل" value={fields.total_amount ?? ''} onChange={(v) => setField('total_amount', v)} />
+                <div className="field">
+                  <label className="field-label">الرسوم الفعلية</label>
+                  <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
+                </div>
+              </div>
+              <AccountPicker
+                value={fields.receiving_account_code ?? ''} onChange={(v) => setField('receiving_account_code', v)} spec={swiftInReceivingSpec} label="الحساب المستقبِل"
+                emptyMessage={`لا بنوك صينية بعملة ${swiftInCurrency} — سجّل البنك من شاشة الشركاء أولاً`}
+              />
+              <div className="field">
+                <label className="field-label">سعر تحويل البنك للرمبي (اختياري)</label>
+                <input className="num" value={fields.bank_conversion_rate ?? ''} onChange={(e) => setField('bank_conversion_rate', e.target.value)} />
+                <span className="rate-hint">
+                  {fields.bank_conversion_rate
+                    ? 'سيُفتَح دفعة رمبي جديدة تلقائياً بهذا السعر عند الترحيل'
+                    : 'بلا سعر — إيداع دولار مباشر بلا فتح دفعة'}
+                </span>
+              </div>
+            </>
+          )}
+
+          {tab === 'SWIFT_RETURN' && (
+            <>
+              <div className="field">
+                <label className="field-label">الحركة المعلَّقة المطلوب ارتجاعها</label>
+                <SelectWrap>
+                  <select value={fields.swift_movement_id ?? ''} onChange={(e) => setField('swift_movement_id', e.target.value)}>
+                    <option value="" disabled>{pendingSwift.length ? 'اختر حركة' : 'لا حركات معلَّقة'}</option>
+                    {pendingSwift.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.out_entry_no ?? m.id} — {m.amount} {m.currency_code} — {m.partner_name_ar ?? 'مراسل'}
+                      </option>
+                    ))}
+                  </select>
+                </SelectWrap>
+                {/* بلا حقل اختيار حساب مراسل إطلاقاً — يُشتق آلياً من partner_account_code
+                    الذي تحمله الحركة المختارة نفسها (انظر submit()). أي اختيار
+                    يدوي هنا خطر حقيقي: قد يُعيد المال لمراسل خاطئ. */}
+                {fields.swift_movement_id && (
+                  <span className="rate-hint">
+                    حساب المراسل يُشتق تلقائياً من الحركة المختارة: {selectedReturnMovement?.partner_account_code ?? '—'}
+                  </span>
+                )}
+              </div>
+              <div className="form-row">
+                <AmountStage id="swiftreturn-total" label="المبلغ المرتجع كاملاً" value={fields.total_amount ?? ''} onChange={(v) => setField('total_amount', v)} />
+                <div className="field">
+                  <label className="field-label">رسوم على العميل</label>
+                  <input className="num" value={fields.return_fee_amount ?? ''} onChange={(e) => setField('return_fee_amount', e.target.value)} />
+                </div>
+                <div className="field">
+                  <label className="field-label">موقع العميل</label>
+                  <LocationSelect value={fields.client_location_code ?? ''} onChange={(v) => setField('client_location_code', v)} locations={remitLocations} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'LOCAL_MOVE' && (
+            <>
+              <FormGuide tone="info">نقل داخلي بين حسابات الشركة فقط — لا يمسّ أي حساب عميل إطلاقاً.</FormGuide>
+              <div className="field">
+                <label className="field-label">العملة</label>
+                <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+              </div>
+              <div className="form-row">
+                <AccountPicker
+                  value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} spec={localMoveFromSpec} label="من حساب"
+                  emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+                />
+                <AccountPicker
+                  value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} spec={localMoveToSpec} label="إلى حساب"
+                  emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
+                />
+              </div>
+              <div className="form-row">
+                <AmountStage id="localmove-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
+                <div className="field">
+                  <label className="field-label">رسوم (اختياري — تُقيَّد في 5200)</label>
+                  <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === 'OPENING' && (
+            <>
+              <div className="choice-row">
+                <label className="check-row">
+                  <input type="radio" name="opening-mode" checked={openingAccountMode === 'system'} onChange={() => setOpeningAccountMode('system')} />
+                  حساب نظامي
+                </label>
+                <label className="check-row">
+                  <input type="radio" name="opening-mode" checked={openingAccountMode === 'client'} onChange={() => setOpeningAccountMode('client')} disabled={!client} />
+                  حساب عميل {!client && '(اختر عميلاً من العمود الأيمن أولاً)'}
+                </label>
+              </div>
+              {openingAccountMode === 'system' ? (
+                // استثناء مقصود — لا تصفية عبر /reference/accounts/for-operation هنا:
+                // رصيد افتتاحي قد يمسّ أي حساب في الشجرة، فتضييق الاختيار كان
+                // سيمنع حالات مشروعة لا يمكن حصرها مسبقاً (انظر توثيق الاستثناء
+                // الكامل في app/engine/account_filters.py).
+                <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
+              ) : (
+                <div className="field">
+                  <label className="field-label">حساب العميل (يجب أن يكون موجوداً فعلاً)</label>
+                  <SelectWrap>
+                    <select value={fields.account_code ?? ''} onChange={(e) => setField('account_code', e.target.value)}>
+                      <option value="" disabled>{clientBalancesForOpening.length ? 'اختر حساباً' : 'لا حسابات بعد لهذا العميل'}</option>
+                      {clientBalancesForOpening.map((b) => (
+                        <option key={b.account_code} value={b.account_code}>{b.currency_code} — {b.location_code} ({b.account_code})</option>
+                      ))}
+                    </select>
+                  </SelectWrap>
+                </div>
+              )}
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">العملة</label>
+                  <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+                </div>
+                <AmountStage id="opening-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
+                <div className="field">
+                  <label className="field-label">التاريخ (يقبل الماضي بحرّية في الفترة التأسيسية)</label>
+                  <input type="date" value={fields.as_of_date ?? ''} onChange={(e) => setField('as_of_date', e.target.value)} />
+                </div>
+              </div>
+              <div className="choice-row">
+                <label className="check-row">
+                  <input type="radio" name="opening-side" checked={fields.is_debit === 'true'} onChange={() => setField('is_debit', 'true')} />مدين
+                </label>
+                <label className="check-row">
+                  <input type="radio" name="opening-side" checked={fields.is_debit === 'false'} onChange={() => setField('is_debit', 'false')} />دائن
+                </label>
+              </div>
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">مصدر الرصيد</label>
+                  <SelectWrap>
+                    <select value={fields.source_type ?? ''} onChange={(e) => setField('source_type', e.target.value)}>
+                      <option value="" disabled>اختر</option>
+                      <option value="VERIFIED">مُتحقَّق منه</option>
+                      <option value="RECONSTRUCTED">مُعاد بناؤه</option>
+                      <option value="KNOWN_BALANCE">رصيد معروف</option>
+                      <option value="ADJUSTMENT">تسوية</option>
+                    </select>
+                  </SelectWrap>
+                </div>
+                <div className="field">
+                  <label className="field-label">درجة الثقة (تُحدِّد الطرف المقابل تلقائياً)</label>
+                  <SelectWrap>
+                    <select value={fields.confidence ?? ''} onChange={(e) => setField('confidence', e.target.value)}>
+                      <option value="" disabled>اختر</option>
+                      <option value="HIGH">عالية → 3100 رأس المال</option>
+                      <option value="MEDIUM">متوسطة → 3900 فروق تأسيسية</option>
+                      <option value="LOW">منخفضة → 3900 فروق تأسيسية</option>
+                    </select>
+                  </SelectWrap>
+                </div>
+              </div>
+              <div className="field">
+                <label className="field-label">ملاحظة (اختياري)</label>
+                <input value={fields.source_note ?? ''} onChange={(e) => setField('source_note', e.target.value)} />
+              </div>
+            </>
+          )}
+
+          {tab === 'ADJUSTMENT' && (
+            <>
+              {/* استثناء مقصود — بلا تصفية عبر for-operation، نفس سبب OPENING أعلاه:
+                  تسوية قد تمسّ أي حساب في الشجرة، لا الصندوق وحده. */}
+              <AccountPicker value={fields.account_code ?? ''} onChange={(v) => setField('account_code', v)} spec={fullAccountListSpec} label="الحساب" />
+              <div className="form-row">
+                <div className="field">
+                  <label className="field-label">العملة</label>
+                  <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
+                </div>
+                <AmountStage id="adjustment-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
+              </div>
+              <div className="choice-row">
+                <label className="check-row">
+                  <input type="radio" name="adj-side" checked={fields.is_debit === 'true'} onChange={() => setField('is_debit', 'true')} />
+                  زيادة في الصندوق (فائض جرد)
+                </label>
+                <label className="check-row">
+                  <input type="radio" name="adj-side" checked={fields.is_debit === 'false'} onChange={() => setField('is_debit', 'false')} />
+                  عجز في الصندوق (نقص جرد)
+                </label>
+              </div>
+              <div className="field">
+                <label className="field-label">السبب (إلزامي)</label>
+                <input value={fields.reason ?? ''} onChange={(e) => setField('reason', e.target.value)} />
+              </div>
+            </>
+          )}
+
+          {(tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
+            <div className="form-row">
+              <AmountStage id="op-amount" label="المبلغ" value={amount} onChange={setAmount} currencyCode={currencyCode || undefined} />
+              {tab === 'EXCHANGE' && (
+                <>
+                  <div className="field field-rate">
+                    <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
+                    <input className="num" value={clientRate} onChange={(e) => setClientRate(e.target.value)} />
+                  </div>
+                  <div className="field field-rate">
+                    <label className="field-label">سعر التكلفة</label>
+                    <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
+                    {exchangeScope !== 'TREASURY' && <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {tab === 'EXCHANGE' && exchangePreview && (
+            <div className={`rate-direction ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
+              {rateDirectionHint(exchangePreview.diff).text}
+            </div>
+          )}
+
+          {tab === 'EXCHANGE' && exchangePreview && (
+            <div className="result-card">
+              <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'بسعر التنفيذ ← ما أعطيته فعلاً' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
+              <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'بسعر التكلفة ← ما كان يجب أن أحصل عليه' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
+              <div className="result-row result-final">
+                <span>{profitOrLossLabel(exchangePreview.diff)} العملية</span>
+                <span className={`num ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
+                  {exchangePreview.diff.toString()} {toCurrency}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {tab === 'EXCHANGE' && exchangePreview && exchangePreview.diff.lt(0) && (
+            <div className="field">
+              <label className="field-label">سبب الهامش السالب (إلزامي)</label>
+              <input value={negativeMarginReason} onChange={(e) => setNegativeMarginReason(e.target.value)} />
+            </div>
+          )}
+
+          <div className="field">
+            <label className="field-label" htmlFor="op-note">ملاحظة (اختياري)</label>
+            <textarea
+              id="op-note" value={fields.note ?? ''} onChange={(e) => setField('note', e.target.value)}
+              rows={2} placeholder="تظهر في الإيصال وكشف الحساب"
+            />
+          </div>
+
+          {isEdit && (
+            <div className="field">
+              <label className="field-label" htmlFor="edit-reason">سبب التعديل (إلزامي)</label>
+              <textarea
+                id="edit-reason" value={editReason} onChange={(e) => setEditReason(e.target.value)}
+                rows={2} placeholder="لماذا يُعدَّل هذا القيد؟"
+              />
+            </div>
+          )}
+
+          {error && <FormGuide tone="critical">{error}</FormGuide>}
+          {negOverride && (
+            <FormGuide tone="critical">
+              <div>سيصبح رصيد الحساب سالباً — هذا مسموح لكن يتطلب سبباً مكتوباً (مدير فقط، يُسجَّل في تقرير تجاوزات الرصيد).</div>
+              <textarea
+                value={negReason} onChange={(e) => setNegReason(e.target.value)} rows={2} autoFocus
+                placeholder="سبب تجاوز الرصيد — مثلاً: صرف عاجل قبل تغطية الصندوق"
+              />
+              <div className="form-row">
+                <button type="button" className="btn btn-secondary" onClick={() => setNegOverride(null)}>تراجع</button>
+                <button
+                  type="button" className="btn btn-primary" style={{ flex: 1 }}
+                  disabled={busy || !negReason.trim()} onClick={() => void confirmNegativeOverride()}
+                >
+                  تأكيد الترحيل رغم الرصيد السالب
+                </button>
+              </div>
+            </FormGuide>
+          )}
+          {backdateOverride && (
+            <FormGuide tone="warning">
+              <div>الفترة الشهرية لهذا التاريخ مقفلة — القيد بأثر رجعي مسموح لمديرك الحالي لكن يتطلب سبباً مكتوباً.</div>
+              <textarea
+                value={backdateOverrideReason} onChange={(e) => setBackdateOverrideReason(e.target.value)} rows={2} autoFocus
+                placeholder="سبب القيد بأثر رجعي — مثلاً: تصحيح سهو مكتشف بعد الإقفال"
+              />
+              <div className="form-row">
+                <button type="button" className="btn btn-secondary" onClick={() => setBackdateOverride(null)}>تراجع</button>
+                <button
+                  type="button" className="btn btn-primary" style={{ flex: 1 }}
+                  disabled={busy || !backdateOverrideReason.trim()} onClick={() => void confirmBackdateOverride()}
+                >
+                  تأكيد الترحيل بأثر رجعي
+                </button>
+              </div>
+            </FormGuide>
+          )}
+          {!isEdit && success && (
+            <FormGuide tone="success">
+              تم الترحيل — {success.entry_no}
+              {success.profit_amount && ` — ربح ${success.profit_amount} ${success.profit_currency}`}
+            </FormGuide>
+          )}
+
+          <div className="command-bar">
+            <div className="command-hints">
+              <span><kbd>Enter</kbd> {isEdit ? 'ترحيل التعديل' : 'حفظ وترحيل'}</span>
+              {!isEdit && <span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> حفظ وطباعة</span>}
+              <span><kbd>Esc</kbd> إلغاء</span>
+            </div>
+            <div className="command-actions">
+              {isEdit && (
+                <button type="button" className="btn btn-secondary" onClick={onCancelEdit} disabled={busy}>تراجع</button>
+              )}
+              <button
+                type="button" className="btn btn-primary btn-lg btn-post"
+                disabled={busy || (needsClient && !client) || adminBlocked || (isEdit && !editReason.trim())}
+                onClick={() => submit()}
+              >
+                {isEdit ? 'ترحيل التعديل' : 'حفظ وترحيل'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </section>
   )

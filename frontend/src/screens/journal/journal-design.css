@@ -97,18 +97,19 @@
 .icon-btn:hover { background: var(--sky-100); }
 
 .operation-dock {
-  display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--space-1);
+  display: flex; flex-wrap: nowrap; align-items: stretch; gap: var(--space-1);
   margin-top: var(--space-4); padding: var(--space-1);
   border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--sky-50);
 }
 .operation-dock + .operation-dock { margin-top: var(--space-2); }
 .operation-tab {
-  flex: 1 1 96px; min-width: 0; height: 40px; padding: 0 var(--space-2);
+  flex: 1 1 0; min-width: 0; height: 40px; padding: 0 var(--space-2);
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary);
-  font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
   transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
+.operation-tab span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .operation-tab:hover { background: #fff; color: var(--text-primary); }
 .operation-tab.is-active { background: var(--sky-500); color: #fff; box-shadow: var(--shadow-primary-btn); }
 .operation-tab:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; }
@@ -120,6 +121,10 @@
 .tab-icon.tone-commission { color: var(--commission-text); }
 .tab-icon.tone-neutral { color: var(--sky-700); }
 .more-tab { flex: 0 0 auto; padding-inline: var(--space-3); }
+@media (max-width: 1279px) {
+  /* أضيق: أيقونة بلا تسمية نصّية بدل النص المقتطع بلا فائدة */
+  .operation-tab:not(.more-tab) span:last-child { display: none; }
+}
 
 /* pill-tab: تبويبات فرعية مصغّرة بنمط مرشّحات النشاط */
 .pill-tabs { display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--sky-50); border: 1px solid var(--border); align-self: flex-start; }
@@ -185,15 +190,9 @@
 .amount-stage .amount-entry input::placeholder { color: var(--sky-200); }
 .amount-currency { flex: none; padding: 4px 10px; border-radius: 8px; background: var(--sky-100); color: var(--sky-700); font-size: 13px; font-weight: 600; }
 
-/* result-card (المنطق الحقيقي للمعاينة — لا معاينة عامة) */
-.result-card {
-  display: flex; flex-direction: column; gap: var(--space-2);
-  padding: var(--space-4); border: 1px solid var(--sky-300); border-radius: var(--radius-md); background: var(--sky-50);
-}
-.result-row { display: flex; justify-content: space-between; gap: var(--space-3); font-size: 14px; }
-.result-dashed { border-top: 1px dashed var(--sky-300); padding-top: var(--space-2); }
-.result-final { border-top: 1px solid var(--sky-300); padding-top: var(--space-2); font-weight: 700; font-size: 16px; }
-.rate-hint { font-size: 12px; color: var(--text-muted); margin-inline-start: 2px; }
+/* result-card / result-row / result-dashed / result-final / rate-hint:
+ * تُعرَّف بالفعل في JournalScreen.css (منطق المعاينة الحقيقي، بند القائمة
+ * ١٠) وتُستعمَل هناك حياً — لا تكرار هنا كي لا يصبح مصدر الحقيقة مزدوجاً. */
 .rate-direction { font-weight: 600; font-size: 14px; }
 
 /* command-bar */
