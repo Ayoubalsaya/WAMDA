@@ -1,0 +1,76 @@
+/* SegmentedTabs — الكبسولة المتمددة الموحَّدة. آلية الحركة عامة تماماً
+ * (JS، انظر SegmentedTabs.tsx)؛ هذا الملف "أنسجة" بصرية فقط لكل واستخدام
+ * (variant) — الألوان من tokens.css حصراً. */
+
+.seg-tabs { position: relative; }
+.seg-tabs-horizontal { display: inline-flex; width: 100%; }
+.seg-tabs-vertical { display: inline-flex; flex-direction: column; }
+
+.seg-pill {
+  position: absolute; top: 0; left: 0; z-index: 1;
+  border-radius: 999px; pointer-events: none;
+  will-change: transform, width, height;
+  transition: opacity 150ms ease;
+}
+.seg-tabs-horizontal .seg-pill { height: 100%; }
+.seg-tabs-vertical .seg-pill { width: 100%; }
+
+.seg-row { position: absolute; inset: 0; z-index: 2; display: flex; align-items: stretch; }
+.seg-tabs-vertical .seg-row { flex-direction: column; }
+.seg-row-base { position: relative; z-index: 2; width: 100%; }
+.seg-clip-window {
+  position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none;
+  will-change: transform, width, height;
+  transition: opacity 150ms ease;
+}
+.seg-row-overlay { position: absolute; inset: 0; display: flex; align-items: stretch; pointer-events: none; }
+.seg-tabs-vertical .seg-row-overlay { flex-direction: column; }
+
+.seg-tab {
+  position: relative; flex: 1 1 0; min-width: 0; border: 0; background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font: inherit; cursor: pointer; white-space: nowrap;
+}
+.seg-tab:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; border-radius: 8px; }
+.seg-row-overlay .seg-tab { cursor: default; }
+.seg-tab span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-pill, .seg-clip-window { transition: none; }
+}
+
+/* ── dock: أنواع العمليات باليومية ────────────────────────────────────
+ * لا خلفية/حدود خاصة بها — تُعرَض داخل حاوية `.operation-dock` الأب التي
+ * تحمل الخلفية والحدود (وتضمّ أيضاً زر «المزيد» غير المنضمّ للمجموعة). */
+.seg-tabs-dock { flex: 1; min-width: 0; }
+.seg-tabs-dock .seg-row { gap: var(--space-1); }
+.seg-tabs-dock .seg-pill { background: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
+.seg-tabs-dock .seg-tab { height: 40px; padding: 0 var(--space-2); border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.seg-tabs-dock .seg-row-overlay .seg-tab { color: #fff; }
+.seg-tabs-dock .tab-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; flex: none; }
+.seg-tabs-dock .seg-row-overlay .tab-icon { background: rgba(255, 255, 255, .2); color: #fff; }
+.seg-tabs-dock .seg-row-base .tab-icon.tone-in { color: var(--money-in-text); }
+.seg-tabs-dock .seg-row-base .tab-icon.tone-out { color: var(--money-out-text); }
+.seg-tabs-dock .seg-row-base .tab-icon.tone-exchange { color: var(--exchange-text); }
+.seg-tabs-dock .seg-row-base .tab-icon.tone-commission { color: var(--commission-text); }
+.seg-tabs-dock .seg-row-base .tab-icon.tone-neutral { color: var(--sky-700); }
+
+/* ── pill: نطاق الصرافة · يوم/نطاق السجل · تبويبات فرعية عامة ────────── */
+.seg-tabs-pill { padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--sky-50); }
+.seg-tabs-pill .seg-row { padding: 3px; gap: 3px; }
+.seg-tabs-pill .seg-pill { background: #fff; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
+.seg-tabs-pill .seg-tab { height: 32px; padding: 0 var(--space-3); border-radius: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.seg-tabs-pill .seg-row-overlay .seg-tab { color: var(--sky-800); font-weight: 600; }
+
+/* ── rail: الشريط الجانبي رأسياً (أيقونات فقط) ───────────────────────── */
+.seg-tabs-rail { gap: 6px; }
+.seg-tabs-rail .seg-row { gap: 6px; }
+.seg-tabs-rail .seg-tab { width: 72px; height: 64px; color: rgba(255, 255, 255, .82); }
+.seg-tabs-rail .seg-pill {
+  left: auto; right: 0; width: calc(100% + 22px); background: var(--canvas);
+  border-start-start-radius: 24px; border-end-start-radius: 24px;
+  -webkit-mask-image: radial-gradient(circle 14px at 0% 0%, transparent 14px, #000 14.5px), radial-gradient(circle 14px at 0% 100%, transparent 14px, #000 14.5px);
+  mask-image: radial-gradient(circle 14px at 0% 0%, transparent 14px, #000 14.5px), radial-gradient(circle 14px at 0% 100%, transparent 14px, #000 14.5px);
+  mask-composite: intersect; -webkit-mask-composite: source-in, source-in;
+}
+.seg-tabs-rail .seg-row-overlay .seg-tab { color: var(--sky-700); }

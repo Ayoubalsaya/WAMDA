@@ -6,6 +6,7 @@ import {
 import { api } from '../../api/client'
 import type { JournalEntryOut } from '../../api/types'
 import { CommentsPanel, EditedBadge, EntryActionsBar } from '../../components/EntryActions'
+import { SegmentedTabs } from '../../components/SegmentedTabs'
 import './journal-design.css'
 
 const OP_LABELS: Record<string, string> = {
@@ -93,10 +94,10 @@ export function OperationsList({ currentUserRole, refreshToken }: OperationsList
           </label>
         </div>
 
-        <div className="activity-filters">
-          <button type="button" className={mode === 'day' ? 'is-active' : ''} onClick={() => setMode('day')}>يوم</button>
-          <button type="button" className={mode === 'range' ? 'is-active' : ''} onClick={() => setMode('range')}>نطاق</button>
-        </div>
+        <SegmentedTabs
+          variant="pill" ariaLabel="عرض السجل" value={mode} onChange={setMode}
+          items={[{ id: 'day', label: 'يوم' }, { id: 'range', label: 'نطاق' }]}
+        />
 
         {mode === 'day' ? (
           <>

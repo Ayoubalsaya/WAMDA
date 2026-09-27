@@ -10,6 +10,7 @@ import type {
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { AmountStage, FormGuide, PillTabs, SelectWrap } from './journalUi'
 import './journal-design.css'
 
@@ -522,25 +523,19 @@ export function OperationForm({
   const isEdit = mode === 'edit'
   const activeMeta = ALL_TABS.find((t) => t.id === tab)
 
-  function renderTab(t: TabMeta) {
-    const Icon = t.icon
-    return (
-      <button
-        key={t.id} type="button" role="tab" aria-selected={tab === t.id}
-        className={`operation-tab${tab === t.id ? ' is-active' : ''}`}
-        onClick={() => { setTab(t.id); setMoreOpen(false) }}
-      >
-        <span className={`tab-icon tone-${t.tone}`}><Icon size={15} strokeWidth={2} /></span>
-        <span>{t.label}</span>
-      </button>
-    )
+  function toDockItems(metas: TabMeta[]) {
+    return metas.map((t) => ({ id: t.id, label: t.label, tone: t.tone, icon: <t.icon size={15} strokeWidth={2} /> }))
   }
 
   return (
     <section className="journal-col journal-col-center">
       {!isEdit && (
-        <div className="operation-dock" role="tablist" aria-label="نوع العملية">
-          {LEVEL1.map(renderTab)}
+        <div className="operation-dock">
+          <SegmentedTabs
+            variant="dock" ariaLabel="نوع العملية" value={tab}
+            onChange={(id) => { setTab(id); setMoreOpen(false) }}
+            items={toDockItems(LEVEL1)}
+          />
           <button
             type="button" className={`operation-tab more-tab${moreOpen ? ' is-active' : ''}`}
             aria-expanded={moreOpen} onClick={() => setMoreOpen((v) => !v)}
@@ -552,8 +547,8 @@ export function OperationForm({
       )}
 
       {!isEdit && moreOpen && (
-        <div className="operation-dock" role="tablist" aria-label="أنواع إضافية">
-          {LEVEL2.map(renderTab)}
+        <div className="operation-dock">
+          <SegmentedTabs variant="dock" ariaLabel="أنواع إضافية" value={tab} onChange={setTab} items={toDockItems(LEVEL2)} />
         </div>
       )}
 

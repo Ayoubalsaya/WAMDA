@@ -113,28 +113,20 @@
 .operation-tab:hover { background: #fff; color: var(--text-primary); }
 .operation-tab.is-active { background: var(--sky-500); color: #fff; box-shadow: var(--shadow-primary-btn); }
 .operation-tab:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; }
-.tab-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; flex: none; }
-.operation-tab.is-active .tab-icon { background: rgba(255, 255, 255, .2); color: #fff; }
-.tab-icon.tone-in { color: var(--money-in-text); }
-.tab-icon.tone-out { color: var(--money-out-text); }
-.tab-icon.tone-exchange { color: var(--exchange-text); }
-.tab-icon.tone-commission { color: var(--commission-text); }
-.tab-icon.tone-neutral { color: var(--sky-700); }
 .more-tab { flex: 0 0 auto; padding-inline: var(--space-3); }
+/* أنواع العمليات نفسها (LEVEL1/LEVEL2) تُعرَض عبر <SegmentedTabs
+ * variant="dock"> (الكبسولة النابضة) — .tab-icon/.tone-* الفعليتان في
+ * components/SegmentedTabs.css الآن. .operation-tab أعلاه يبقى لزر
+ * «المزيد» وحده (غير منضمّ لمجموعة التبويبات المتحركة). */
 @media (max-width: 1279px) {
   /* أضيق: أيقونة بلا تسمية نصّية بدل النص المقتطع بلا فائدة */
-  .operation-tab:not(.more-tab) span:last-child { display: none; }
+  .operation-tab:not(.more-tab) span:last-child,
+  .seg-tabs-dock .seg-tab span:last-child { display: none; }
 }
 
-/* pill-tab: تبويبات فرعية مصغّرة بنمط مرشّحات النشاط */
-.pill-tabs { display: inline-flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--sky-50); border: 1px solid var(--border); align-self: flex-start; }
-.pill-tab {
-  height: 32px; padding: 0 var(--space-3); border: 0; border-radius: 8px; background: transparent;
-  color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap;
-}
-.pill-tab:hover { color: var(--text-primary); }
-.pill-tab.is-active { background: #fff; color: var(--sky-800); font-weight: 600; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
-.pill-tab:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; }
+/* .pill-tabs/.pill-tab كانتا هنا — PillTabs (journalUi.tsx) صارت غلافاً
+ * فوق SegmentedTabs المشتركة (variant="pill", الكبسولة النابضة، طلب مالك
+ * ٢٠٢٦-٠٩-٢٧)؛ التنسيق البصري الآن في components/SegmentedTabs.css. */
 
 /* form-guide: شريط جانبي ملوّن + خلفية فاتحة */
 .form-guide {
@@ -213,13 +205,8 @@
 .command-actions .btn-post { min-width: 168px; }
 
 /* ── سجل العمليات ────────────────────────────────────────────────── */
-.activity-filters { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: var(--sky-50); border: 1px solid var(--border); }
-.activity-filters button {
-  flex: 1; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary);
-  font: inherit; font-size: 13px; cursor: pointer;
-}
-.activity-filters button.is-active { background: #fff; color: var(--sky-800); font-weight: 600; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
-.activity-filters button:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; }
+/* .activity-filters كانت هنا — استُبدلت بـ<SegmentedTabs variant="pill">
+ * (الكبسولة النابضة، طلب مالك ٢٠٢٦-٠٩-٢٧) في OperationsList.tsx. */
 .date-control {
   display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-3);
   padding: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;

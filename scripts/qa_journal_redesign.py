@@ -479,8 +479,10 @@ def extras(r: Runner):
     r.shot("X_wizard_step1")
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(200)
-    if pg.locator(".modal-veil, .wizard-panel, .modal-backdrop").count():
-        pg.locator(".wizard-close, .modal-close").first.click()
+    # ٢٠٢٦-٠٩-٢٧: .jr-modal-backdrop/.jr-modal-close بعد إعادة تصميم غلاف
+    # المعالج (كانت .modal-veil/.wizard-panel/.wizard-close/.modal-close).
+    if pg.locator(".jr-modal-backdrop, .modal-veil, .wizard-panel, .modal-backdrop").count():
+        pg.locator(".jr-modal-close, .wizard-close, .modal-close").first.click()
     rows = pg.locator(".today-op-summary, .activity-item")
     if rows.count():
         rows.first.click()

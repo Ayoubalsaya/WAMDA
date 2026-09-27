@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { ChevronDown, X } from 'lucide-react'
+import { SegmentedTabs } from '../../components/SegmentedTabs'
 
 // مفردات تصميم دفتر اليومية (docs/design/journal-redesign-plan.md) كمكوّنات
 // عرض صرفة — لا منطق ولا حالة هنا؛ القيم كلها تأتي من الشاشة (الأنماط في
@@ -55,17 +56,11 @@ export function AmountStage({
   )
 }
 
-// pill-tab: تبويبات فرعية صغيرة (نطاق الصرافة · مصدر تحصيل العمولة).
+// pill-tab: تبويبات فرعية صغيرة (نطاق الصرافة · مصدر تحصيل العمولة) —
+// غلاف رقيق فوق SegmentedTabs المشتركة (الكبسولة النابضة، طلب مالك
+// ٢٠٢٦-٠٩-٢٧) بمظهر "pill". لا منطق حركة هنا — كله في المكوّن المشترك.
 export function PillTabs<T extends string>({
   value, options, onChange, label,
 }: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
-  return (
-    <div className="pill-tabs" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.id} type="button" className={`pill-tab${value === o.id ? ' is-active' : ''}`} aria-pressed={value === o.id} onClick={() => onChange(o.id)}>
-          {o.label}
-        </button>
-      ))}
-    </div>
-  )
+  return <SegmentedTabs variant="pill" ariaLabel={label} value={value} onChange={onChange} items={options} />
 }
