@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1A7B9E" />
+    <meta name="description" content="ومضة 3.01V — مركز قيادة دفتر اليومية" />
+    <title>ومضة 3.01V — مركز قيادة دفتر اليومية</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="side-rail" aria-label="التنقل الرئيسي">
+        <div class="rail-brand"><span class="brand-glyph">و</span><span>ومضة</span></div>
+        <div class="rail-date"><span>24</span><small>سبتمبر<br />2026</small></div>
+        <nav class="rail-nav">
+          <button class="rail-link" data-screen="dashboard" data-shortcut="1" title="لوحة التحكم — Alt+1"><span class="rail-icon">⌂</span><small>الرئيسية</small></button>
+          <button class="rail-link is-active" data-screen="journal" data-shortcut="2" title="دفتر اليومية — Alt+2"><span class="rail-icon">▤</span><small>اليومية</small></button>
+          <button class="rail-link" data-screen="clients" data-shortcut="3" title="العملاء — Alt+3"><span class="rail-icon">♙</span><small>العملاء</small></button>
+          <button class="rail-link" data-screen="treasury" data-shortcut="4" title="مركز السيولة — Alt+4"><span class="rail-icon">◈</span><small>السيولة</small></button>
+          <span class="rail-divider"></span>
+          <button class="rail-link" data-screen="reports" data-shortcut="5" title="التقارير — Alt+5"><span class="rail-icon">▥</span><small>التقارير</small></button>
+          <button class="rail-link" data-screen="settings" data-shortcut="6" title="الإعدادات — Alt+6"><span class="rail-icon">⚙</span><small>الإعدادات</small></button>
+        </nav>
+        <button class="rail-create" id="openCreate" title="عملية جديدة — Ctrl+N"><span>＋</span><small>جديد</small></button>
+        <div class="rail-footer"><span class="online-light"></span><small>متصل</small></div>
+      </aside>
+
+      <div class="main-area">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>المساحة المالية</span><b>›</b><strong>دفتر اليومية</strong></div>
+          <div class="command-search"><span class="search-symbol">⌕</span><input id="globalSearch" type="search" placeholder="ابحث عن عميل، عملية أو رقم قيد..." autocomplete="off" /><kbd>/</kbd><div class="search-results" id="searchResults" hidden></div></div>
+          <div class="top-actions">
+            <button class="top-action" id="notificationButton" aria-expanded="false" aria-label="التنبيهات"><span>♢</span><b class="notification-count">3</b></button>
+            <button class="top-action" id="focusToggle" aria-label="تبديل وضع التركيز" title="وضع التركيز"><span>⌗</span></button>
+            <div class="user-menu"><span class="avatar avatar-small">م</span><span><strong>محمد سالم</strong><small>مدير مالي</small></span><button>⌄</button></div>
+            <div class="notification-popover" id="notificationPopover" hidden>
+              <div class="popover-head"><strong>التنبيهات</strong><button id="markRead">تحديد كمقروء</button></div>
+              <div class="notification-row"><span class="status-dot warning"></span><div><strong>تسوية تحتاج مراجعة</strong><small>منذ ٨ دقائق</small></div></div>
+              <div class="notification-row"><span class="status-dot info"></span><div><strong>تم ترحيل عملية صرافة</strong><small>منذ ٣٢ دقيقة</small></div></div>
+              <div class="notification-row"><span class="status-dot danger"></span><div><strong>رصيد منخفض — صندوق طرابلس</strong><small>منذ ساعة</small></div></div>
+            </div>
+          </div>
+        </header>
+
+        <main class="content" id="mainContent">
+          <section class="hero-row">
+            <div class="hero-copy"><div class="eyebrow"><span class="pulse-dot"></span> مساحة العمل اليومية <i>•</i> الأربعاء 24 سبتمبر 2026</div><h1>دفتر اليومية <span>بهدوء أكثر، بسرعة أكبر.</span></h1><p>مركز واحد يربط العميل بالعملية وبالأثر المالي قبل الترحيل.</p></div>
+            <div class="hero-actions"><button class="btn btn-quiet" id="focusSearch"><span>⌕</span> بحث سريع <kbd>/</kbd></button><button class="btn btn-primary" id="openCreateHeader"><span>＋</span> عملية جديدة</button></div>
+          </section>
+
+          <section class="pulse-deck" aria-label="نبض الحركة اليوم">
+            <div class="pulse-main"><div class="pulse-label"><span class="pulse-orb">↗</span><span><small>صافي حركة اليوم</small><strong class="num">+ 24,850.000 <em>LYD</em></strong></span></div><span class="pulse-trend">+12.4%</span><div class="pulse-line"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+            <div class="pulse-stat"><span class="stat-mark cyan">◌</span><span><small>عمليات اليوم</small><strong class="num">24</strong></span><em>4 معلّقة</em></div>
+            <div class="pulse-stat"><span class="stat-mark violet">◇</span><span><small>حالة الدفاتر</small><strong>متوازنة</strong></span><em class="positive-note">آخر فحص الآن</em></div>
+            <div class="date-control"><button id="previousDay" aria-label="اليوم السابق">‹</button><span><small>عرض اليوم</small><strong>الأربعاء، 24 سبتمبر</strong></span><button id="nextDay" aria-label="اليوم التالي">›</button></div>
+          </section>
+
+          <section class="workspace-heading">
+            <div class="section-title"><span class="section-mark"></span><div><span class="section-overline">LIVE WORKSPACE</span><h2>مساحة تسجيل العملية</h2></div></div>
+            <div class="workspace-actions"><span class="live-state"><i></i> البيانات محدثة</span><button class="btn btn-quiet btn-small" id="filterButton">☷ <span>تصفية</span><b class="filter-count">2</b></button><button class="btn btn-quiet btn-small" id="moreTools">•••</button></div>
+          </section>
+
+          <section class="journey-rail" aria-label="خطوات تسجيل العملية">
+            <div class="journey-step is-current"><span class="journey-index">01</span><div><strong>العميل</strong><small>السياق أولاً</small></div><span class="journey-state">ابدأ هنا</span></div><span class="journey-connector"></span>
+            <div class="journey-step"><span class="journey-index">02</span><div><strong>العملية</strong><small>المسار المناسب</small></div></div><span class="journey-connector"></span>
+            <div class="journey-step"><span class="journey-index">03</span><div><strong>التفاصيل</strong><small>مبلغ وحساب</small></div></div><span class="journey-connector"></span>
+            <div class="journey-step"><span class="journey-index">04</span><div><strong>المراجعة</strong><small>أثر واضح</small></div></div>
+          </section>
+
+          <div class="workbench">
+            <aside class="client-dock panel-column">
+              <section class="panel client-panel">
+                <div class="dock-heading"><div><span class="panel-kicker">01 / السياق</span><h3>عدسة العميل</h3></div><button class="mini-icon" id="clearClient" title="مسح العميل">×</button></div>
+                <p class="dock-intro">اختر العميل مرة واحدة، وسنحافظ على سياقه أمامك أثناء التسجيل.</p>
+                <div class="client-search-box"><span>⌕</span><input id="clientSearch" placeholder="ابحث بالاسم أو الكود..." autocomplete="off" /></div>
+                <div class="client-search-results" id="clientResults" hidden></div>
+                <div class="selected-client" id="selectedClient"><div class="empty-client"><span class="empty-client-icon">♙</span><strong>لا يوجد عميل محدد</strong><span>اختيار العميل يجعل المعاينة والرصيد أكثر دقة.</span><button type="button" id="emptyChoose">اختيار عميل <b>←</b></button></div></div>
+              </section>
+              <section class="panel balance-panel" id="balancePanel" hidden>
+                <div class="dock-heading"><div><span class="panel-kicker">رصيد حي</span><h3>لوحة العميل</h3></div><span class="live-badge"><i></i> حي</span></div>
+                <div class="balance-orbit"><div class="orbit-ring ring-outer"></div><div class="orbit-ring ring-mid"></div><div class="orbit-core"><small>الإجمالي</small><strong class="num">48,920</strong><em>LYD</em></div><span class="orbit-tag tag-usd">USD <b>8.5k</b></span><span class="orbit-tag tag-cny">CNY <b>15k</b></span></div>
+                <div class="balance-list"><div><span><b class="currency-dot lyd"></b> دينار ليبي</span><strong class="num">25,400.000</strong></div><div><span><b class="currency-dot usd"></b> دولار أمريكي</span><strong class="num">8,520.00</strong></div><div><span><b class="currency-dot cny"></b> يوان صيني</span><strong class="num">15,000.00</strong></div></div>
+                <button class="link-button" id="viewClient">فتح كشف حساب العميل <span>←</span></button>
+              </section>
+              <section class="side-tip"><span class="tip-symbol">⌁</span><div><strong>اختصار المسار</strong><p><kbd>Ctrl + N</kbd> يفتح عملية جديدة من أي مكان.</p></div></section>
+            </aside>
+
+            <section class="composer-column">
+              <section class="panel composer-panel">
+                <div class="composer-head"><div><span class="panel-kicker">02 / 03 / 04</span><h2 id="entryTitle">قبض من عميل</h2><p>أدخل أقل قدر من البيانات، واترك للسياق أن يكمل الصورة.</p></div><div class="composer-meta"><span class="status-dot success"></span><span>جاهز للترحيل</span><button id="clearComposer" title="تنظيف النموذج">↺</button></div></div>
+                <div class="operation-dock" role="tablist" aria-label="نوع العملية"><span class="dock-caption">المسار</span><button class="operation-tab is-active" data-operation="RECEIPT"><span class="tab-icon incoming">↓</span><span>قبض</span></button><button class="operation-tab" data-operation="PAYMENT"><span class="tab-icon outgoing">↑</span><span>صرف</span></button><button class="operation-tab" data-operation="EXCHANGE"><span class="tab-icon exchange">⇄</span><span>صرافة</span></button><button class="operation-tab" data-operation="CASH_TRANSFER"><span class="tab-icon transfer">↗</span><span>تحويل</span></button><button class="operation-tab" data-operation="EXPENSE"><span class="tab-icon expense">▤</span><span>مصروف</span></button><button class="operation-tab more-tab" id="moreOperations"><span>＋</span><span>أخرى</span></button></div>
+                <div class="form-guide"><span class="guide-line"></span><div><strong>ابدأ من اليمين</strong><span>العملة والموقع يحددان الحسابات المتاحة تلقائياً.</span></div><button class="dismiss-note" aria-label="إخفاء التلميح">×</button></div>
+
+                <form id="entryForm" class="entry-form">
+                  <div class="form-row date-row"><label class="field"><span>تاريخ العملية</span><div class="input-with-icon"><input id="entryDate" type="date" value="2026-09-24" /><span>▣</span></div></label><div class="date-preset"><span>التاريخ المعتمد</span><button type="button" id="todayButton">اليوم <b>24 / 09 / 2026</b></button></div></div>
+                  <div class="form-row two-fields"><label class="field"><span>العملة</span><div class="select-wrap"><select id="currency"><option value="LYD">الدينار الليبي — LYD</option><option value="USD">الدولار الأمريكي — USD</option><option value="CNY">اليوان الصيني — CNY</option></select></div></label><label class="field"><span>الموقع</span><div class="select-wrap"><select id="location"><option>طرابلس — المركز الرئيسي</option><option>بنغازي — الفرع الشرقي</option><option>إسطنبول — المكتب الخارجي</option></select></div></label></div>
+                  <label class="field"><span id="accountLabel">الحساب المستقبِل</span><div class="select-wrap account-select"><select id="account"><option value="">اختر الحساب بعد تحديد العملة والموقع</option><option>خزينة طرابلس — 1100</option><option>مصرف الجمهورية — 1200</option><option>مراسل إسطنبول — 1310</option></select><span class="account-dot"></span></div></label>
+                  <div class="amount-stage"><div class="amount-top"><span><b class="amount-step">03</b> المبلغ الأساسي</span><span>يُحتسب الأثر المالي تلقائياً</span></div><div class="amount-entry"><input id="amount" class="num" inputmode="decimal" placeholder="0.000" /><span id="amountCurrency">LYD</span></div><div class="amount-bottom"><span>بعد الترحيل سيُضاف إلى رصيد الحساب المحدد</span><span class="amount-ready">✓ جاهز</span></div></div>
+                  <div class="form-row two-fields optional-row"><label class="field"><span>المرجع <em>اختياري</em></span><input id="reference" placeholder="رقم إيصال أو مرجع خارجي..." /></label><label class="field"><span>ملاحظة <em>اختياري</em></span><input id="note" placeholder="تظهر في الإيصال وكشف الحساب" /></label></div>
+                  <div class="preview-console" id="entryPreview"><span class="console-pulse">✦</span><div><strong>المعاينة تنتظر بياناتك</strong><span>اختر العميل وأدخل المبلغ لعرض القيد قبل الترحيل.</span></div><span class="console-arrow">←</span></div>
+                  <div class="command-bar"><div class="command-hints"><span><kbd>Enter</kbd> حفظ وترحيل</span><span><kbd>Ctrl</kbd> + <kbd>Enter</kbd> حفظ وطباعة</span><span><kbd>Esc</kbd> تنظيف</span></div><div class="command-actions"><button type="button" class="btn btn-quiet" id="resetForm">إلغاء</button><button type="submit" class="btn btn-primary btn-post"><span>حفظ وترحيل</span><span>←</span></button></div></div>
+                </form>
+              </section>
+            </section>
+
+            <aside class="activity-dock panel-column">
+              <section class="panel activity-panel"><div class="dock-heading"><div><span class="panel-kicker">السجل المباشر</span><h3>ما يحدث الآن</h3></div><button class="link-button" id="viewAll">كل العمليات</button></div><div class="activity-filters"><button class="is-active" data-filter="all">الكل <b>24</b></button><button data-filter="pending">معلّقة <b>4</b></button><button data-filter="posted">مرحّلة</button></div><div class="activity-list" id="activityList"></div><div class="activity-footer"><span><i class="status-dot success"></i> يتحدث تلقائياً</span><button id="refreshActivity" class="refresh-button">⟳</button></div></section>
+              <section class="panel mini-summary-panel"><div class="mini-summary-head"><span>إيقاع الأسبوع</span><button>هذا الأسبوع⌄</button></div><div class="mini-chart"><i style="height:36%"></i><i style="height:54%"></i><i style="height:42%"></i><i style="height:74%"></i><i style="height:56%"></i><i style="height:88%"></i><i style="height:68%"></i></div><div class="chart-days"><span>خ</span><span>ج</span><span>س</span><span>ح</span><span>ن</span><span>ث</span><span>ر</span></div></section>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="createModal" hidden><section class="create-modal" role="dialog" aria-modal="true" aria-labelledby="createTitle"><button class="modal-close" id="closeCreate" aria-label="إغلاق">×</button><div class="modal-heading"><span class="modal-spark">✦</span><div><span class="panel-kicker">مسار سريع</span><h2 id="createTitle">ابدأ من نوع العملية</h2><p>اختر المسار، وسنحضر لك الحقول المناسبة فقط.</p></div></div><div class="operation-grid" id="operationGrid"><button data-operation="RECEIPT"><span class="modal-op-icon incoming">↓</span><strong>قبض</strong><small>استلام من عميل</small><i>الأكثر استخداماً</i></button><button data-operation="PAYMENT"><span class="modal-op-icon outgoing">↑</span><strong>صرف</strong><small>تسليم لعميل</small></button><button data-operation="EXCHANGE"><span class="modal-op-icon exchange">⇄</span><strong>صرافة</strong><small>تحويل بين عملتين</small></button><button data-operation="CASH_TRANSFER"><span class="modal-op-icon transfer">↗</span><strong>تحويل بعمولة</strong><small>بين موقعين</small></button><button data-operation="REMIT_OUT"><span class="modal-op-icon remittance">➜</span><strong>إرسال لمستفيد</strong><small>عبر مراسل</small></button><button data-operation="EXPENSE"><span class="modal-op-icon expense">▤</span><strong>مصروف</strong><small>بند تشغيلي</small></button></div><div class="modal-hint"><span>⌁</span> اختصار سريع: <kbd>Ctrl + N</kbd> من أي شاشة.</div></section></div>
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
