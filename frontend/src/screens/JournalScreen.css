@@ -72,7 +72,13 @@
  * استخدامها لصندوق "السجل الكامل" الخاص به. */
 .today-op-detail { padding: 0 var(--space-3) var(--space-3); display: flex; flex-direction: column; gap: 4px; }
 
-/* ── معالج الخطوتين ────────────────────────────────────────────────── */
+/* .modal-veil مُستعملة على نطاق واسع خارج دفتر اليومية (EntryActions·
+ * SearchResultsPanel·CreateClientModal·ReconciliationScreen·
+ * NewOperationPanel·EditEntryModal) — تبقى هنا كما هي بلا مسّ. معالج
+ * الخطوتين نفسه (ExchangeWizard.tsx) انتقل إلى غلاف journal-design.css
+ * (.jr-modal-backdrop/.jr-modal/.jr-modal-close، القائمة ٢ بند ١٠) —
+ * .wizard-panel/-close والانتقال القديمان حُذفا، .wizard-progress/-seg
+ * انتقلا هناك أيضاً (مُقيَّدان بنطاق .jr-modal). */
 .modal-veil {
   position: fixed; inset: 0;
   background: rgba(9, 41, 57, .38);
@@ -80,27 +86,6 @@
   display: flex; align-items: center; justify-content: center;
   z-index: 100;
 }
-.wizard-panel {
-  width: 560px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
-  box-shadow: var(--shadow-elevated);
-  animation: wizard-in 350ms cubic-bezier(.22, 1, .36, 1);
-  transform-origin: left center;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  position: relative;
-}
-@keyframes wizard-in {
-  from { opacity: 0; transform: scale(.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-.wizard-close { position: absolute; top: var(--space-3); left: var(--space-3); }
-.wizard-progress { display: flex; gap: var(--space-1); }
-.wizard-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
-.wizard-seg.is-active { background: var(--sky-500); }
 
 @media (max-width: 1279px) {
   .journal-columns { grid-template-columns: 1fr 1fr; }

@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
+import { X } from 'lucide-react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { AmountStage, FormGuide, PillTabs } from './journalUi'
+import './journal-design.css'
 
 interface ExchangeWizardProps {
   client: ClientSearchResult | null
@@ -110,25 +113,29 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   }
 
   return (
-    <div className="modal-veil" role="dialog" aria-modal="true">
-      <div className="wizard-panel card">
+    <div className="jr-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="jr-modal">
         <div className="wizard-progress">
           <div className={`wizard-seg${step >= 1 ? ' is-active' : ''}`} />
           <div className={`wizard-seg${step >= 2 ? ' is-active' : ''}`} />
         </div>
-        <button type="button" className="btn-text wizard-close" onClick={onClose}>إغلاق ×</button>
+        <button type="button" className="jr-modal-close" aria-label="إغلاق" onClick={onClose}>
+          <X size={18} strokeWidth={2} />
+        </button>
 
-        <div className="op-tabs" style={{ marginBottom: 8 }}>
-          <button type="button" className={`op-tab${scope === 'CLIENT' ? ' is-active' : ''}`} onClick={() => setScope('CLIENT')}>عميل</button>
-          <button type="button" className={`op-tab${scope === 'TREASURY' ? ' is-active' : ''}`} onClick={() => setScope('TREASURY')}>خزينة (بين حسابات شركة)</button>
-        </div>
+        <PillTabs
+          label="نطاق الصرافة"
+          value={scope}
+          onChange={setScope}
+          options={[{ id: 'CLIENT', label: 'عميل' }, { id: 'TREASURY', label: 'خزينة (بين حسابات شركة)' }]}
+        />
 
-        {scope === 'CLIENT' && !client && <div className="alert alert-info">اختر عميلاً من دفتر اليومية أولاً ثم أعد فتح المعالج</div>}
+        {scope === 'CLIENT' && !client && <FormGuide tone="info">اختر عميلاً من دفتر اليومية أولاً ثم أعد فتح المعالج</FormGuide>}
 
         {step === 1 && (
           <div>
             <h3 className="card-title">الخطوة ١ — من {currencies.find((c) => c.code === fromCurrency)?.name_ar ?? fromCurrency} إلى الدولار</h3>
-            <div className="op-row">
+            <div className="form-row">
               <div className="field">
                 <label className="field-label">من عملة</label>
                 <select value={fromCurrency} onChange={(e) => { setFromCurrency(e.target.value); setFromLocation(''); setStep1SourceAccount('') }}>
@@ -155,7 +162,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               )}
             </div>
             {scope === 'TREASURY' && (
-              <div className="op-row">
+              <div className="form-row">
                 <AccountPicker
                   value={step1SourceAccount} onChange={setStep1SourceAccount} spec={step1SourceSpec} label="الحساب المصدر"
                   emptyMessage={!fromCurrency ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
@@ -166,11 +173,8 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 />
               </div>
             )}
-            <div className="op-row">
-              <div className="field field-amount">
-                <label className="field-label">المبلغ</label>
-                <input className="num" value={amount} onChange={(e) => setAmount(e.target.value)} />
-              </div>
+            <div className="form-row">
+              <AmountStage id="wizard-amount" label="المبلغ" value={amount} onChange={setAmount} currencyCode={fromCurrency} />
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step1Client} onChange={(e) => setStep1Client(e.target.value)} />
@@ -181,7 +185,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               </div>
             </div>
             {step1Preview && (
-              <div className={step1Preview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
+              <div className={`rate-direction ${step1Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
                 {rateDirectionHint(step1Preview.diff).text}
               </div>
             )}
@@ -211,7 +215,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             <div className="derived-field">
               المبلغ المُرحَّل من الخطوة ١: <span className="num">{step1Preview?.clientAmt.toString() ?? '—'} USD</span> (مقفل)
             </div>
-            <div className="op-row">
+            <div className="form-row">
               <div className="field">
                 <label className="field-label">إلى عملة</label>
                 <select value={toCurrency} onChange={(e) => { setToCurrency(e.target.value); setStep2ToLocation(''); setStep2DestAccount('') }}>
@@ -234,7 +238,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
               />
             )}
-            <div className="op-row">
+            <div className="form-row">
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step2Client} onChange={(e) => setStep2Client(e.target.value)} />
@@ -245,7 +249,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               </div>
             </div>
             {step2Preview && (
-              <div className={step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'} style={{ marginBottom: 8, fontWeight: 600 }}>
+              <div className={`rate-direction ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
                 {rateDirectionHint(step2Preview.diff).text}
               </div>
             )}
@@ -269,18 +273,18 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <label className="field-label" htmlFor="chain-note">ملاحظة (اختياري)</label>
               <textarea id="chain-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
             </div>
-            {error && <div className="alert alert-critical">{error}</div>}
+            {error && <FormGuide tone="critical">{error}</FormGuide>}
             {result ? (
               <>
-                <div className="alert alert-info">
+                <FormGuide tone="success">
                   تم الحفظ — {result.chain_ref} ({result.step1.entry_no} · {result.step2.entry_no})
-                </div>
+                </FormGuide>
                 <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={onClose}>
                   إغلاق
                 </button>
               </>
             ) : (
-              <div className="op-row">
+              <div className="form-row">
                 <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>السابق</button>
                 <button
                   type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }}
