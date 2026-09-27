@@ -35,6 +35,8 @@ export interface SegTabItem<T extends string> {
   icon?: ReactNode
   /** لاحقة صنف لون الأيقونة (تُطابق .tab-icon.tone-* الحالية) — dock فقط. */
   tone?: string
+  /** تلميح hover (مثال: تسمية + اختصار لوحة مفاتيح) — لا بديل مرئي للـlabel. */
+  title?: string
 }
 
 type Variant = 'dock' | 'pill' | 'rail'
@@ -42,7 +44,9 @@ type Variant = 'dock' | 'pill' | 'rail'
 interface SegmentedTabsProps<T extends string> {
   items: SegTabItem<T>[]
   value: T
-  onChange: (id: T) => void
+  /** el: زر التبويب المنقور/المُختار فعلياً — لازم لمن يحتاج نقطة أصل
+   * بصرية للتنقّل (مثال: الشريط الجانبي، أصل انتقال الشاشة). اختياري. */
+  onChange: (id: T, el?: HTMLButtonElement) => void
   ariaLabel: string
   variant?: Variant
   className?: string
@@ -231,8 +235,9 @@ export function SegmentedTabs<T extends string>({
     if (dir === 0) return
     e.preventDefault()
     const next = items[(idx + dir + items.length) % items.length]
-    onChange(next.id)
-    itemRefs.current.get(next.id)?.focus()
+    const nextEl = itemRefs.current.get(next.id)
+    onChange(next.id, nextEl)
+    nextEl?.focus()
   }
 
   function renderRow(activeOverlay: boolean) {
@@ -246,7 +251,8 @@ export function SegmentedTabs<T extends string>({
         aria-hidden={activeOverlay || undefined}
         tabIndex={activeOverlay ? -1 : (value === it.id ? 0 : -1)}
         className={`seg-tab${value === it.id ? ' is-active' : ''}`}
-        onClick={activeOverlay ? undefined : () => onChange(it.id)}
+        title={activeOverlay ? undefined : it.title}
+        onClick={activeOverlay ? undefined : (e) => onChange(it.id, e.currentTarget)}
       >
         {it.icon && <span className={`tab-icon${it.tone ? ` tone-${it.tone}` : ''}`}>{it.icon}</span>}
         {it.label && <span>{it.label}</span>}

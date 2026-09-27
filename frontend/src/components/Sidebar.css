@@ -12,56 +12,10 @@
   z-index: 40;
 }
 
-.sidebar-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.sidebar-icon-btn {
-  position: relative;
-  width: 72px;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, .82);
-  cursor: pointer;
-  transition: color 180ms ease;
-}
-.sidebar-icon-btn:hover { color: #fff; }
-.sidebar-icon-btn.is-active { color: var(--sky-700); }
-.sidebar-icon-btn svg { position: relative; z-index: 2; }
-
-/* د: الحبّة النشطة — بيضاء بلون منطقة المحتوى، بانحناءتين مقعّرتين تصلها
-   بالشريط، تبلغ خارج الشريط نحو منطقة المحتوى. */
-.active-pill {
-  position: absolute;
-  inset-block: 4px;
-  inset-inline-start: 0;
-  width: calc(100% + 22px);
-  background: var(--canvas);
-  border-start-start-radius: 24px;
-  border-end-start-radius: 24px;
-  z-index: 1;
-  animation: pill-in 280ms cubic-bezier(.34, 1.4, .64, 1);
-  transform-origin: left center;
-  -webkit-mask-image:
-    radial-gradient(circle 14px at 0% 0%, transparent 14px, #000 14.5px),
-    radial-gradient(circle 14px at 0% 100%, transparent 14px, #000 14.5px);
-  mask-image:
-    radial-gradient(circle 14px at 0% 0%, transparent 14px, #000 14.5px),
-    radial-gradient(circle 14px at 0% 100%, transparent 14px, #000 14.5px);
-  mask-composite: intersect;
-  -webkit-mask-composite: source-in, source-in;
-}
-
-@keyframes pill-in {
-  from { transform: scaleX(.3); }
-  to { transform: scaleX(1); }
-}
+/* .sidebar-group/.sidebar-icon-btn/.active-pill (+@keyframes pill-in)
+ * كانت هنا — الشريط الآن <SegmentedTabs variant="rail"> (الكبسولة
+ * النابضة الموحَّدة، طلب مالك ٢٠٢٦-٠٩-٢٧)؛ التنسيق البصري المكافئ في
+ * components/SegmentedTabs.css (.seg-tabs-rail). */
 
 .sidebar-center-btn {
   width: 56px;
