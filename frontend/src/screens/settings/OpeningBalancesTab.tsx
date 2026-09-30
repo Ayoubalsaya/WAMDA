@@ -92,7 +92,10 @@ export function OpeningBalancesTab() {
         <div style={{ marginBottom: 12 }}>
           <SegmentedTabs
             variant="pill" ariaLabel="نوع الحساب" value={mode} onChange={setMode}
-            items={[{ id: 'system', label: 'حساب نظامي (صندوق/بنك/مراسل)' }, { id: 'client', label: 'حساب عميل' }]}
+            items={[
+              { id: 'system', label: 'حساب نظامي', title: 'حساب نظامي — صندوق/بنك/مراسل' },
+              { id: 'client', label: 'حساب عميل' },
+            ]}
           />
         </div>
         <form onSubmit={submit}>

@@ -61,6 +61,6 @@ export function AmountStage({
 // ٢٠٢٦-٠٩-٢٧) بمظهر "pill". لا منطق حركة هنا — كله في المكوّن المشترك.
 export function PillTabs<T extends string>({
   value, options, onChange, label,
-}: { value: T; options: { id: T; label: string }[]; onChange: (v: T) => void; label: string }) {
+}: { value: T; options: { id: T; label: string; title?: string }[]; onChange: (v: T) => void; label: string }) {
   return <SegmentedTabs variant="pill" ariaLabel={label} value={value} onChange={onChange} items={options} />
 }

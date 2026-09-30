@@ -91,7 +91,6 @@ export function SegmentedTabs<T extends string>({
   const containerRef = useRef<HTMLDivElement>(null)
   const pillRef = useRef<HTMLDivElement>(null)
   const windowRef = useRef<HTMLDivElement>(null)
-  const innerRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef(new Map<string, HTMLButtonElement>())
   const startEdge = useRef<Edge>({ pos: 0, vel: 0, target: 0, k: TRAILING_K })
   const endEdge = useRef<Edge>({ pos: 0, vel: 0, target: 0, k: LEADING_K })
@@ -100,35 +99,64 @@ export function SegmentedTabs<T extends string>({
   const initedRef = useRef(false)
   const reducedMotion = useReducedMotion()
 
+  // ٢٠٢٦-١٠-٠١ (بلاغ مالك — استخدام فعلي، ثلاثة أعراض حقيقية): القيمة
+  // الحالية عبر ref محدَّث في كل رسم — أي مستمع/مراقب يُنشأ مرة واحدة
+  // فقط عند التركيب (ResizeObserver أدناه تحديداً) ويحتاج "آخر قيمة" لاحقاً
+  // يقرأها من هنا، لا من إغلاق (closure) الرسمة التي أُنشئ فيها. بلا هذا:
+  // أي حدث تخطيط لاحق (تغيّر حجم، تحميل خط، تكبير) كان يُعيد الكبسولة إلى
+  // التبويب النشط وقت التركيب فقط (مثال: "ملف الشركة" الافتراضي في
+  // الإعدادات) بصرف النظر عن التبويب الفعلي الحالي — أُعيد إنتاجه حياً
+  // وأُثبت بالقياس (فرق ٢٧٣px بين الكبسولة والزر النشط بعد تغيير حجم
+  // منتصف انتقال، انظر scripts/qa_segmented_tabs_repro.py).
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  // حجم الحاوية الحالي — يُحدَّث فقط عند measure() الفعلي (نقر/تغيّر حجم
+  // حقيقي)، لا عند كل إطار رسم؛ قراءة getBoundingClientRect داخل paint()
+  // نفسها (يُستدعى ٦٠ مرة/ثانية) كانت ستُجبر تخطيطاً متزامناً كل إطار.
+  const containerSizeRef = useRef({ width: 0, height: 0 })
+
   const measure = useCallback((id: string): [number, number] | null => {
     const el = itemRefs.current.get(id)
     const container = containerRef.current
     if (!el || !container) return null
     const er = el.getBoundingClientRect()
     const cr = container.getBoundingClientRect()
+    containerSizeRef.current = { width: cr.width, height: cr.height }
     return orientation === 'horizontal' ? [er.left - cr.left, er.right - cr.left] : [er.top - cr.top, er.bottom - cr.top]
   }, [orientation])
 
+  // ٢٠٢٦-١٠-٠١ (بلاغ مالك — "عميلخزينة (بين حسابي شر..."): طبقة النص
+  // المُلوَّن (`.seg-row-overlay`) كانت داخل `.seg-clip-window` المُغيَّر
+  // حجمها بالـJS كل إطار إلى حجم الكبسولة الحالي (غالباً أصغر من الحاوية
+  // كاملة) — وبما أن الصفّ الداخلي كان يستعمل inset:0 (أي "طابق أبعاد
+  // أقرب سلف مُموضَع")، تنضغط أزرار الصفّ كلها داخل ذلك الصندوق الصغير
+  // فيتراكب نصّان أو أكثر بصرياً. الإصلاح الجذري لا الترقيع: النافذة الآن
+  // تبقى بحجم الحاوية الكامل دائماً (لا تُغيَّر أبعادها إطلاقاً)، والقصّ
+  // الفعلي عبر clip-path محسوبة من موضعي حافتي الكبسولة — هذا يضمن أن صفّ
+  // التراكب (`.seg-row-overlay`) مطابق تماماً لصفّ الأزرار الحقيقي
+  // (نفس flex، نفس الحشو، نفس العرض) دون أي حاجة لنقل/تحريك داخلي، فلا
+  // يمكن لنصّين أن يتراكبا بصرياً مهما حدث.
   const paint = useCallback((scale: number) => {
     const pill = pillRef.current
     const win = windowRef.current
-    const inner = innerRef.current
-    if (!pill || !win || !inner) return
+    if (!pill || !win) return
     const s = startEdge.current.pos
     const e = endEdge.current.pos
     const size = Math.max(0, e - s)
+    const { width: cw, height: ch } = containerSizeRef.current
     if (orientation === 'horizontal') {
       pill.style.transform = `translateX(${s}px) scaleY(${scale})`
       pill.style.width = `${size}px`
-      win.style.transform = `translateX(${s}px)`
-      win.style.width = `${size}px`
-      inner.style.transform = `translateX(${-s}px)`
+      const left = Math.max(0, s)
+      const right = Math.max(0, cw - e)
+      win.style.clipPath = `inset(0px ${right}px 0px ${left}px)`
     } else {
       pill.style.transform = `translateY(${s}px) scaleX(${scale})`
       pill.style.height = `${size}px`
-      win.style.transform = `translateY(${s}px)`
-      win.style.height = `${size}px`
-      inner.style.transform = `translateY(${-s}px)`
+      const top = Math.max(0, s)
+      const bottom = Math.max(0, ch - e)
+      win.style.clipPath = `inset(${top}px 0px ${bottom}px 0px)`
     }
   }, [orientation])
 
@@ -203,16 +231,42 @@ export function SegmentedTabs<T extends string>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value])
 
-  // إعادة حساب المواضع عند تغيّر حجم الحاوية أو عدد/أبعاد العناصر
-  // (ظهور صف «المزيد»، تغيّر حجم النافذة) — قفزة فورية لا حركة نابضية،
-  // هذا تصحيح تخطيط لا انتقال اختيار.
+  // إعادة حساب المواضع عند أي حدث تخطيط لاحق قد يُزيح الأزرار دون أن
+  // يتغيّر React نفسه: تغيّر حجم الحاوية/عناصرها، تغيّر حجم النافذة أو
+  // التكبير، تحميل خط متأخر (يغيّر عرض النص فجأة فتنزاح الأزرار)، العودة
+  // إلى تبويب المتصفح بعد تركه (قد يتغيّر التخطيط أثناء الغياب: تكبير
+  // نظام، دوران الشاشة). قفزة فورية لا حركة نابضية — هذا تصحيح تخطيط لا
+  // انتقال اختيار.
+  //
+  // ٢٠٢٦-١٠-٠١ (بلاغ مالك — الكبسولة تعلق بين زرّين / لا تتحرك مع تغيّر
+  // الصفحة): العلّة المؤكَّدة كانت قراءة `value` من وسيط useEffect الخارجي
+  // مباشرة — بما أن مصفوفة الاعتماديات هنا [items.length] فقط (متعمَّد:
+  // أي مجموعة تبويبات ثابتة العدد لا يُعاد إنشاء هذا الأثر إطلاقاً بعد
+  // التركيب)، ظلّ الإغلاق حابساً قيمة `value` وقت التركيب للأبد — أي حدث
+  // تخطيط لاحق كان "يُصحِّح" الكبسولة إلى ذلك التبويب القديم بدل الحالي
+  // فعلياً. الإصلاح: القراءة حصراً من valueRef.current (محدَّث في كل
+  // رسم أعلاه) — مصدر حقيقة واحد، لا استثناء لمستمع يُنشأ مرة واحدة.
   useEffect(() => {
     const container = containerRef.current
-    if (!container || typeof ResizeObserver === 'undefined') return
-    const ro = new ResizeObserver(() => retarget(value, true))
-    ro.observe(container)
-    itemRefs.current.forEach((el) => ro.observe(el))
-    return () => ro.disconnect()
+    if (!container) return
+    const snap = () => retarget(valueRef.current, true)
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(snap)
+    if (ro) {
+      ro.observe(container)
+      itemRefs.current.forEach((el) => ro.observe(el))
+    }
+    window.addEventListener('resize', snap)
+    document.addEventListener('visibilitychange', snap)
+    let cancelled = false
+    if (typeof document !== 'undefined' && 'fonts' in document) {
+      document.fonts.ready.then(() => { if (!cancelled) snap() }).catch(() => {})
+    }
+    return () => {
+      cancelled = true
+      ro?.disconnect()
+      window.removeEventListener('resize', snap)
+      document.removeEventListener('visibilitychange', snap)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length])
 
@@ -272,7 +326,7 @@ export function SegmentedTabs<T extends string>({
       <div ref={pillRef} className="seg-pill" aria-hidden="true" />
       <div className="seg-row seg-row-base">{renderRow(false)}</div>
       <div ref={windowRef} className="seg-clip-window" aria-hidden="true">
-        <div ref={innerRef} className="seg-row seg-row-overlay">{renderRow(true)}</div>
+        <div className="seg-row seg-row-overlay">{renderRow(true)}</div>
       </div>
     </div>
   )

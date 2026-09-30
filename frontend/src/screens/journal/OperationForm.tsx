@@ -608,7 +608,10 @@ export function OperationForm({
               label="نطاق الصرافة"
               value={exchangeScope}
               onChange={setExchangeScope}
-              options={[{ id: 'CLIENT', label: 'عميل' }, { id: 'TREASURY', label: 'خزينة (بين حسابي شركة)' }]}
+              options={[
+                { id: 'CLIENT', label: 'عميل' },
+                { id: 'TREASURY', label: 'خزينة', title: 'خزينة — بين حسابي شركة' },
+              ]}
             />
           )}
 

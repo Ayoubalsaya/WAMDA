@@ -1,0 +1,7 @@
+{
+  "stress50_chromium": {
+    "total": 50,
+    "fails": [],
+    "fail_count": 0
+  }
+}

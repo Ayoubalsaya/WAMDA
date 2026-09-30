@@ -3,7 +3,19 @@
  * (variant) — الألوان من tokens.css حصراً. */
 
 .seg-tabs { position: relative; }
-.seg-tabs-horizontal { display: inline-flex; width: 100%; }
+/* ٢٠٢٦-١٠-٠١ (طلب مالك صريح — قاعدة عامة، لا حالة "خزينة..." وحدها: "لا
+ * تسمح بقطع أي تسمية تبويب بالنقاط أبداً"): لا يوجد text-overflow:ellipsis
+ * في هذا الملف إطلاقاً بعد اليوم. البديل: كل زر يأخذ عرضه الطبيعي الكامل
+ * (flex: 1 0 auto لا 1 1 0) بدل الانكماش المُجبَر، والحاوية نفسها تُصبح
+ * قابلة للتمرير أفقياً حين تتجاوز مجموعة التبويبات عرضها (مثال: تبويبات
+ * الإعدادات التسعة) — تمرير بدل بتر. شريط التمرير خفيف لا يكسر شكل
+ * الكبسولة. */
+.seg-tabs-horizontal {
+  display: inline-flex; width: 100%; overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.seg-tabs-horizontal::-webkit-scrollbar { height: 4px; }
+.seg-tabs-horizontal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 999px; }
 .seg-tabs-vertical { display: inline-flex; flex-direction: column; }
 
 .seg-pill {
@@ -18,9 +30,16 @@
 .seg-row { position: absolute; inset: 0; z-index: 2; display: flex; align-items: stretch; }
 .seg-tabs-vertical .seg-row { flex-direction: column; }
 .seg-row-base { position: relative; z-index: 2; width: 100%; }
+/* ٢٠٢٦-١٠-٠١ (بلاغ مالك — نصّ مزدوج/متراكب "عميلخزينة..."): هذا الصندوق
+ * لم يعد يُغيَّر حجمه أو يُحرَّك بالـJS إطلاقاً — يبقى بحجم الحاوية الكامل
+ * دائماً (inset:0 ثابتة)، والقصّ البصري الفعلي عبر `clip-path` (JS يكتب
+ * فقط clip-path هنا، انظر paint() في SegmentedTabs.tsx). هذا يضمن أن
+ * `.seg-row-overlay` بداخله — التي تطابقه بـinset:0 أيضاً — لها نفس أبعاد
+ * `.seg-row-base` بالضبط دوماً (نفس flex، نفس الحشو)، فلا يمكن لصفّ
+ * الأزرار المُلوَّن أن ينضغط في صندوق أصغر من الحاوية فيتراكب نصّان. */
 .seg-clip-window {
-  position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none;
-  will-change: transform, width, height;
+  position: absolute; inset: 0; z-index: 3; pointer-events: none;
+  will-change: clip-path;
   transition: opacity 150ms ease;
 }
 .seg-row-overlay { position: absolute; inset: 0; display: flex; align-items: stretch; pointer-events: none; }
@@ -31,9 +50,15 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   font: inherit; cursor: pointer; white-space: nowrap;
 }
+/* لا نقاط قطع (ellipsis) على أي تسمية تبويب أبداً (طلب مالك صريح وعام) —
+ * flex-shrink يبقى مفعَّلاً (توزيع متساوٍ حين تتّسع كل التبويبات بسهولة)
+ * لكن min-width:max-content يمنع الانكماش تحت العرض الطبيعي للنص؛ حين
+ * يتجاوز مجموع التبويبات عرض الحاوية، `.seg-tabs-horizontal` (أعلاه)
+ * يُصبح قابلاً للتمرير أفقياً بدل بتر أي تسمية. */
+.seg-tabs-horizontal .seg-tab { min-width: max-content; }
 .seg-tab:focus-visible { outline: 3px solid rgba(66, 176, 213, .35); outline-offset: 1px; border-radius: 8px; }
 .seg-row-overlay .seg-tab { cursor: default; }
-.seg-tab span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg-tab span:last-child { white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .seg-pill, .seg-clip-window { transition: none; }
