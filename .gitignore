@@ -23,3 +23,4 @@ backups/
 docs/design/journal-redesign-shots/*
 !docs/design/journal-redesign-shots/before
 !docs/design/journal-redesign-shots/after
+!docs/design/journal-redesign-shots/webkit

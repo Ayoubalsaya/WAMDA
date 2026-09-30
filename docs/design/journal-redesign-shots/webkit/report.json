@@ -1,0 +1,24 @@
+{
+  "capsule": {
+    "stretch_frames": "captured 5 frames — see capsule_stretch_*.png",
+    "rapid_clicks_aligned": true,
+    "arrow_rtl_final_tab": "صرافة",
+    "arrow_rtl_correct": true,
+    "reduced_motion_instant": true
+  },
+  "operation_post": {
+    "status": 201,
+    "body": "{\"id\":120100,\"entry_no\":\"WMD-2026-016119\",\"status\":\"POSTED\",\"profit_amount\":null,\"profit_currency\":null,\"chain_ref\":null,\"chain_seq\":null,\"chain_total\":null}",
+    "cancel": "200 {\"cancelled_entry_ids\":[120100],\"chain_cascade\":false}"
+  },
+  "portal": {
+    "login_status": 200,
+    "home_loaded": true,
+    "balance_cards": 1,
+    "statement_visible": true,
+    "print_topbar_hidden": true,
+    "print_js_errors": [],
+    "logout_ok": true
+  },
+  "teardown": "QA-JRNL-001 deactivated, QA-PORTAL-001 deactivated"
+}
