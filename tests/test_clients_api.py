@@ -163,6 +163,9 @@ def test_set_credit_limit_modes_and_validation(db, client):
     resp2 = client.put(f"/clients/{c.id}/credit-limits/USD", json={"limit_amount": "5000.00"}, headers=_headers(client))
     assert resp2.status_code == 204  # upsert
     assert client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "LIMIT"}, headers=_headers(client)).status_code == 422
+    for zero in ("0", "0.00"):  # «حد بمبلغ صفر» بلا معنى: يُرفض بدل أن يُخزَّن
+        r = client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "LIMIT", "limit_amount": zero}, headers=_headers(client))
+        assert r.status_code == 422 and "أكبر من صفر" in r.json()["detail"], r.text
     assert client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "UNLIMITED"}, headers=_headers(client)).status_code == 204
     limits = {l["currency_code"]: l for l in client.get(f"/clients/{c.id}").json()["credit_limits"]}
     assert limits["USD"]["mode"] == "UNLIMITED" and limits["USD"]["limit_amount"] is None

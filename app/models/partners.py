@@ -105,7 +105,7 @@ class ClientCreditLimit(Base):
     limit_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("limit_amount IS NULL OR limit_amount >= 0", name="ck_client_credit_limits_nonneg"),
+        CheckConstraint("limit_amount IS NULL OR limit_amount > 0", name="ck_client_credit_limits_positive"),
         CheckConstraint("mode IN ('NONE', 'LIMIT', 'UNLIMITED')", name="ck_client_credit_limits_mode"),
         CheckConstraint("(mode = 'LIMIT') = (limit_amount IS NOT NULL)", name="ck_client_credit_limits_limit_iff_limit_mode"),
     )

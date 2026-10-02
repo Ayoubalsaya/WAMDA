@@ -207,7 +207,7 @@ def test_negative_balance_override_requires_reason_and_is_audited(db, now):
     from app.engine.operations import payment
 
     client = f.make_client(db, credit_allowed=True)
-    f.set_credit_limit(db, client, "USD", Decimal("0"))  # بلا حد — أي تجاوز يمر بمسار override
+    f.set_credit_limit(db, client, "USD", Decimal("0.01"))  # حد رمزي — أي تجاوز يمر بمسار override
     user = f.make_user(db)
     account = accounts_repo.get_or_create_client_account(db, client=client, currency_code="USD", location_code="TRIPOLI")
 

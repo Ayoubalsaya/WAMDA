@@ -18,9 +18,10 @@ from app.schemas.dashboard import CurrencyAmount
 __all__ = ["CurrencyAmount"]
 
 
-class DebtsByCurrencyRow(BaseModel):
+class ClientLiabilitiesRow(BaseModel):
+    """«التزاماتنا للعملاء»: مجموع أرصدة العملاء **الموجبة** (ما علينا لهم) لكل عملة — عكس «العملاء المدينون»."""
     currency_code: str
-    total_owed: Decimal
+    total_liability: Decimal
     client_count: int
 
 

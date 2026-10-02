@@ -51,10 +51,10 @@ def test_debts_by_currency_reflects_real_client_liability(db, client, now):
         db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("777.000"),
         receiving_account_code="1101", user=user, now=now,
     )
-    resp = client.get("/reports/debts-by-currency")
+    resp = client.get("/reports/client-liabilities")
     assert resp.status_code == 200
     row = next(r for r in resp.json() if r["currency_code"] == "LYD")
-    assert Decimal(row["total_owed"]) >= Decimal("777.000")
+    assert Decimal(row["total_liability"]) >= Decimal("777.000")
     assert row["client_count"] >= 1
 
 

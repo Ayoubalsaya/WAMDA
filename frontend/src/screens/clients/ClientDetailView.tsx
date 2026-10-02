@@ -269,11 +269,15 @@ function CreditLimitEditor({
         setError(`«حد الائتمان»: ${limitError}`)
         return
       }
+      if (!value || new Decimal(value).lte(0)) {
+        setError('«حد الائتمان»: يجب أن يكون أكبر من صفر (أو اختر «بلا ائتمان»)')
+        return
+      }
     }
     setBusy(true)
     setError(null)
     try {
-      await api.put(`/clients/${clientId}/credit-limits/${currency}`, mode === 'LIMIT' ? { mode, limit_amount: value || '0' } : { mode })
+      await api.put(`/clients/${clientId}/credit-limits/${currency}`, mode === 'LIMIT' ? { mode, limit_amount: value } : { mode })
       await onSaved()
     } catch (err) {
       report(err, 'تعذّر حفظ حد الائتمان')
@@ -298,8 +302,8 @@ function CreditLimitEditor({
       {mode === 'LIMIT' && (
         <div className="field" style={{ maxWidth: 200 }}>
           <label className="field-label">حد الائتمان بعملة {currency}</label>
-          {/* الفارغ يُحفَظ صفراً — placeholder ٠ كي يطابق المعروضُ المُرسَلَ */}
-          <DecimalInput className="num" placeholder="0" value={value} onChange={(v) => { setValue(v); setError(null) }} />
+          {/* حد صفر بلا معنى (= بلا ائتمان): لا يُقبل فارغ ولا صفر */}
+          <DecimalInput className="num" placeholder="0.00" value={value} onChange={(v) => { setValue(v); setError(null) }} />
           <DecimalError value={value} />
         </div>
       )}

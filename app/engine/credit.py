@@ -77,8 +77,8 @@ def set_mode(db: Session, *, client_id: int, currency_code: str, mode: str, limi
     """يكتب وضع (عميل، عملة). LIMIT يلزمه مبلغ ≥ 0؛ غيره يُصفّر المبلغ (لا NULL غامض: الوضع هو المرجع)."""
     if mode not in MODES:
         raise ValueError(f"وضع ائتمان غير معروف: {mode}")
-    if mode == LIMIT and (limit_amount is None or limit_amount < 0):
-        raise ValueError("وضع الحد يتطلب مبلغاً ≥ ٠")
+    if mode == LIMIT and (limit_amount is None or limit_amount <= 0):
+        raise ValueError("وضع الحد يتطلب مبلغاً أكبر من صفر (حد صفر = بلا ائتمان)")
     amount = limit_amount if mode == LIMIT else None
     row = db.get(ClientCreditLimit, (client_id, currency_code))
     if row is None:

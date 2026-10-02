@@ -160,7 +160,7 @@ def test_migration_semantics_check_constraints(db):
     from sqlalchemy.exc import IntegrityError
 
     c = f.make_client(db)
-    for bad in ("'LIMIT', NULL", "'UNLIMITED', 5", "'NONE', 1", "'WHATEVER', NULL"):
+    for bad in ("'LIMIT', NULL", "'LIMIT', 0", "'LIMIT', -5", "'UNLIMITED', 5", "'NONE', 1", "'WHATEVER', NULL"):
         with pytest.raises(IntegrityError):
             with db.begin_nested():
                 db.execute(text(f"INSERT INTO client_credit_limits (client_id, currency_code, mode, limit_amount) VALUES ({c.id}, 'LYD', {bad})"))

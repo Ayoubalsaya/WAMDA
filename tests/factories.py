@@ -42,11 +42,11 @@ def make_client(
     db.add(client)
     db.flush()
     if credit_allowed:
-        # السلوك القديم «مسموح بلا حد» = حد صفر في كل عملة فعّالة (مسار تجاوز المدير بسبب) — الائتمان صار لكل عملة (٢٠٢٦-١٠-٠٣)
+        # السلوك القديم «مسموح، أي تجاوز يمر بمسار المدير» = حد رمزي موجب (٠٫٠١؛ حد صفر لم يعد ممكناً) في كل عملة فعّالة — الائتمان صار لكل عملة (٢٠٢٦-١٠-٠٣)
         from app.engine import credit
 
         for code_ in credit.active_currency_codes(db):
-            credit.set_mode(db, client_id=client.id, currency_code=code_, mode=credit.LIMIT, limit_amount=Decimal("0"))
+            credit.set_mode(db, client_id=client.id, currency_code=code_, mode=credit.LIMIT, limit_amount=Decimal("0.01"))
     return client
 
 

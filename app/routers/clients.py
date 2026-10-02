@@ -229,8 +229,8 @@ def set_credit_limit(
     client = _get_client_or_404(db, client_id)
     if db.get(Currency, currency_code) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {currency_code}")
-    if payload.mode == credit.LIMIT and payload.limit_amount is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "حدّد مبلغ الحد (أو اختر «بلا ائتمان» / «بلا سقف»)")
+    if payload.mode == credit.LIMIT and (payload.limit_amount is None or payload.limit_amount <= 0):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "حد الائتمان يجب أن يكون أكبر من صفر (أو اختر «بلا ائتمان» / «بلا سقف»)")
     row = db.get(ClientCreditLimit, (client_id, currency_code))
     before = credit.describe(credit.CreditSetting(currency_code, row.mode, row.limit_amount)) if row else credit.describe(
         credit.CreditSetting(currency_code, credit.NONE, None))

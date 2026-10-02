@@ -68,7 +68,7 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /reference/accounts": STAFF,
     "GET /reference/accounts/for-operation": STAFF,
     "GET /reference/swift-movements/pending": STAFF,
-    "GET /reports/debts-by-currency": STAFF,
+    "GET /reports/client-liabilities": STAFF,
     "GET /reports/profit-by-period": STAFF,
     "GET /reports/trial-balance": STAFF,
     "GET /reports/income-statement": STAFF,

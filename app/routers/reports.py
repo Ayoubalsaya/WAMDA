@@ -42,7 +42,7 @@ from app.schemas.reports import (
     ClientProfitabilityRow,
     CorrespondentActivityRow,
     CurrencyAmount,
-    DebtsByCurrencyRow,
+    ClientLiabilitiesRow,
     EmergencyEntryRow,
     FoundingReconciliationResponse,
     IncomeStatementLine,
@@ -58,8 +58,9 @@ from app.security.deps import require_password_changed
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_password_changed)])
 
 
-@router.get("/debts-by-currency", response_model=list[DebtsByCurrencyRow])
-def debts_by_currency(db: OrmSession = Depends(get_db)) -> list[DebtsByCurrencyRow]:
+@router.get("/client-liabilities", response_model=list[ClientLiabilitiesRow])
+def client_liabilities(db: OrmSession = Depends(get_db)) -> list[ClientLiabilitiesRow]:
+    """التزاماتنا للعملاء: أرصدتهم الموجبة (ما علينا لهم) لكل عملة. أما ديونهم لنا فتقرير «العملاء المدينون»."""
     balances = {row.account_id: row.balance for row in db.execute(select(AccountBalance)).scalars()}
     leaves = accounts_repo.leaf_accounts(db, include_client_accounts=True)
     per_currency: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
@@ -71,7 +72,7 @@ def debts_by_currency(db: OrmSession = Depends(get_db)) -> list[DebtsByCurrencyR
                 per_currency[a.currency_code] += bal
                 clients_per_currency[a.currency_code].add(a.client_id)
     return [
-        DebtsByCurrencyRow(currency_code=ccy, total_owed=amount, client_count=len(clients_per_currency[ccy]))
+        ClientLiabilitiesRow(currency_code=ccy, total_liability=amount, client_count=len(clients_per_currency[ccy]))
         for ccy, amount in sorted(per_currency.items())
     ]
 

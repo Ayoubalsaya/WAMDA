@@ -369,9 +369,9 @@ export interface ClientPortalInviteCreatedResponse {
 }
 
 // §٧-١١ التقارير
-export interface DebtsByCurrencyRow {
+export interface ClientLiabilitiesRow {
   currency_code: string
-  total_owed: string
+  total_liability: string
   client_count: number
 }
 

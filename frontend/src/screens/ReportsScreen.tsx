@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type {
   ActivityRow, BalanceOverrideRow, ClientProfitabilityRow, CorrespondentActivityRow, Currency, CurrencyAmount,
-  DebtorRow, DebtsByCurrencyRow, EmergencyEntryRow, FoundingReconciliationResponse, IncomeStatementResponse,
+  ClientLiabilitiesRow, DebtorRow, EmergencyEntryRow, FoundingReconciliationResponse, IncomeStatementResponse,
   LossMakingEntryRow, ProfitByPeriodRow, SwiftHistoryRow, TrialBalanceResponse,
 } from '../api/types'
 import { CurrencyBadge } from '../components/CurrencyBadge'
@@ -12,13 +12,13 @@ import { formatAmount } from '../lib/formatAmount'
 import './ReportsScreen.css'
 
 type ReportId =
-  | 'debts' | 'debtors' | 'profit-period' | 'trial-balance' | 'income-statement' | 'client-profitability'
+  | 'liabilities' | 'debtors' | 'profit-period' | 'trial-balance' | 'income-statement' | 'client-profitability'
   | 'lot-profitability' | 'activity-currency' | 'activity-month' | 'correspondent-activity'
   | 'swift-history' | 'loss-making' | 'balance-overrides' | 'emergency-entries' | 'founding-reconciliation'
 
 const REPORTS: { id: ReportId; label: string }[] = [
-  { id: 'debts', label: 'الديون لكل عملة' },
-  { id: 'debtors', label: 'العملاء المدينون' },
+  { id: 'liabilities', label: 'التزاماتنا للعملاء' },
+  { id: 'debtors', label: 'العملاء المدينون (ديونهم لنا)' },
   { id: 'profit-period', label: 'الأرباح حسب الفترة' },
   { id: 'trial-balance', label: 'ميزان المراجعة' },
   { id: 'income-statement', label: 'قائمة الدخل' },
@@ -48,22 +48,22 @@ function AmountChips({ items, currencies }: { items: CurrencyAmount[]; currencie
   )
 }
 
-function DebtsByCurrencyTab({ currencies }: { currencies: Currency[] }) {
-  const [rows, setRows] = useState<DebtsByCurrencyRow[] | null>(null)
-  useEffect(() => { void api.get<DebtsByCurrencyRow[]>('/reports/debts-by-currency').then(setRows) }, [])
+function ClientLiabilitiesTab({ currencies }: { currencies: Currency[] }) {
+  const [rows, setRows] = useState<ClientLiabilitiesRow[] | null>(null)
+  useEffect(() => { void api.get<ClientLiabilitiesRow[]>('/reports/client-liabilities').then(setRows) }, [])
   if (!rows) return <p className="text-muted">...جارٍ التحميل</p>
   return (
     <table className="data-table">
-      <thead><tr><th>العملة</th><th>إجمالي المديونية</th><th>عدد العملاء</th></tr></thead>
+      <thead><tr><th>العملة</th><th>إجمالي ما علينا للعملاء</th><th>عدد العملاء</th></tr></thead>
       <tbody>
         {rows.map((r) => (
           <tr key={r.currency_code}>
             <td><CurrencyBadge code={r.currency_code} /></td>
-            <td className="num" style={{ fontWeight: 700 }}>{formatAmount(r.total_owed, r.currency_code, currencies)}</td>
+            <td className="num" style={{ fontWeight: 700 }}>{formatAmount(r.total_liability, r.currency_code, currencies)}</td>
             <td className="num">{r.client_count}</td>
           </tr>
         ))}
-        {rows.length === 0 && <tr><td colSpan={3} className="text-muted">لا مديونيات حالياً</td></tr>}
+        {rows.length === 0 && <tr><td colSpan={3} className="text-muted">لا التزامات للعملاء حالياً</td></tr>}
       </tbody>
     </table>
   )
@@ -435,7 +435,7 @@ const EXCEL_EXPORT_KEYS: Partial<Record<ReportId, string>> = {
 }
 
 export function ReportsScreen() {
-  const [report, setReport] = useState<ReportId>('debts')
+  const [report, setReport] = useState<ReportId>('liabilities')
   const { currencies } = useReferenceData()
   const exportKey = PDF_EXPORT_KEYS[report]
   const excelKey = EXCEL_EXPORT_KEYS[report]
@@ -470,7 +470,7 @@ export function ReportsScreen() {
           ))}
         </div>
         <div className="card reports-content" style={{ overflowX: 'auto' }}>
-          {report === 'debts' && <DebtsByCurrencyTab currencies={currencies} />}
+          {report === 'liabilities' && <ClientLiabilitiesTab currencies={currencies} />}
           {report === 'debtors' && <DebtorsTab currencies={currencies} />}
           {report === 'profit-period' && <ProfitByPeriodTab currencies={currencies} />}
           {report === 'trial-balance' && <TrialBalanceTab currencies={currencies} />}
