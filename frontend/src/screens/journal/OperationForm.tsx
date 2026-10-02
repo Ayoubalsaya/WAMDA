@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDownUp, Ban, CreditCard, HandCoins, Landmark, MoreHorizontal, PlusCircle, Receipt, Repeat, Scale, Send, Wallet2,
 } from 'lucide-react'
@@ -11,6 +11,8 @@ import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, round
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { FieldErrorPortals, type PlacedError } from '../../components/FieldErrorPortals'
+import { placeFieldErrors, type FieldLabel } from '../../lib/apiErrors'
 import { decimalInputError } from '../../lib/decimalInput'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { AmountStage, ExchangeSummary, FormGuide, PillTabs, SelectWrap } from './journalUi'
@@ -132,6 +134,8 @@ export function OperationForm({
   // حقل يُخفيه — ٢٠٢٦-١٠-٠٢: كان رد ٤٢٢ لمحاولة سابقة (cost_rate=0) يبقى ظاهراً
   // بجوار حقل صُحِّح إلى ٩٫٠٥ فيبدو كأن الخادم استلم ٠ من القيمة المعروضة.
   const [errorState, setErrorState] = useState<{ message: string; atKey: string } | null>(null)
+  const [fieldErrorsState, setFieldErrorsState] = useState<{ errors: PlacedError[]; atKey: string } | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const [success, setSuccess] = useState<EntryResponse | null>(null)
   // ب: رصيد صندوق/مراسل سيصبح سالباً — الخادم يرفض بـ٤٠٩ فور المحاولة
   // العادية؛ هذا يحفظ نفس الطلب لإعادة إرساله بعد إدخال سبب إلزامي
@@ -196,6 +200,7 @@ export function OperationForm({
     client?.id ?? null, openingAccountMode,
   ])
   const error = errorState && errorState.atKey === formKey ? errorState.message : null
+  const fieldErrors = fieldErrorsState && fieldErrorsState.atKey === formKey ? fieldErrorsState.errors : []
   const setError = (message: string | null) => setErrorState(message === null ? null : { message, atKey: formKey })
 
   function resetForm() {
@@ -354,6 +359,63 @@ export function OperationForm({
     return { clientAmt, costAmt, diff: clientAmt.minus(costAmt) }
   }, [tab, fields.currency_code, fields.amount, fields.client_rate, fields.cost_rate, currencies])
 
+
+  // الاسم الظاهر في الشاشة لحقل الطلب `key` (نفس نص التسمية فوق الحقل، بلا الأقواس
+  // الأخيرة) — يُوضَع تحته الخطأ العربي القادم من الخادم. ما لم يُذكر هنا يأخذ
+  // الاسم الافتراضي من الخادم (`app/validation_errors.py`).
+  function onScreenLabel(key: string, serverLabel: string | null): FieldLabel {
+    const t = tab
+    const treasury = t === 'EXCHANGE' && exchangeScope === 'TREASURY'
+    switch (key) {
+      case 'entry_date': return { name: 'تاريخ العملية' }
+      case 'backdate_reason': return { name: 'سبب القيد بأثر رجعي' }
+      case 'note': return { name: 'ملاحظة', nth: 'last' }
+      case 'edit_reason': return { name: 'سبب التعديل' }
+      case 'amount': return { name: t === 'CASH_TRANSFER' ? 'المبلغ المنقول' : 'المبلغ' }
+      case 'total_amount': return { name: t === 'SWIFT_RETURN' ? 'المبلغ المرتجع كاملاً' : 'المبلغ الواصل' }
+      case 'client_rate': return { name: treasury ? 'سعر التنفيذ' : 'سعر العميل' }
+      case 'cost_rate': return { name: 'سعر التكلفة' }
+      case 'negative_margin_reason': return { name: 'سبب الهامش السالب' }
+      case 'currency_code': return { name: t === 'REMIT_OUT' ? 'عملة المبلغ المُرسَل' : 'العملة' }
+      case 'from_currency': return { name: 'العملة' }
+      case 'to_currency': return { name: 'إلى عملة' }
+      case 'location_code': return { name: 'الموقع' }
+      case 'from_location_code':
+        return { name: t === 'REMIT_OUT' ? 'الموقع المخصوم من العميل' : t === 'CASH_TRANSFER' ? 'من موقع' : 'الموقع' }
+      case 'to_location_code': return { name: 'إلى موقع' }
+      case 'receiving_account_code': return { name: 'الحساب المستقبِل' }
+      case 'paying_account_code': return { name: 'الحساب المصروف منه' }
+      case 'source_account_code': return { name: t === 'EXCHANGE' ? 'الحساب المصدر' : 'حساب المصدر (الشركة)' }
+      case 'destination_account_code': return { name: 'الحساب الوجهة' }
+      case 'execution_account_code': return { name: 'الحساب المنفِّذ' }
+      case 'collection_account_code': return { name: 'حساب تحصيل العمولة', place: 'الحساب' }
+      case 'collection_location_code': return { name: 'موقع رصيد العميل المخصوم منه' }
+      case 'commission_currency': return { name: 'عملة العمولة' }
+      case 'client_commission_amount': return { name: 'عمولة العميل (تحصيل)' }
+      case 'cost_commission_amount': return { name: 'تكلفة العمولة' }
+      case 'cost_correspondent_account_code': return { name: 'حساب تكلفة العمولة (المراسل)' }
+      case 'partner_account_code': return { name: t === 'SWIFT_OUT' ? 'حساب المراسل (تركيا)' : 'حساب المراسل' }
+      case 'expense_account_code': return { name: 'بند المصروف' }
+      case 'description': return { name: t === 'EXPENSE' ? 'البيان' : (serverLabel ?? 'البيان') }
+      case 'external_ref': return { name: 'مرجع خارجي' }
+      case 'swift_movement_id':
+        return t === 'SWIFT_RETURN' ? { name: 'الحركة المعلَّقة المطلوب ارتجاعها' } : { name: 'الحركة المعلَّقة' }
+      case 'fee_amount': return { name: t === 'SWIFT_IN' ? 'الرسوم الفعلية' : 'رسوم' }
+      case 'return_fee_amount': return { name: 'رسوم على العميل' }
+      case 'client_location_code': return { name: 'موقع العميل' }
+      case 'bank_conversion_rate': return { name: 'سعر تحويل البنك للرمبي' }
+      case 'from_account_code': return { name: 'من حساب' }
+      case 'to_account_code': return { name: 'إلى حساب' }
+      case 'account_code': return { name: t === 'OPENING' && openingAccountMode === 'client' ? 'حساب العميل' : 'الحساب' }
+      case 'as_of_date': return { name: 'التاريخ' }
+      case 'source_type': return { name: 'مصدر الرصيد' }
+      case 'confidence': return { name: 'درجة الثقة' }
+      case 'source_note': return { name: 'ملاحظة المصدر', place: 'ملاحظة', nth: 'first' }
+      case 'reason': return { name: 'السبب' }
+      default: return { name: serverLabel ?? 'الحقل' }
+    }
+  }
+
   // ب: يبني {url, payload} فقط — لا يرسل — كي يُعاد استخدام نفس الجسم عند
   // إعادة المحاولة بعد تجاوز رصيد سالب (allow_negative+override_reason
   // يُضافان لاحقاً بلا تكرار كل هذا التفريع من جديد).
@@ -453,6 +515,7 @@ export function OperationForm({
   ) {
     setBusy(true)
     setError(null)
+    setFieldErrorsState(null)
     try {
       if (mode === 'edit') {
         const result = await api.post<EditResponse>(url, payload)
@@ -472,6 +535,13 @@ export function OperationForm({
       } else if (err instanceof ApiError && err.status === 422 && err.message.includes('بأثر رجعي')) {
         setBackdateOverride({ url, retryPayload: retryBackdate })
         setBackdateOverrideReason('')
+      } else if (err instanceof ApiError && err.status === 422 && err.fieldErrors.length > 0) {
+        // ٢٠٢٦-١٠-٠٢: كل ٤٢٢ تحقق يصل مترجَماً — الرسالة تحت الحقل باسمه الظاهر،
+        // وما لا حقل ظاهراً له (مستوى الطلب/خطوة أخرى) في القائمة العامة أسفل النموذج
+        const { placed, general } = placeFieldErrors(err.fieldErrors, onScreenLabel, { editMode: mode === 'edit' })
+        setFieldErrorsState({ errors: placed, atKey: formKey })
+        if (general.length) setError(general.join('؛ '))
+        else setErrorState(null)
       } else {
         setError(err instanceof ApiError ? err.message : (mode === 'edit' ? 'تعذّر التعديل' : 'تعذّر الترحيل'))
       }
@@ -599,7 +669,7 @@ export function OperationForm({
         </div>
       )}
 
-      <div className="composer-panel" onKeyDown={handleKeyDown}>
+      <div className="composer-panel" ref={panelRef} onKeyDown={handleKeyDown}>
         <div className="composer-head">
           <div>
             <h2>{isEdit ? `تعديل — ${activeMeta?.label ?? tab}` : (activeMeta?.label ?? tab)}</h2>
@@ -759,12 +829,12 @@ export function OperationForm({
                 <div className="field">
                   <label className="field-label">عمولة العميل (تحصيل)</label>
                   <DecimalInput className="num" value={clientCommission} onChange={setClientCommission} />
-<DecimalError value={clientCommission} />
+                  <DecimalError value={clientCommission} />
                 </div>
                 <div className="field">
                   <label className="field-label">تكلفة العمولة</label>
                   <DecimalInput className="num" value={costCommission} onChange={setCostCommission} />
-<DecimalError value={costCommission} />
+                  <DecimalError value={costCommission} />
                 </div>
               </div>
 
@@ -819,12 +889,12 @@ export function OperationForm({
                 <div className="field field-rate">
                   <label className="field-label">سعر العميل</label>
                   <DecimalInput className="num" value={fields.client_rate ?? ''} onChange={(v) => setField('client_rate', v)} />
-<DecimalError value={fields.client_rate ?? ''} />
+                  <DecimalError value={fields.client_rate ?? ''} />
                 </div>
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
                   <DecimalInput className="num" value={fields.cost_rate ?? ''} onChange={(v) => setField('cost_rate', v)} />
-<DecimalError value={fields.cost_rate ?? ''} />
+                  <DecimalError value={fields.cost_rate ?? ''} />
                   <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
                 </div>
               </div>
@@ -911,7 +981,7 @@ export function OperationForm({
                 <div className="field">
                   <label className="field-label">الرسوم الفعلية</label>
                   <DecimalInput className="num" placeholder="0" value={fields.fee_amount ?? ''} onChange={(v) => setField('fee_amount', v)} />
-<DecimalError value={fields.fee_amount ?? ''} />
+                  <DecimalError value={fields.fee_amount ?? ''} />
                 </div>
               </div>
               <AccountPicker
@@ -921,7 +991,7 @@ export function OperationForm({
               <div className="field">
                 <label className="field-label">سعر تحويل البنك للرمبي (اختياري)</label>
                 <DecimalInput className="num" value={fields.bank_conversion_rate ?? ''} onChange={(v) => setField('bank_conversion_rate', v)} />
-<DecimalError value={fields.bank_conversion_rate ?? ''} />
+                <DecimalError value={fields.bank_conversion_rate ?? ''} />
                 <span className="rate-hint">
                   {fields.bank_conversion_rate
                     ? 'سيُفتَح دفعة رمبي جديدة تلقائياً بهذا السعر عند الترحيل'
@@ -959,7 +1029,7 @@ export function OperationForm({
                 <div className="field">
                   <label className="field-label">رسوم على العميل</label>
                   <DecimalInput className="num" placeholder="0" value={fields.return_fee_amount ?? ''} onChange={(v) => setField('return_fee_amount', v)} />
-<DecimalError value={fields.return_fee_amount ?? ''} />
+                  <DecimalError value={fields.return_fee_amount ?? ''} />
                 </div>
                 <div className="field">
                   <label className="field-label">موقع العميل</label>
@@ -991,7 +1061,7 @@ export function OperationForm({
                 <div className="field">
                   <label className="field-label">رسوم (اختياري — تُقيَّد في 5200)</label>
                   <DecimalInput className="num" placeholder="0" value={fields.fee_amount ?? ''} onChange={(v) => setField('fee_amount', v)} />
-<DecimalError value={fields.fee_amount ?? ''} />
+                  <DecimalError value={fields.fee_amount ?? ''} />
                 </div>
               </div>
             </>
@@ -1116,13 +1186,13 @@ export function OperationForm({
                   <div className="field field-rate">
                     <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                     <DecimalInput className="num" value={clientRate} onChange={setClientRate} />
-<DecimalError value={clientRate} />
+                    <DecimalError value={clientRate} />
                   </div>
                   {exchangeScope === 'CLIENT' && (
                     <div className="field field-rate">
                       <label className="field-label">سعر التكلفة</label>
                       <DecimalInput className="num" value={costRate} onChange={setCostRate} />
-<DecimalError value={costRate} />
+                      <DecimalError value={costRate} />
                       <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
                     </div>
                   )}
@@ -1184,6 +1254,7 @@ export function OperationForm({
           )}
 
           {error && <FormGuide tone="critical">{error}</FormGuide>}
+          <FieldErrorPortals rootRef={panelRef} errors={fieldErrors} />
           {negOverride && (
             <FormGuide tone="critical">
               <div>سيصبح رصيد الحساب سالباً — هذا مسموح لكن يتطلب سبباً مكتوباً (مدير فقط، يُسجَّل في تقرير تجاوزات الرصيد).</div>

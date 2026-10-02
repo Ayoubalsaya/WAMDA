@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
@@ -6,6 +6,8 @@ import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { FieldErrorPortals, type PlacedError } from '../../components/FieldErrorPortals'
+import { placeFieldErrors, type FieldLabel } from '../../lib/apiErrors'
 import { decimalInputError } from '../../lib/decimalInput'
 import { AmountStage, ExchangeSummary, FormGuide, PillTabs } from './journalUi'
 import './journal-design.css'
@@ -23,6 +25,8 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [busy, setBusy] = useState(false)
   // الخطأ مرتبط بقيم النموذج لحظة الإرسال؛ أي تعديل لاحق يُخفيه (٢٠٢٦-١٠-٠٢)
   const [errorState, setErrorState] = useState<{ message: string; atKey: string } | null>(null)
+  const [fieldErrorsState, setFieldErrorsState] = useState<{ errors: PlacedError[]; atKey: string } | null>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
   const [result, setResult] = useState<ExchangeChainResponse | null>(null)
 
   // ٢٠٢٦-٠٩-٢٥: نطاقان (طلب مالك، الفجوة المعلَنة في دفعة الخزينة
@@ -57,6 +61,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
     fromLocation, step1ToLocation, step2ToLocation, step1SourceAccount, step1DestAccount, step2DestAccount, client?.id ?? null,
   ])
   const error = errorState && errorState.atKey === formKey ? errorState.message : null
+  const fieldErrors = fieldErrorsState && fieldErrorsState.atKey === formKey ? fieldErrorsState.errors : []
   const setError = (message: string | null) => setErrorState(message === null ? null : { message, atKey: formKey })
 
   const step1FromLocations = useMemo(() => locationsForCurrency(fromCurrency), [fromCurrency, locationsForCurrency])
@@ -96,6 +101,28 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const step1Ready = scope === 'TREASURY' ? Boolean(step1SourceAccount && step1DestAccount) : Boolean(fromLocation && step1ToLocation)
   const step2Ready = scope === 'TREASURY' ? Boolean(step2DestAccount) : Boolean(step2ToLocation)
 
+  // الاسم الظاهر لحقل `step1.…`/`step2.…` (نص التسمية فوق الحقل في الخطوة المعنيّة)
+  function onScreenLabel(key: string, serverLabel: string | null): FieldLabel {
+    const treasury = scope === 'TREASURY'
+    const [stepKey, field] = key.includes('.') ? key.split('.') : ['', key]
+    const stepNo = stepKey === 'step1' ? '١' : stepKey === 'step2' ? '٢' : ''
+    const withStep = (label: string, place = label): FieldLabel => ({ name: stepNo ? `${label} — الخطوة ${stepNo}` : label, place })
+    switch (field) {
+      case 'amount': return withStep('المبلغ')
+      case 'client_rate': return withStep(treasury ? 'سعر التنفيذ' : 'سعر العميل')
+      case 'cost_rate': return withStep('سعر التكلفة')
+      case 'negative_margin_reason': return withStep('سبب الهامش السالب')
+      case 'from_currency': return withStep('من عملة')
+      case 'to_currency': return withStep('إلى عملة')
+      case 'from_location_code': return withStep('من موقع')
+      case 'to_location_code': return stepKey === 'step1' ? withStep('موقع الدولار') : withStep('إلى موقع')
+      case 'source_account_code': return withStep('الحساب المصدر')
+      case 'destination_account_code': return stepKey === 'step1' ? withStep('الحساب الوجهة (دولار)') : withStep('الحساب الوجهة')
+      case 'note': return { name: 'ملاحظة' }
+      default: return { name: serverLabel ?? 'الحقل' }
+    }
+  }
+
   async function save() {
     if (scope === 'CLIENT' && !client) return
     const numeric: [string, string][] = [
@@ -111,6 +138,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
     }
     setBusy(true)
     setError(null)
+    setFieldErrorsState(null)
     try {
       const res = await api.post<ExchangeChainResponse>('/operations/exchange-chain', {
         client_id: scope === 'CLIENT' ? client!.id : undefined,
@@ -131,7 +159,14 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
       setResult(res)
       onPosted(res)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر حفظ السلسلة')
+      if (err instanceof ApiError && err.status === 422 && err.fieldErrors.length > 0) {
+        const { placed, general } = placeFieldErrors(err.fieldErrors, onScreenLabel)
+        setFieldErrorsState({ errors: placed, atKey: formKey })
+        if (general.length) setError(general.join('؛ '))
+        else setErrorState(null)
+      } else {
+        setError(err instanceof ApiError ? err.message : 'تعذّر حفظ السلسلة')
+      }
     } finally {
       setBusy(false)
     }
@@ -139,7 +174,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
   return (
     <div className="jr-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="jr-modal">
+      <div className="jr-modal" ref={modalRef}>
         <div className="wizard-progress">
           <div className={`wizard-seg${step >= 1 ? ' is-active' : ''}`} />
           <div className={`wizard-seg${step >= 2 ? ' is-active' : ''}`} />
@@ -203,13 +238,13 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <DecimalInput className="num" value={step1Client} onChange={setStep1Client} />
-<DecimalError value={step1Client} />
+                <DecimalError value={step1Client} />
               </div>
               {scope === 'CLIENT' && (
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
                   <DecimalInput className="num" value={step1Cost} onChange={setStep1Cost} />
-<DecimalError value={step1Cost} />
+                <DecimalError value={step1Cost} />
                 </div>
               )}
             </div>
@@ -278,13 +313,13 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <DecimalInput className="num" value={step2Client} onChange={setStep2Client} />
-<DecimalError value={step2Client} />
+                <DecimalError value={step2Client} />
               </div>
               {scope === 'CLIENT' && (
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
                   <DecimalInput className="num" value={step2Cost} onChange={setStep2Cost} />
-<DecimalError value={step2Cost} />
+                <DecimalError value={step2Cost} />
                 </div>
               )}
             </div>
@@ -321,6 +356,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <textarea id="chain-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
             </div>
             {error && <FormGuide tone="critical">{error}</FormGuide>}
+            <FieldErrorPortals rootRef={modalRef} errors={fieldErrors} />
             {result ? (
               <>
                 <FormGuide tone="success">

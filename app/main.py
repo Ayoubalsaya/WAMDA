@@ -6,10 +6,12 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings as app_settings
+from app.validation_errors import validation_exception_handler
 from app.documents import render as doc_render
 from app.routers import (
     audit, auth, clients, dashboard, documents, entry_actions, operations, partners, periods, portal, reconciliation,
@@ -76,6 +78,10 @@ app = FastAPI(
     docs_url=None if _IS_PRODUCTION else "/docs",
     redoc_url=None if _IS_PRODUCTION else "/redoc",
 )
+
+# ٢٠٢٦-١٠-٠٢: كل ٤٢٢ تحقق يُترجَم إلى العربية باسم الحقل — لا قائمة Pydantic خام
+# تصل المستخدم (انظر app/validation_errors.py).
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 app.include_router(auth.router)
 app.include_router(users.router)
