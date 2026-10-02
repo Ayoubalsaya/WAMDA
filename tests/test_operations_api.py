@@ -211,7 +211,8 @@ def test_exchange_via_rates_lyd_to_usd(db, client, now):
 
 def test_exchange_treasury_scope_between_company_accounts_no_client(db, client, now):
     """٢٠٢٦-٠٩-٢٤: صرافة خزينة — نفس مثال المالك الحرفي بالضبط: ١٠٬٠٠٠ د.ل
-    عند مكتب ١ ← دولار عند مكتب ١، تكلفة ٧٫٩٠ · تنفيذ ٧٫٨٦ → ربح ٦٫٤٤$."""
+    عند مكتب ١ ← دولار عند مكتب ١ بسعر تنفيذ واحد ٧٫٨٦ (٢٠٢٦-١٠-٠٢: لا سعر تكلفة
+    ولا ربح في نطاق الخزينة)."""
     admin = _login(db, client, role="ADMIN")
     source = f.make_correspondent_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1310")
     destination = f.make_correspondent_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1310")
@@ -228,13 +229,12 @@ def test_exchange_treasury_scope_between_company_accounts_no_client(db, client, 
         "/operations/exchange",
         json={"source_account_code": source.code, "destination_account_code": destination.code,
               "from_currency": "LYD", "to_currency": "USD", "amount": "10000.000",
-              "cost_rate": "7.90", "client_rate": "7.86"},
+              "client_rate": "7.86"},
         headers=_headers(client),
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["profit_currency"] == "USD"
-    assert Decimal(body["profit_amount"]) == Decimal("6.44")
+    assert body["profit_currency"] is None and body["profit_amount"] is None
 
     from app.models import JournalEntry
     entry = db.get(JournalEntry, body["id"])
@@ -267,12 +267,11 @@ def test_exchange_chain_treasury_scope_two_steps_no_client(db, client, now):
         "/operations/exchange-chain",
         json={
             "step1": {"from_currency": "LYD", "to_currency": "USD", "amount": "10000.000",
-                      "cost_rate": "5.15", "client_rate": "5.10",
+                      "client_rate": "5.10",
                       "source_account_code": lyd_box.code, "destination_account_code": usd_box.code},
-            # USD مصدرها هنا (pivot) → الضرب لا القسمة (fx.convert) — تنفيذ
-            # أعلى من التكلفة = ربح خزينة في هذا الاتجاه بالذات (عكس ساق
-            # LYD→USD أعلاه حيث القسمة تعكس الاتجاه).
-            "step2": {"to_currency": "CNY", "cost_rate": "6.90", "client_rate": "6.95",
+            # USD مصدرها هنا (pivot) → الضرب لا القسمة (fx.convert) — سعر
+            # تنفيذ واحد لكل خطوة، لا ربح في أيٍّ منهما.
+            "step2": {"to_currency": "CNY", "client_rate": "6.95",
                       "destination_account_code": cny_box.code},
         },
         headers=_headers(client),
@@ -280,8 +279,7 @@ def test_exchange_chain_treasury_scope_two_steps_no_client(db, client, now):
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["step1"]["chain_ref"] == body["step2"]["chain_ref"] == body["chain_ref"]
-    assert body["step1"]["profit_currency"] == "USD"
-    assert body["step2"]["profit_currency"] == "CNY"
+    assert body["step1"]["profit_amount"] is None and body["step2"]["profit_amount"] is None
 
     from app.models import JournalEntry
     assert db.get(JournalEntry, body["step1"]["id"]).client_id is None

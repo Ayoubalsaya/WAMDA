@@ -405,3 +405,36 @@ def test_history_walks_original_reversal_and_replacement(db, client, now):
     kinds = {s["kind"] for s in hist.json()["steps"]}
     assert kinds == {"original", "reversal", "replacement"}
     assert len(hist.json()["steps"]) == 3
+
+
+def test_edit_treasury_exchange_single_rate(db, client, now):
+    """٢٠٢٦-١٠-٠٢: تعديل قيد صرافة خزينة (بلا عميل، سعر واحد) — كان مسار
+    التعديل يستدعي `_get_client(None)` فيفشل لكل قيد خزينة."""
+    from app.engine.operations import opening_balance
+    from app.models.enums import ConfidenceLevel, OpeningSourceType
+
+    admin = _login(db, client)
+    lyd = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1100")
+    usd = f.make_bank_account(db, currency_code="USD", location_code="TRIPOLI", parent_code="1100")
+    opening_balance.execute(
+        db, account_code=lyd.code, currency_code="LYD", amount=Decimal("10000.000"), is_debit=True,
+        as_of_date=now.date(), source_type=OpeningSourceType.KNOWN_BALANCE, confidence=ConfidenceLevel.HIGH,
+        approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+    entry = exchange_op.execute_via_rates(
+        db, from_currency="LYD", to_currency="USD", amount=Decimal("10000.000"), client_rate=Decimal("7.86"),
+        work_timezone=WORK_TZ, source_account_code=lyd.code, destination_account_code=usd.code,
+        created_by=admin.id, now=now, idempotency_key=f.uid(),
+    )
+    assert _account_balance(db, usd.code) == Decimal("1272.260000")
+
+    resp = client.post(f"/operations/{entry.id}/edit", json={
+        "reason": "سعر مُدخَل خطأً",
+        "operation": {
+            "source_account_code": lyd.code, "destination_account_code": usd.code,
+            "from_currency": "LYD", "to_currency": "USD", "amount": "10000.000", "client_rate": "8.00",
+        },
+    }, headers=_csrf(client))
+    assert resp.status_code == 200, resp.text
+    assert _account_balance(db, usd.code) == Decimal("1250.000000")
+    assert _account_balance(db, lyd.code) == Decimal("0.000000")

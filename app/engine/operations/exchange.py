@@ -37,7 +37,6 @@ def execute_via_rates(
     from_currency: str,
     to_currency: str,
     amount: Decimal,
-    cost_rate: Decimal,
     client_rate: Decimal,
     work_timezone: str,
     created_by: int,
@@ -45,6 +44,7 @@ def execute_via_rates(
     entry_date: Optional[date] = None,
     backdate_reason: Optional[str] = None,
     idempotency_key: str,
+    cost_rate: Optional[Decimal] = None,
     client: Optional[Client] = None,
     from_location_code: Optional[str] = None,
     to_location_code: Optional[str] = None,
@@ -62,16 +62,25 @@ def execute_via_rates(
     مراسل/صندوق طرف ثالث، مثال §١-٥). المستدعي يمرِّر أحدهما حصراً —
     التحقق من الحصرية عند طبقة HTTP (`ExchangeRatesRequest`)، لا هنا.
 
+    **نطاق العميل — سعران**: `cost_rate` إلزامي، والربح = تكلفة−عميل (فارق
+    يُبقيه الوسيط) على ضلع "إلى"، يغذّي `profit.account_and_side`.
+
+    **نطاق الخزينة — سعر واحد** (٢٠٢٦-١٠-٠٢، طلب مالك): `client_rate` هو
+    السعر المنفَّذ فعلاً، و`cost_rate` غير مسموح. لا ربح ولا خسارة في
+    العملية نفسها (لا سطر 4120/5120، `profit_amount` فارغ) — كل عملة
+    تتوازن داخل نفسها عبر مقاصتها `1900.x` بالمبلغ نفسه مديناً ودائناً.
+
     القطبية معكوسة بين النطاقين لأن حساب العميل `LIABILITY` وحساب
     الخزينة `ASSET` (مدين يُنقِص أحدهما ويزيد الآخر): في نطاق العميل
-    `client_from` مدين/`client_to` دائن (نفس ما كان دائماً)؛ في نطاق
-    الخزينة `source` دائن (يفرغ) و`destination` مدين (يمتلئ) — ومعهما
-    حسابا المقاصة `1900.x` بنفس الانعكاس. الربح كذلك معكوس الصيغة:
-    عميل = تكلفة−عميل (فارق يُبقيه الوسيط)، خزينة = تنفيذ−تكلفة (فارق
-    تحقَّق فعلياً من السعر الحقيقي مقابل السعر الداخلي المرجعي) — كلا
-    الصيغتين تُغذّيان `profit.account_and_side` نفسها دون تغيير فيها.
+    `client_from` مدين/`client_to` دائن؛ في نطاق الخزينة `source` دائن
+    (يفرغ) و`destination` مدين (يمتلئ) — ومعهما حسابا المقاصة `1900.x`
+    بنفس الانعكاس.
     """
     is_treasury = source_account_code is not None
+    if is_treasury and cost_rate is not None:
+        raise ValueError("صرافة الخزينة بسعر واحد — لا cost_rate")
+    if not is_treasury and cost_rate is None:
+        raise ValueError("صرافة العميل تتطلب cost_rate")
     _today = clock.local_entry_date(now, work_timezone)
 
     entry_date = entry_date or _today
@@ -86,14 +95,18 @@ def execute_via_rates(
             to_ccy_row.decimals,
             RoundingKind.GIVEN_TO_CLIENT,
         )
-        to_amount_cost = round_amount(
-            fx.convert(amount, cost_rate, from_currency=from_currency, to_currency=to_currency, pivot_code=pivot.code),
-            to_ccy_row.decimals,
-            RoundingKind.INTERNAL,
-        )
-        diff = (to_amount_client - to_amount_cost) if is_treasury else (to_amount_cost - to_amount_client)
-        if diff < 0 and not negative_margin_reason:
-            raise NegativeMarginReasonRequiredError("هامش سالب — سبب مكتوب إلزامي قبل الترحيل")
+        if is_treasury:
+            to_amount_cost = to_amount_client
+            diff = Decimal("0")
+        else:
+            to_amount_cost = round_amount(
+                fx.convert(amount, cost_rate, from_currency=from_currency, to_currency=to_currency, pivot_code=pivot.code),
+                to_ccy_row.decimals,
+                RoundingKind.INTERNAL,
+            )
+            diff = to_amount_cost - to_amount_client
+            if diff < 0 and not negative_margin_reason:
+                raise NegativeMarginReasonRequiredError("هامش سالب — سبب مكتوب إلزامي قبل الترحيل")
 
         clearing_from = clearing.clearing_account(db, from_currency)
         clearing_to = clearing.clearing_account(db, to_currency)
@@ -132,7 +145,7 @@ def execute_via_rates(
         if is_treasury:
             draft.add(account_id=from_account.id, currency_code=from_currency, credit=amount)
             draft.add(account_id=clearing_from.id, currency_code=from_currency, debit=amount)
-            draft.add(account_id=clearing_to.id, currency_code=to_currency, credit=to_amount_cost)
+            draft.add(account_id=clearing_to.id, currency_code=to_currency, credit=to_amount_client)
             draft.add(account_id=to_account.id, currency_code=to_currency, debit=to_amount_client)
         else:
             draft.add(account_id=from_account.id, currency_code=from_currency, debit=amount)
@@ -140,12 +153,12 @@ def execute_via_rates(
             draft.add(account_id=clearing_to.id, currency_code=to_currency, debit=to_amount_cost)
             draft.add(account_id=to_account.id, currency_code=to_currency, credit=to_amount_client)
 
-        pl_account, pl_amounts = profit.account_and_side(db, diff=diff, currency_code=to_currency)
-        if pl_account is not None:
-            draft.add(account_id=pl_account.id, currency_code=to_currency, **pl_amounts)
-
-        draft.entry.profit_amount = diff
-        draft.entry.profit_currency = to_currency
+        if not is_treasury:
+            pl_account, pl_amounts = profit.account_and_side(db, diff=diff, currency_code=to_currency)
+            if pl_account is not None:
+                draft.add(account_id=pl_account.id, currency_code=to_currency, **pl_amounts)
+            draft.entry.profit_amount = diff
+            draft.entry.profit_currency = to_currency
         return posting.post_entry(db, draft, posted_by=created_by, now=now)
 
     return posting.execute_idempotent(

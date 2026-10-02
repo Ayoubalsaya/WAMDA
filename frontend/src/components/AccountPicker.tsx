@@ -29,7 +29,7 @@ async function fetchAccounts(spec: AccountPickerSpec): Promise<AccountRef[]> {
 
 interface AccountPickerProps {
   value: string
-  onChange: (code: string) => void
+  onChange: (code: string, account?: AccountRef) => void
   label: string
   spec: AccountPickerSpec | null
   emptyMessage?: string
@@ -155,7 +155,7 @@ export function AccountPicker({ value, onChange, label, spec, emptyMessage, type
                     type="button"
                     key={a.code}
                     className={`acct-picker-row${a.code === value ? ' is-selected' : ''}`}
-                    onClick={() => { onChange(a.code); setOpen(false) }}
+                    onClick={() => { onChange(a.code, a); setOpen(false) }}
                   >
                     <span className="acct-picker-row-main">
                       <span className="acct-picker-row-name">{a.name_ar}</span>

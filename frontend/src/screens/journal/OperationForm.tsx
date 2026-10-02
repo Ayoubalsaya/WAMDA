@@ -11,7 +11,7 @@ import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, round
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
-import { AmountStage, FormGuide, PillTabs, SelectWrap } from './journalUi'
+import { AmountStage, ExchangeSummary, FormGuide, PillTabs, SelectWrap } from './journalUi'
 import './journal-design.css'
 
 // ٢٠٢٦-٠٩-٢٢: "اليوم" بتوقيت العمل (Africa/Tripoli) — لا `new Date()` خام
@@ -151,6 +151,8 @@ export function OperationForm({
   const [exchangeScope, setExchangeScope] = useState<'CLIENT' | 'TREASURY'>('CLIENT')
   const [treasurySourceAccount, setTreasurySourceAccount] = useState('')
   const [treasuryDestAccount, setTreasuryDestAccount] = useState('')
+  const [treasurySourceName, setTreasurySourceName] = useState('')
+  const [treasuryDestName, setTreasuryDestName] = useState('')
   const [fromLocation, setFromLocation] = useState('')
   const [toLocationCt, setToLocationCt] = useState('')
   const [sourceAccount, setSourceAccount] = useState('')
@@ -182,6 +184,7 @@ export function OperationForm({
     setCollectionAccount(''); setCollectFromCompanyAccount(false); setCollectionLocation('')
     setCostCorrespondentAccount(lastCostCorrespondent())
     setExchangeScope('CLIENT'); setTreasurySourceAccount(''); setTreasuryDestAccount('')
+    setTreasurySourceName(''); setTreasuryDestName('')
     setFields({})
     setOpeningAccountMode('system')
     setIdemKey(newIdempotencyKey())
@@ -300,18 +303,22 @@ export function OperationForm({
 
   // معاينة فورية — decimal.js في المتصفح فقط، السيرفر يعيد الحساب ويحسم
   const exchangePreview = useMemo(() => {
-    if (tab !== 'EXCHANGE' || !currencyCode || !toCurrency || !amount) return null
+    if (tab !== 'EXCHANGE' || exchangeScope !== 'CLIENT' || !currencyCode || !toCurrency || !amount) return null
     const toCcy = currencies.find((c) => c.code === toCurrency)
     if (!toCcy) return null
-    const clientRaw = convertPreview(amount, clientRate, currencyCode)
-    const costRaw = convertPreview(amount, costRate, currencyCode)
-    const clientAmt = roundGivenToClient(clientRaw, toCcy.decimals)
-    const costAmt = roundInternal(costRaw, toCcy.decimals)
-    // نطاق الخزينة: القطبية معكوسة (انظر exchange.execute_via_rates) —
-    // الربح = تنفيذ−تكلفة لا تكلفة−عميل.
-    const diff = exchangeScope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
-    return { clientAmt, costAmt, diff }
+    const clientAmt = roundGivenToClient(convertPreview(amount, clientRate, currencyCode), toCcy.decimals)
+    const costAmt = roundInternal(convertPreview(amount, costRate, currencyCode), toCcy.decimals)
+    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
   }, [tab, exchangeScope, currencyCode, toCurrency, amount, clientRate, costRate, currencies])
+
+  // نطاق الخزينة (٢٠٢٦-١٠-٠٢): سعر واحد منفَّذ، لا تكلفة ولا ربح — المبلغ
+  // الداخل = المبلغ الخارج × السعر (نفس تقريب الخادم: للأسفل).
+  const treasuryPreview = useMemo(() => {
+    if (tab !== 'EXCHANGE' || exchangeScope !== 'TREASURY' || !currencyCode || !toCurrency || !amount || !clientRate) return null
+    const toCcy = currencies.find((c) => c.code === toCurrency)
+    if (!toCcy) return null
+    return { toAmount: roundGivenToClient(convertPreview(amount, clientRate, currencyCode), toCcy.decimals) }
+  }, [tab, exchangeScope, currencyCode, toCurrency, amount, clientRate, currencies])
 
   // §٤ رقم ٩: موجب = ربح (العميل دفع أكثر من التكلفة) — عكس إشارة الصرافة تماماً
   const remitPreview = useMemo(() => {
@@ -342,8 +349,8 @@ export function OperationForm({
     } else if (tab === 'EXCHANGE') {
       return { url: '/operations/exchange', payload: exchangeScope === 'TREASURY' ? {
         source_account_code: treasurySourceAccount, destination_account_code: treasuryDestAccount,
-        from_currency: currencyCode, to_currency: toCurrency, amount, cost_rate: costRate,
-        client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
+        from_currency: currencyCode, to_currency: toCurrency, amount,
+        client_rate: clientRate, note: fields.note || undefined,
       } : {
         client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
         to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
@@ -632,7 +639,7 @@ export function OperationForm({
 
           {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
             <AccountPicker
-              value={treasurySourceAccount} onChange={setTreasurySourceAccount} spec={exchangeSourceSpec} label="الحساب المصدر"
+              value={treasurySourceAccount} onChange={(code, a) => { setTreasurySourceAccount(code); setTreasurySourceName(a?.name_ar ?? '') }} spec={exchangeSourceSpec} label="الحساب المصدر"
               emptyMessage={!currencyCode ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
             />
           )}
@@ -658,7 +665,7 @@ export function OperationForm({
 
           {tab === 'EXCHANGE' && exchangeScope === 'TREASURY' && (
             <AccountPicker
-              value={treasuryDestAccount} onChange={setTreasuryDestAccount} spec={exchangeDestSpec} label="الحساب الوجهة"
+              value={treasuryDestAccount} onChange={(code, a) => { setTreasuryDestAccount(code); setTreasuryDestName(a?.name_ar ?? '') }} spec={exchangeDestSpec} label="الحساب الوجهة"
               emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
             />
           )}
@@ -1070,11 +1077,13 @@ export function OperationForm({
                     <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                     <input className="num" value={clientRate} onChange={(e) => setClientRate(e.target.value)} />
                   </div>
-                  <div className="field field-rate">
-                    <label className="field-label">سعر التكلفة</label>
-                    <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
-                    {exchangeScope !== 'TREASURY' && <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>}
-                  </div>
+                  {exchangeScope === 'CLIENT' && (
+                    <div className="field field-rate">
+                      <label className="field-label">سعر التكلفة</label>
+                      <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
+                      <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -1088,8 +1097,8 @@ export function OperationForm({
 
           {tab === 'EXCHANGE' && exchangePreview && (
             <div className="result-card">
-              <div className="result-row"><span>{exchangeScope === 'TREASURY' ? 'بسعر التنفيذ ← ما أعطيته فعلاً' : 'المبلغ الناتج للعميل'}</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
-              <div className="result-row result-dashed"><span>{exchangeScope === 'TREASURY' ? 'بسعر التكلفة ← ما كان يجب أن أحصل عليه' : 'مبلغ التكلفة (داخلي)'}</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
+              <div className="result-row"><span>المبلغ الناتج للعميل</span><span className="num">{exchangePreview.clientAmt.toString()} {toCurrency}</span></div>
+              <div className="result-row result-dashed"><span>مبلغ التكلفة (داخلي)</span><span className="num text-muted">{exchangePreview.costAmt.toString()} {toCurrency}</span></div>
               <div className="result-row result-final">
                 <span>{profitOrLossLabel(exchangePreview.diff)} العملية</span>
                 <span className={`num ${exchangePreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
@@ -1097,6 +1106,14 @@ export function OperationForm({
                 </span>
               </div>
             </div>
+          )}
+
+          {tab === 'EXCHANGE' && treasuryPreview && (
+            <ExchangeSummary
+              fromAmount={amount} fromCurrency={currencyCode} fromAccount={treasurySourceName || treasurySourceAccount || '—'}
+              toAmount={treasuryPreview.toAmount.toString()} toCurrency={toCurrency} toAccount={treasuryDestName || treasuryDestAccount || '—'}
+              rate={clientRate}
+            />
           )}
 
           {tab === 'EXCHANGE' && exchangePreview && exchangePreview.diff.lt(0) && (

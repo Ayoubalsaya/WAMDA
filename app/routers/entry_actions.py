@@ -120,10 +120,11 @@ def _create_payment(db: OrmSession, op: PaymentRequest, user: User, now: datetim
 
 
 def _create_exchange(db: OrmSession, op: ExchangeRatesRequest, user: User, now: datetime, idem: str) -> JournalEntry:
-    client = _get_client(db, op.client_id)
+    client = _get_client(db, op.client_id) if op.client_id is not None else None
     entry = _run(lambda: exchange_op.execute_via_rates(
         db, client=client, from_currency=op.from_currency, from_location_code=op.from_location_code,
         to_currency=op.to_currency, to_location_code=op.to_location_code, amount=op.amount,
+        source_account_code=op.source_account_code, destination_account_code=op.destination_account_code,
         cost_rate=op.cost_rate, client_rate=op.client_rate, work_timezone=settings.work_timezone,
         created_by=user.id, now=now, idempotency_key=idem, description=op.description,
         negative_margin_reason=op.negative_margin_reason,

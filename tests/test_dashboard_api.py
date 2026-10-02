@@ -100,8 +100,8 @@ def test_dashboard_profit_split_transfer_fee_vs_exchange_spread(db, client, now,
 
 
 def test_dashboard_profit_split_treasury_exchange_separate_from_client_spread(db, client, now, monkeypatch):
-    """٢٠٢٦-٠٩-٢٤: صرافة الخزينة (بلا عميل) تُحسَب في bucket منفصل تماماً
-    عن فروق صرافة العملاء، رغم أن كليهما OperationType.EXCHANGE."""
+    """٢٠٢٦-١٠-٠٢: صرافة الخزينة بسعر واحد لا ربح لها — لا تدخل أي bucket ربح
+    (لا `treasury_exchange` ولا `exchange_spread`)، رغم أنها OperationType.EXCHANGE."""
     monkeypatch.setattr("app.routers.dashboard.system_clock", lambda: now)
     _login(db, client)
     admin = f.make_user(db, role="ADMIN")
@@ -112,19 +112,20 @@ def test_dashboard_profit_split_treasury_exchange_separate_from_client_spread(db
         as_of_date=now.date(), source_type=OpeningSourceType.KNOWN_BALANCE, confidence=ConfidenceLevel.HIGH,
         approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
     )
+    before = client.get("/dashboard/summary").json()["today_profit"]
     exchange_op.execute_via_rates(
         db, from_currency="LYD", to_currency="USD", amount=Decimal("10000.000"),
-        cost_rate=Decimal("7.90"), client_rate=Decimal("7.86"), work_timezone=WORK_TZ,
+        client_rate=Decimal("7.86"), work_timezone=WORK_TZ,
         source_account_code=source.code, destination_account_code=destination.code,
         created_by=admin.id, now=now, idempotency_key=f.uid(),
     )
     resp = client.get("/dashboard/summary")
     assert resp.status_code == 200
-    body = resp.json()["today_profit"]
-    treasury_currencies = {r["currency_code"] for r in body["treasury_exchange"]}
-    exchange_currencies = {r["currency_code"] for r in body["exchange_spread"]}
-    assert "USD" in treasury_currencies
-    assert "USD" not in exchange_currencies  # صرافة الخزينة لا تدخل فروق صرافة العملاء إطلاقاً
+    after = resp.json()["today_profit"]
+    # لا ربح لها: لا أثر على أي bucket (الحسابان مقارنة قبل/بعد لا قيم مطلقة،
+    # فقاعدة التطوير المشتركة قد تحوي قيوداً أخرى لليوم)
+    assert after["treasury_exchange"] == before["treasury_exchange"]
+    assert after["exchange_spread"] == before["exchange_spread"]
 
 
 def test_dashboard_alert_negative_asset_balance(db, client, now):

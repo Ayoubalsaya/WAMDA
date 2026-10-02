@@ -5,7 +5,7 @@ import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
-import { AmountStage, FormGuide, PillTabs } from './journalUi'
+import { AmountStage, ExchangeSummary, FormGuide, PillTabs } from './journalUi'
 import './journal-design.css'
 
 interface ExchangeWizardProps {
@@ -30,6 +30,9 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [step1SourceAccount, setStep1SourceAccount] = useState('')
   const [step1DestAccount, setStep1DestAccount] = useState('')
   const [step2DestAccount, setStep2DestAccount] = useState('')
+  const [step1SourceName, setStep1SourceName] = useState('')
+  const [step1DestName, setStep1DestName] = useState('')
+  const [step2DestName, setStep2DestName] = useState('')
 
   const [fromCurrency, setFromCurrency] = useState('LYD')
   const [fromLocation, setFromLocation] = useState('')
@@ -57,24 +60,27 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const step2DestSpec: AccountPickerSpec | null =
     scope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'destination', currencyCode: toCurrency } : null
 
+  // نطاق العميل: سعران والربح = تكلفة−عميل. نطاق الخزينة (٢٠٢٦-١٠-٠٢): سعر
+  // واحد منفَّذ، لا تكلفة ولا ربح — `costAmt`/`diff` تبقيان `null` فيه.
   const step1Preview = useMemo(() => {
     const usd = currencies.find((c) => c.code === PIVOT_CODE)
-    if (!usd || !amount || !step1Client || !step1Cost) return null
+    if (!usd || !amount || !step1Client) return null
     const clientAmt = roundGivenToClient(convertPreview(amount, step1Client, fromCurrency), usd.decimals)
+    if (scope === 'TREASURY') return { clientAmt, costAmt: null, diff: null }
+    if (!step1Cost) return null
     const costAmt = roundInternal(convertPreview(amount, step1Cost, fromCurrency), usd.decimals)
-    // نطاق الخزينة: الربح = تنفيذ−تكلفة لا تكلفة−عميل (انظر exchange.execute_via_rates)
-    const diff = scope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
-    return { clientAmt, costAmt, diff }
+    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
   }, [amount, step1Client, step1Cost, fromCurrency, currencies, scope])
 
   const step2Preview = useMemo(() => {
     const to = currencies.find((c) => c.code === toCurrency)
-    if (!to || !step1Preview || !step2Client || !step2Cost) return null
+    if (!to || !step1Preview || !step2Client) return null
     const baseAmount = step1Preview.clientAmt.toString()
     const clientAmt = roundGivenToClient(convertPreview(baseAmount, step2Client, PIVOT_CODE), to.decimals)
+    if (scope === 'TREASURY') return { clientAmt, costAmt: null, diff: null }
+    if (!step2Cost) return null
     const costAmt = roundInternal(convertPreview(baseAmount, step2Cost, PIVOT_CODE), to.decimals)
-    const diff = scope === 'TREASURY' ? clientAmt.minus(costAmt) : costAmt.minus(clientAmt)
-    return { clientAmt, costAmt, diff }
+    return { clientAmt, costAmt, diff: costAmt.minus(clientAmt) }
   }, [step1Preview, step2Client, step2Cost, toCurrency, currencies, scope])
 
   const step1Ready = scope === 'TREASURY' ? Boolean(step1SourceAccount && step1DestAccount) : Boolean(fromLocation && step1ToLocation)
@@ -88,18 +94,16 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
       const res = await api.post<ExchangeChainResponse>('/operations/exchange-chain', {
         client_id: scope === 'CLIENT' ? client!.id : undefined,
         step1: {
-          from_currency: fromCurrency, to_currency: PIVOT_CODE, amount, cost_rate: step1Cost, client_rate: step1Client,
-          negative_margin_reason: step1Reason || undefined,
+          from_currency: fromCurrency, to_currency: PIVOT_CODE, amount, client_rate: step1Client,
           ...(scope === 'TREASURY'
             ? { source_account_code: step1SourceAccount, destination_account_code: step1DestAccount }
-            : { from_location_code: fromLocation, to_location_code: step1ToLocation }),
+            : { cost_rate: step1Cost, negative_margin_reason: step1Reason || undefined, from_location_code: fromLocation, to_location_code: step1ToLocation }),
         },
         step2: {
-          to_currency: toCurrency, cost_rate: step2Cost, client_rate: step2Client,
-          negative_margin_reason: step2Reason || undefined,
+          to_currency: toCurrency, client_rate: step2Client,
           ...(scope === 'TREASURY'
             ? { destination_account_code: step2DestAccount }
-            : { to_location_code: step2ToLocation }),
+            : { cost_rate: step2Cost, negative_margin_reason: step2Reason || undefined, to_location_code: step2ToLocation }),
         },
         note: note || undefined,
       }, idemKey)
@@ -164,11 +168,11 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             {scope === 'TREASURY' && (
               <div className="form-row">
                 <AccountPicker
-                  value={step1SourceAccount} onChange={setStep1SourceAccount} spec={step1SourceSpec} label="الحساب المصدر"
+                  value={step1SourceAccount} onChange={(code, a) => { setStep1SourceAccount(code); setStep1SourceName(a?.name_ar ?? '') }} spec={step1SourceSpec} label="الحساب المصدر"
                   emptyMessage={!fromCurrency ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
                 />
                 <AccountPicker
-                  value={step1DestAccount} onChange={setStep1DestAccount} spec={step1DestSpec} label="الحساب الوجهة (دولار)"
+                  value={step1DestAccount} onChange={(code, a) => { setStep1DestAccount(code); setStep1DestName(a?.name_ar ?? '') }} spec={step1DestSpec} label="الحساب الوجهة (دولار)"
                   emptyMessage="لا حسابات شركة بالدولار"
                 />
               </div>
@@ -179,17 +183,26 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step1Client} onChange={(e) => setStep1Client(e.target.value)} />
               </div>
-              <div className="field field-rate">
-                <label className="field-label">سعر التكلفة</label>
-                <input className="num" value={step1Cost} onChange={(e) => setStep1Cost(e.target.value)} />
-              </div>
+              {scope === 'CLIENT' && (
+                <div className="field field-rate">
+                  <label className="field-label">سعر التكلفة</label>
+                  <input className="num" value={step1Cost} onChange={(e) => setStep1Cost(e.target.value)} />
+                </div>
+              )}
             </div>
-            {step1Preview && (
+            {scope === 'TREASURY' && step1Preview && (
+              <ExchangeSummary
+                fromAmount={amount} fromCurrency={fromCurrency} fromAccount={step1SourceName || step1SourceAccount || '—'}
+                toAmount={step1Preview.clientAmt.toString()} toCurrency={PIVOT_CODE} toAccount={step1DestName || step1DestAccount || '—'}
+                rate={step1Client}
+              />
+            )}
+            {scope === 'CLIENT' && step1Preview?.diff && (
               <div className={`rate-direction ${step1Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
                 {rateDirectionHint(step1Preview.diff).text}
               </div>
             )}
-            {step1Preview && (
+            {scope === 'CLIENT' && step1Preview?.diff && step1Preview.costAmt && (
               <div className="result-card">
                 <div className="result-row"><span>بسعر التنفيذ ← ما أعطيته فعلاً</span><span className="num">{step1Preview.clientAmt.toString()} USD</span></div>
                 <div className="result-row result-dashed"><span>بسعر التكلفة ← ما كان يجب أن أحصل عليه</span><span className="num text-muted">{step1Preview.costAmt.toString()} USD</span></div>
@@ -199,7 +212,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 </div>
               </div>
             )}
-            {step1Preview?.diff.lt(0) && (
+            {scope === 'CLIENT' && step1Preview?.diff?.lt(0) && (
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step1Reason} onChange={(e) => setStep1Reason(e.target.value)} /></div>
             )}
@@ -234,7 +247,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             </div>
             {scope === 'TREASURY' && (
               <AccountPicker
-                value={step2DestAccount} onChange={setStep2DestAccount} spec={step2DestSpec} label="الحساب الوجهة"
+                value={step2DestAccount} onChange={(code, a) => { setStep2DestAccount(code); setStep2DestName(a?.name_ar ?? '') }} spec={step2DestSpec} label="الحساب الوجهة"
                 emptyMessage={!toCurrency ? 'اختر إلى عملة أولاً' : 'لا حسابات شركة بهذه العملة'}
               />
             )}
@@ -243,21 +256,30 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
                 <input className="num" value={step2Client} onChange={(e) => setStep2Client(e.target.value)} />
               </div>
-              <div className="field field-rate">
-                <label className="field-label">سعر التكلفة</label>
-                <input className="num" value={step2Cost} onChange={(e) => setStep2Cost(e.target.value)} />
-              </div>
+              {scope === 'CLIENT' && (
+                <div className="field field-rate">
+                  <label className="field-label">سعر التكلفة</label>
+                  <input className="num" value={step2Cost} onChange={(e) => setStep2Cost(e.target.value)} />
+                </div>
+              )}
             </div>
-            {step2Preview && (
+            {scope === 'TREASURY' && step2Preview && (
+              <ExchangeSummary
+                fromAmount={step1Preview?.clientAmt.toString() ?? ''} fromCurrency={PIVOT_CODE} fromAccount={step1DestName || step1DestAccount || '—'}
+                toAmount={step2Preview.clientAmt.toString()} toCurrency={toCurrency} toAccount={step2DestName || step2DestAccount || '—'}
+                rate={step2Client}
+              />
+            )}
+            {scope === 'CLIENT' && step2Preview?.diff && (
               <div className={`rate-direction ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
                 {rateDirectionHint(step2Preview.diff).text}
               </div>
             )}
-            {step2Preview && (
+            {scope === 'CLIENT' && step2Preview?.diff && step2Preview.costAmt && step1Preview?.diff && (
               <div className="result-card">
                 <div className="result-row"><span>بسعر التنفيذ ← ما أعطيته فعلاً</span><span className="num">{step2Preview.clientAmt.toString()} {toCurrency}</span></div>
                 <div className="result-row result-dashed"><span>بسعر التكلفة ← ما كان يجب أن أحصل عليه</span><span className="num text-muted">{step2Preview.costAmt.toString()} {toCurrency}</span></div>
-                <div className="result-row result-dashed"><span>{profitOrLossLabel(step1Preview!.diff)} الخطوة ١</span><span className="num">{step1Preview!.diff.toString()} USD</span></div>
+                <div className="result-row result-dashed"><span>{profitOrLossLabel(step1Preview.diff)} الخطوة ١</span><span className="num">{step1Preview.diff.toString()} USD</span></div>
                 <div className="result-row">
                   <span>{profitOrLossLabel(step2Preview.diff)} الخطوة ٢</span>
                   <span className={`num ${step2Preview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{step2Preview.diff.toString()} {toCurrency}</span>
@@ -265,7 +287,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 <div className="result-row result-final"><span>الإجمالي (لأغراض العرض فقط — ربحان منفصلان دائماً في السجلات)</span></div>
               </div>
             )}
-            {step2Preview?.diff.lt(0) && (
+            {scope === 'CLIENT' && step2Preview?.diff?.lt(0) && (
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step2Reason} onChange={(e) => setStep2Reason(e.target.value)} /></div>
             )}

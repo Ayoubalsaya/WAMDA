@@ -62,10 +62,21 @@ class PaymentRequest(BackdateFields):
     override_reason: Optional[str] = None
 
 
+_TREASURY_NO_COST_MESSAGE = (
+    "صرافة الخزينة بسعر واحد هو السعر المنفَّذ فعلاً (client_rate) — لا cost_rate "
+    "ولا negative_margin_reason: لا ربح ولا خسارة في العملية نفسها"
+)
+
+
 class ExchangeRatesRequest(BackdateFields):
     """نطاقان حصرياً — أحدهما، لا كلاهما ولا أيّ منهما (٢٠٢٦-٠٩-٢٤):
-    **عميل** (`client_id`+موقعا من/إلى) أو **خزينة** (`source_account_code`+
-    `destination_account_code`، لا حساب عميل في القيد إطلاقاً)."""
+    **عميل** (`client_id`+موقعا من/إلى، سعران: `cost_rate` و`client_rate`) أو
+    **خزينة** (`source_account_code`+`destination_account_code`، لا حساب عميل
+    في القيد إطلاقاً).
+
+    ٢٠٢٦-١٠-٠٢ (طلب مالك): نطاق الخزينة **سعر واحد فقط** — `client_rate` هو
+    السعر المنفَّذ فعلاً (الاسم تاريخي، يطابق عمود `journal_entries.client_rate`)،
+    و`cost_rate`/`negative_margin_reason` ممنوعان فيه (٤٢٢)."""
     client_id: Optional[int] = None
     from_location_code: Optional[str] = None
     to_location_code: Optional[str] = None
@@ -74,7 +85,7 @@ class ExchangeRatesRequest(BackdateFields):
     from_currency: str
     to_currency: str
     amount: Decimal = Field(gt=0)
-    cost_rate: Decimal = Field(gt=0)
+    cost_rate: Optional[Decimal] = Field(default=None, gt=0)  # نطاق العميل فقط
     client_rate: Decimal = Field(gt=0)
     description: Optional[str] = None
     note: Optional[str] = None
@@ -93,6 +104,10 @@ class ExchangeRatesRequest(BackdateFields):
             raise ValueError("صرافة عميل تتطلب from_location_code وto_location_code")
         if is_treasury and not (self.source_account_code and self.destination_account_code):
             raise ValueError("صرافة خزينة تتطلب source_account_code وdestination_account_code معاً")
+        if is_client and self.cost_rate is None:
+            raise ValueError("صرافة عميل تتطلب cost_rate (سعر التكلفة)")
+        if is_treasury and (self.cost_rate is not None or self.negative_margin_reason is not None):
+            raise ValueError(_TREASURY_NO_COST_MESSAGE)
         return self
 
 
@@ -112,7 +127,7 @@ class ExchangeChainStep1(BaseModel):
     from_currency: str
     to_currency: str
     amount: Decimal = Field(gt=0)
-    cost_rate: Decimal = Field(gt=0)
+    cost_rate: Optional[Decimal] = Field(default=None, gt=0)  # نطاق العميل فقط
     client_rate: Decimal = Field(gt=0)
     negative_margin_reason: Optional[str] = None
     from_location_code: Optional[str] = None
@@ -125,7 +140,7 @@ class ExchangeChainStep2(BaseModel):
     """لا `source_account_code`/موقع "من" هنا — الخطوة ٢ تنطلق دائماً من
     حيث انتهت الخطوة ١ (وجهتها، بالمبلغ الفعلي المُرحَّل هناك)."""
     to_currency: str
-    cost_rate: Decimal = Field(gt=0)
+    cost_rate: Optional[Decimal] = Field(default=None, gt=0)  # نطاق العميل فقط
     client_rate: Decimal = Field(gt=0)
     negative_margin_reason: Optional[str] = None
     to_location_code: Optional[str] = None
@@ -149,11 +164,16 @@ class ExchangeChainRequest(BackdateFields):
                 raise ValueError("سلسلة صرافة خزينة تتطلب step1.source_account_code وstep1.destination_account_code")
             if not self.step2.destination_account_code:
                 raise ValueError("سلسلة صرافة خزينة تتطلب step2.destination_account_code")
+            for step in (self.step1, self.step2):
+                if step.cost_rate is not None or step.negative_margin_reason is not None:
+                    raise ValueError(_TREASURY_NO_COST_MESSAGE)
         else:
             if not (self.step1.from_location_code and self.step1.to_location_code):
                 raise ValueError("سلسلة صرافة عميل تتطلب step1.from_location_code وstep1.to_location_code")
             if not self.step2.to_location_code:
                 raise ValueError("سلسلة صرافة عميل تتطلب step2.to_location_code")
+            if self.step1.cost_rate is None or self.step2.cost_rate is None:
+                raise ValueError("سلسلة صرافة عميل تتطلب cost_rate في الخطوتين")
         return self
 
 

@@ -56,6 +56,24 @@ export function AmountStage({
   )
 }
 
+// ملخص صرافة الخزينة (٢٠٢٦-١٠-٠٢، طلب مالك): سعر واحد منفَّذ — لا ربح ولا
+// خسارة في العملية نفسها، فجملة واحدة بدل صندوق ربح/خسارة وتحذير سعر.
+export function ExchangeSummary({
+  fromAmount, fromCurrency, fromAccount, toAmount, toCurrency, toAccount, rate,
+}: {
+  fromAmount: string; fromCurrency: string; fromAccount: string
+  toAmount: string; toCurrency: string; toAccount: string; rate: string
+}) {
+  return (
+    <div className="exchange-summary" data-testid="exchange-summary">
+      <span>يخرج <strong className="num">{fromAmount} {fromCurrency}</strong> من {fromAccount}</span>
+      <span className="exchange-summary-arrow" aria-hidden="true">←</span>
+      <span>يدخل <strong className="num">{toAmount} {toCurrency}</strong> إلى {toAccount}</span>
+      <span>بسعر <strong className="num">{rate}</strong></span>
+    </div>
+  )
+}
+
 // pill-tab: تبويبات فرعية صغيرة (نطاق الصرافة · مصدر تحصيل العمولة) —
 // غلاف رقيق فوق SegmentedTabs المشتركة (الكبسولة النابضة، طلب مالك
 // ٢٠٢٦-٠٩-٢٧) بمظهر "pill". لا منطق حركة هنا — كله في المكوّن المشترك.
