@@ -8,6 +8,7 @@ import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
+import { ClientPortalSection } from './ClientPortalSection'
 
 interface ClientDetailViewProps {
   clientId: number
@@ -129,6 +130,10 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
         )}
         {!detail.credit_allowed && <span className="badge badge-status-reversed">بلا ائتمان مسموح</span>}
       </div>
+
+      {currentUserRole === 'ADMIN' && (
+        <ClientPortalSection clientId={clientId} clientName={detail.name_ar} clientPhone={detail.phone} />
+      )}
 
       <div style={{ marginBottom: 12 }}>
         <SegmentedTabs

@@ -1,18 +1,24 @@
 import { usePortalAuth } from './usePortalAuth'
 import { PortalLoginScreen } from './PortalLoginScreen'
-import { PortalChangePasswordScreen } from './PortalChangePasswordScreen'
+import { PortalAcceptInviteScreen } from './PortalAcceptInviteScreen'
 import { PortalHomeScreen } from './PortalHomeScreen'
 
-export function PortalApp() {
-  const { me, checking, login, logout, refresh } = usePortalAuth()
+// رابط الدعوة: {PUBLIC_BASE_URL}/static/app/portal.html#invite=TOKEN —
+// الرمز بعد # عمداً (جزء العميل، لا يُرسَل للخادم في طلب تحميل الصفحة
+// نفسها، فلا يظهر في أي سجل وصول).
+function inviteTokenFromHash(): string | null {
+  const match = window.location.hash.match(/^#invite=(.+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
 
+export function PortalApp() {
+  const { me, checking, login, logout } = usePortalAuth()
+  const inviteToken = inviteTokenFromHash()
+
+  if (inviteToken) {
+    return <PortalAcceptInviteScreen token={inviteToken} />
+  }
   if (checking) return <div className="app-loading">...جارٍ التحقق من الجلسة</div>
   if (!me) return <PortalLoginScreen login={login} />
-  // §٧-٦/اختبار القبول ٤٢: لا شيء آخر يُعرَض قبل تغيير كلمة المرور —
-  // بوابياً هنا (لا اعتماداً على ٤٠٣ الخادم وحده كما في واجهة الموظف
-  // التي لم تُبنَ لها شاشة إجبار مماثلة بعد، انظر ديون تقنية PROGRESS.md).
-  if (me.must_change_password) {
-    return <PortalChangePasswordScreen onDone={refresh} onLogout={logout} />
-  }
   return <PortalHomeScreen me={me} onLogout={logout} />
 }

@@ -308,13 +308,28 @@ export interface LotDetail {
 
 export interface PortalLoginResponse {
   status: string
-  must_change_password?: boolean
 }
 
 export interface PortalMeResponse {
   code: string
   name_ar: string
-  must_change_password: boolean
+}
+
+export interface PortalInviteVerifyResponse {
+  client_first_name: string
+}
+
+export type ClientPortalStatus = 'NOT_ENABLED' | 'INVITE_PENDING' | 'INVITE_EXPIRED' | 'ACTIVE' | 'LOCKED' | 'DISABLED'
+
+export interface ClientPortalStatusResponse {
+  status: ClientPortalStatus
+  last_login_at: string | null
+  invite_expires_at: string | null
+}
+
+export interface ClientPortalInviteCreatedResponse {
+  invite_url: string
+  expires_at: string
 }
 
 // §٧-١١ التقارير
