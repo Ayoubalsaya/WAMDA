@@ -1,6 +1,13 @@
 from typing import Optional
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import model_validator
+
+# الحدّ الصارم الإلزامي حين APP_ENV=production (طلب مالك صريح، ٢٠٢٦-١٠-٠٢):
+# قيمة أضعف من هذا في الإنتاج ترفض الإقلاع كلياً — لا تصحيح صامت. محلياً
+# (APP_ENV!=production) القيم حرة كما هي بلا أي قيد.
+PRODUCTION_MAX_LOGIN_RATE_LIMIT = 5
+PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS = 900  # ١٥ دقيقة
 
 
 class Settings(BaseSettings):
@@ -51,6 +58,34 @@ class Settings(BaseSettings):
     # يكون خلف nginx يضبط هذه الترويسات فعلاً (انظر README). بلا تفعيله
     # خلف nginx: كل الطلبات من 127.0.0.1 فيُقفَل الحدّ على الجميع.
     trust_proxy_headers: bool = False
+
+    @model_validator(mode="after")
+    def _enforce_production_rate_limit_floor(self) -> "Settings":
+        if self.app_env != "production":
+            return self
+        violations: list[str] = []
+        if self.login_rate_limit_max > PRODUCTION_MAX_LOGIN_RATE_LIMIT:
+            violations.append(
+                f"LOGIN_RATE_LIMIT_MAX={self.login_rate_limit_max} يتجاوز الحدّ "
+                f"الصارم المسموح في الإنتاج ({PRODUCTION_MAX_LOGIN_RATE_LIMIT})"
+            )
+        if self.portal_login_rate_limit_max > PRODUCTION_MAX_LOGIN_RATE_LIMIT:
+            violations.append(
+                f"PORTAL_LOGIN_RATE_LIMIT_MAX={self.portal_login_rate_limit_max} يتجاوز "
+                f"الحدّ الصارم المسموح في الإنتاج ({PRODUCTION_MAX_LOGIN_RATE_LIMIT})"
+            )
+        if self.login_rate_limit_window_seconds < PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS:
+            violations.append(
+                f"LOGIN_RATE_LIMIT_WINDOW_SECONDS={self.login_rate_limit_window_seconds} "
+                f"أقلّ من الحدّ الأدنى المسموح في الإنتاج "
+                f"({PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS})"
+            )
+        if violations:
+            raise ValueError(
+                "رفض الإقلاع — APP_ENV=production يفرض حدّاً صارماً على معدّل "
+                "محاولات الدخول: " + " · ".join(violations)
+            )
+        return self
 
 
 settings = Settings()
