@@ -238,3 +238,114 @@ def test_settings_currency_form_field_errors_under_their_fields(journal_page):
         pg.unroute("**/settings/currencies", structured)
         pg.click("button[title^='دفتر اليومية']")
         pg.wait_for_selector(".journal-col-center")
+
+
+# ═══ الشاشات الثلاث الأخيرة التي تستخدم useFormErrors: أرصدة افتتاحية · حد ائتمان · مطابقة ═══
+
+
+def test_opening_balances_field_errors_under_their_fields(journal_page):
+    pg = journal_page
+    pg.mode = "stub"
+
+    def structured(route):
+        if route.request.method == "POST":
+            route.fulfill(status=422, content_type="application/json", body=_structured_422(
+                ("amount", "المبلغ", "يجب أن يكون أكبر من صفر"), ("as_of_date", "التاريخ", "تاريخ غير صالح (الصيغة: السنة-الشهر-اليوم)"),
+                ("confidence", "درجة الثقة", "قيمة غير مسموحة")))
+        else:
+            route.continue_()
+
+    pg.route("**/operations/opening", structured)
+    try:
+        pg.click("button[title^='الإعدادات']")
+        pg.get_by_role("tab", name="الأرصدة الافتتاحية").click()
+        form = pg.locator("form", has=pg.locator("#ob-amt"))
+        form.locator("button.acct-picker-trigger").first.click()
+        form.locator(".acct-picker-row").filter(has_text="1101").first.click()
+        pg.fill("#ob-amt", "10")
+        pg.fill("#ob-date", "2026-10-01")
+        pg.get_by_role("button", name=re.compile("تسجيل")).first.click()
+        pg.wait_for_timeout(500)
+        # أسماء الشاشة: «المبلغ (LYD)» ← «المبلغ»، «بتاريخ»، «درجة الثقة» — لا أسماء الخادم الافتراضية
+        assert _field_error_text(pg, form, "المبلغ") == "«المبلغ»: يجب أن يكون أكبر من صفر"
+        assert _field_error_text(pg, form, "بتاريخ") == "«بتاريخ»: تاريخ غير صالح (الصيغة: السنة-الشهر-اليوم)"
+        assert _field_error_text(pg, form, "درجة الثقة") == "«درجة الثقة»: قيمة غير مسموحة"
+        _assert_no_raw(pg, "opening structured")
+        pg.fill("#ob-amt", "11")
+        assert form.locator("[data-field-error]").count() == 0  # أول تعديل يُخفيها
+    finally:
+        pg.unroute("**/operations/opening", structured)
+        pg.click("button[title^='دفتر اليومية']")
+        pg.wait_for_selector(".journal-col-center")
+
+
+def test_credit_limit_field_error_under_the_limit_field(journal_page, qa_identity):
+    pg = journal_page
+    pg.mode = "stub"
+
+    def structured(route):
+        if route.request.method == "PUT":
+            route.fulfill(status=422, content_type="application/json", body=_structured_422(
+                ("limit_amount", "حد الائتمان", "يجب ألا يكون سالباً")))
+        else:
+            route.continue_()
+
+    pg.route("**/credit-limits/**", structured)
+    try:
+        pg.click("button[title^='العملاء']")
+        pg.wait_for_selector(".clients-screen")
+        pg.fill(".clients-screen input", qa_identity["client_code"])
+        pg.wait_for_selector(f"tr.clients-row:has-text('{qa_identity['client_code']}')", timeout=5000)
+        pg.click(f"tr.clients-row:has-text('{qa_identity['client_code']}')")
+        pg.wait_for_selector(".client-detail-header")
+        editor = pg.locator(".op-row", has=pg.locator("label.field-label", has_text="حد الائتمان بعملة")).first
+        editor.locator("input").fill("5")
+        editor.get_by_role("button", name="حفظ الحد").click()
+        pg.wait_for_timeout(500)
+        text_ = editor.locator("[data-field-error]").inner_text()
+        assert re.fullmatch(r"«حد الائتمان بعملة \w+»: يجب ألا يكون سالباً", text_), text_
+        _assert_no_raw(pg, "credit limit structured")
+        editor.locator("input").fill("6")
+        assert editor.locator("[data-field-error]").count() == 0
+    finally:
+        pg.unroute("**/credit-limits/**", structured)
+        pg.click("button[title^='دفتر اليومية']")
+        pg.wait_for_selector(".journal-col-center")
+
+
+def test_reconciliation_new_statement_field_and_line_errors(journal_page):
+    pg = journal_page
+    pg.mode = "stub"
+
+    def structured(route):
+        if route.request.method == "POST":
+            body = json.dumps({"detail": "x", "errors": [
+                {"loc": ["period_to"], "field": "period_to", "label": "إلى تاريخ", "message": "تاريخ غير صالح", "type": "x"},
+                {"loc": ["lines", 0, "amount"], "field": "amount", "label": "المبلغ", "message": "يجب أن يكون رقماً صحيحاً (مثل 9.05)", "type": "x"},
+            ]}, ensure_ascii=False)
+            route.fulfill(status=422, content_type="application/json", body=body)
+        else:
+            route.continue_()
+
+    pg.route("**/reconciliation/statements", structured)
+    try:
+        pg.click("button[title^='المطابقة']")
+        pg.get_by_role("button", name=re.compile("كشف جديد")).first.click()
+        modal = pg.locator(".modal-veil")
+        modal.locator("#recon-partner").select_option(index=1)
+        modal.locator("#recon-from").fill("2026-10-01")
+        modal.locator("#recon-to").fill("2026-10-02")
+        row = modal.locator(".op-row").nth(1)
+        row.locator("input[type=date]").fill("2026-10-01")
+        row.locator("input[placeholder='المبلغ']").fill("10")
+        modal.get_by_role("button", name="حفظ", exact=True).click()
+        pg.wait_for_timeout(500)
+        assert _field_error_text(pg, modal, "إلى تاريخ") == "«إلى تاريخ»: تاريخ غير صالح"
+        # بند الكشف بلا تسمية ظاهرة ← نص عام باسم البند ورقمه، لا JSON
+        assert "البند 1 — المبلغ" in modal.locator("[data-field-error], .alert").all_inner_texts().__str__()
+        _assert_no_raw(pg, "reconciliation structured")
+    finally:
+        pg.unroute("**/reconciliation/statements", structured)
+        pg.get_by_role("button", name="إلغاء", exact=True).click()
+        pg.click("button[title^='دفتر اليومية']")
+        pg.wait_for_selector(".journal-col-center")

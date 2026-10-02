@@ -24,7 +24,7 @@ from sqlalchemy import select
 pytest.importorskip("playwright.sync_api")
 
 from app.database import SessionLocal  # noqa: E402
-from app.models import Client, Session as SessionModel, User  # noqa: E402
+from app.models import Client, Partner, Session as SessionModel, User  # noqa: E402
 from app.models.enums import SessionSubjectType  # noqa: E402
 from app.security.passwords import hash_password  # noqa: E402
 from tests import factories as f  # noqa: E402
@@ -94,8 +94,10 @@ def qa_identity():
         code = f"QA-NUM-{f.uid()[:6].upper()}"
         client = Client(code=code, name_ar=f"عميل رقمي {code}", search_name=f"عميل رقمي {code}", credit_allowed=False)
         db.add(client)
+        partner = Partner(code=f"QA-P-{f.uid()[:6].upper()}", name_ar="شريك اختبار الواجهة", country="تركيا")
+        db.add(partner)
         db.commit()
-        info = {"username": username, "client_code": code}
+        info = {"username": username, "client_code": code, "partner_code": partner.code}
     finally:
         db.close()
     yield info
@@ -116,6 +118,10 @@ def qa_identity():
         client = db.execute(select(Client).where(Client.code == info["client_code"])).scalar_one_or_none()
         if client:
             client.is_active = False
+            db.commit()
+        partner = db.execute(select(Partner).where(Partner.code == info["partner_code"])).scalar_one_or_none()
+        if partner:
+            db.delete(partner)
             db.commit()
     finally:
         db.close()
