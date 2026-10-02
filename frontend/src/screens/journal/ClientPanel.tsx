@@ -1,23 +1,30 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Decimal from 'decimal.js'
-import { Search, User, X } from 'lucide-react'
+import { Plus, Search, User, X } from 'lucide-react'
 import { api } from '../../api/client'
 import type { ClientBalance, ClientSearchResult } from '../../api/types'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { useReferenceData } from '../../hooks/useReferenceData'
+import { CreateClientModal } from '../clients/CreateClientModal'
 import './journal-design.css'
 
 interface ClientPanelProps {
   selected: ClientSearchResult | null
   onSelect: (client: ClientSearchResult | null) => void
   refreshToken?: number
+  // يظهر زر «+ إضافة … كعميل جديد» فقط لمن يملك CREATE_CLIENT (الخادم يفرضه أيضاً)
+  canCreateClient?: boolean
 }
 
-export function ClientPanel({ selected, onSelect, refreshToken }: ClientPanelProps) {
+export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient = false }: ClientPanelProps) {
   const { currencies } = useReferenceData()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClientSearchResult[]>([])
   const [balances, setBalances] = useState<ClientBalance[]>([])
+  // آخر نص اكتمل بحثه (لا يظهر الزر قبل أن يُعرَف أن لا نتائج) + النافذة
+  const [settledQuery, setSettledQuery] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
 
   function formatBalance(b: ClientBalance): string {
     const decimals = currencies.find((c) => c.code === b.currency_code)?.decimals ?? 2
@@ -32,7 +39,10 @@ export function ClientPanel({ selected, onSelect, refreshToken }: ClientPanelPro
     let cancelled = false
     const timer = setTimeout(async () => {
       const rows = await api.get<ClientSearchResult[]>(`/clients/search?q=${encodeURIComponent(query)}`)
-      if (!cancelled) setResults(rows)
+      if (!cancelled) {
+        setResults(rows)
+        setSettledQuery(query)
+      }
     }, 200)
     return () => {
       cancelled = true
@@ -101,6 +111,12 @@ export function ClientPanel({ selected, onSelect, refreshToken }: ClientPanelPro
           </div>
         )}
 
+        {!selected && canCreateClient && query.trim() && settledQuery === query && results.length === 0 && (
+          <button type="button" className="btn btn-muted client-quick-create" onClick={() => setCreateOpen(true)}>
+            <Plus size={16} strokeWidth={2} /> إضافة "{query.trim()}" كعميل جديد
+          </button>
+        )}
+
         {!selected && (
           <div className="empty-client">
             <span className="empty-client-icon"><User size={20} strokeWidth={2} /></span>
@@ -147,6 +163,21 @@ export function ClientPanel({ selected, onSelect, refreshToken }: ClientPanelPro
             </div>
           )}
         </section>
+      )}
+      {createOpen && createPortal(
+        // في document.body لا داخل العمود اللاصق (sticky + overflow ينشئان سياق تراصّ يقصّ الغشاء ويجعل العمود فوقه)
+        <CreateClientModal
+          initialName={query.trim()} explicitSubmitOnly
+          onClose={() => setCreateOpen(false)}
+          onCreated={(c) => {
+            // العميل الجديد يُختار تلقائياً؛ حالة نموذج العملية (المبلغ، العملة، الملاحظة…) في OperationForm لا تُمسّ
+            onSelect({ id: c.id, code: c.code, name_ar: c.name_ar, phone: c.phone, credit_allowed: c.credit_allowed })
+            setCreateOpen(false)
+            setQuery('')
+          }}
+          onPickExisting={(c) => { onSelect(c); setCreateOpen(false); setQuery(''); setResults([]) }}
+        />,
+        document.body,
       )}
     </aside>
   )

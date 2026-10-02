@@ -32,6 +32,7 @@ import enum
 
 class Action(str, enum.Enum):
     POST_ENTRY = "POST_ENTRY"
+    CREATE_CLIENT = "CREATE_CLIENT"  # ٢٠٢٦-١٠-٠٢: إنشاء عميل (شاشة العملاء + الإضافة السريعة من دفتر اليومية)
     EDIT_POSTED_ENTRY = "EDIT_POSTED_ENTRY"
     BACKDATED_OR_OUTAGE_ENTRY = "BACKDATED_OR_OUTAGE_ENTRY"
     REOPEN_CLOSED_PERIOD = "REOPEN_CLOSED_PERIOD"
@@ -50,6 +51,7 @@ CLIENT_ROLE = "CLIENT"  # ليس صفاً في users.role (§٥ قاعدة ٦ CH
 
 PERMISSION_MATRIX: dict[Action, frozenset[str]] = {
     Action.POST_ENTRY: frozenset({ADMIN, ACCOUNTANT}),
+    Action.CREATE_CLIENT: frozenset({ADMIN, ACCOUNTANT}),
     Action.EDIT_POSTED_ENTRY: frozenset({ADMIN}),
     Action.BACKDATED_OR_OUTAGE_ENTRY: frozenset({ADMIN}),
     Action.REOPEN_CLOSED_PERIOD: frozenset({ADMIN}),

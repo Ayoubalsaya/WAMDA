@@ -148,7 +148,7 @@ def get_client(client_id: int, db: OrmSession = Depends(get_db)) -> ClientDetail
 )
 def create_client(
     payload: CreateClientRequest, db: OrmSession = Depends(get_db),
-    current_user: User = Depends(require_role(Action.POST_ENTRY)),
+    current_user: User = Depends(require_role(Action.CREATE_CLIENT)),
 ) -> ClientDetail:
     if db.execute(select(Client).where(Client.code == payload.code)).first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"كود العميل {payload.code} مُستخدَم بالفعل")

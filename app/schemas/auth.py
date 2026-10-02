@@ -46,6 +46,8 @@ class CurrentUserResponse(BaseModel):
     full_name: str
     role: str
     must_change_password: bool
+    # الإجراءات المسموحة لدور المستخدم (من مصفوفة الصلاحيات) — الواجهة تخفي ما لا يملكه، والخادم يفرضه دائماً
+    permissions: list[str] = []
 
 
 class CreateUserRequest(BaseModel):

@@ -15,11 +15,12 @@ const SUPPORTED_TABS = new Set([
 
 interface JournalScreenProps {
   currentUserRole: 'ADMIN' | 'ACCOUNTANT'
+  canCreateClient?: boolean
   requestedOpType?: string | null
   onRequestedOpTypeConsumed?: () => void
 }
 
-export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpTypeConsumed }: JournalScreenProps) {
+export function JournalScreen({ currentUserRole, canCreateClient = false, requestedOpType, onRequestedOpTypeConsumed }: JournalScreenProps) {
   const [client, setClient] = useState<ClientSearchResult | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [unsupportedNotice, setUnsupportedNotice] = useState<string | null>(null)
@@ -52,7 +53,7 @@ export function JournalScreen({ currentUserRole, requestedOpType, onRequestedOpT
       )}
       <div className="journal-columns">
         {/* ترتيب DOM يطابق تدفّق RTL: العمود الأول = الأيمن (العميل) */}
-        <ClientPanel selected={client} onSelect={setClient} refreshToken={balanceRefreshToken} />
+        <ClientPanel selected={client} onSelect={setClient} refreshToken={balanceRefreshToken} canCreateClient={canCreateClient} />
         <OperationForm
           client={client}
           currentUserRole={currentUserRole}

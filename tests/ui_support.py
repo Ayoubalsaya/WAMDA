@@ -103,6 +103,20 @@ def qa_identity():
     yield info
     db = SessionLocal()
     try:
+        # تنظيف كامل لبيانات QA (عملاء `QA-…` وقيودهم ومستخدمو `qa_…`) — اختبارات المتصفح قد تُنشئ عملاء وقيوداً
+        # حقيقية على قاعدة الاختبار (الإضافة السريعة + ترحيل). قاعدة الاختبار حصراً (conftest يضمن اسمها `_test`).
+        from app.cli import purge_demo_data
+        from app.config import settings
+
+        assert settings.database_url.rsplit("/", 1)[1].split("?")[0].endswith("_test")
+        purge_demo_data._purge(db)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+    db = SessionLocal()
+    try:
         user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
         if user:
             db.execute(SessionModel.__table__.delete().where(

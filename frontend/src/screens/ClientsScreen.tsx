@@ -27,6 +27,7 @@ export function ClientsScreen({ currentUserRole }: ClientsScreenProps) {
         <CreateClientModal
           onClose={() => setCreateOpen(false)}
           onCreated={(client) => { setCreateOpen(false); setSelectedClientId(client.id) }}
+          onPickExisting={(client) => { setCreateOpen(false); setSelectedClientId(client.id) }}
         />
       )}
     </>

@@ -4,6 +4,7 @@ export interface CurrentUser {
   full_name: string
   role: 'ADMIN' | 'ACCOUNTANT'
   must_change_password: boolean
+  permissions: string[]  // الإجراءات المسموحة للدور (مثل CREATE_CLIENT) — الواجهة تخفي ما لا يملكه، والخادم يفرضه
 }
 
 export interface LoginResponse {
@@ -48,6 +49,11 @@ export interface ClientSearchResult {
   name_ar: string
   phone: string | null
   credit_allowed: boolean
+}
+
+// عميل مشابه لاسم/هاتف قيد الإنشاء (منع التكرار): reason = «اسم مطابق» · «اسم مشابه» · «نفس الهاتف»
+export interface SimilarClient extends ClientSearchResult {
+  reason: string
 }
 
 export interface ClientBalance {

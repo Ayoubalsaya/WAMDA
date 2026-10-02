@@ -48,6 +48,11 @@ class ClientSearchResultOut(BaseModel):
     credit_allowed: bool
 
 
+class SimilarClientOut(ClientSearchResultOut):
+    """عميل مشابه لاسم/هاتف قيد الإدخال (منع التكرار) — `reason`: «اسم مطابق» · «اسم مشابه» · «نفس الهاتف»."""
+    reason: str
+
+
 class ClientBalanceOut(BaseModel):
     account_code: str
     currency_code: str

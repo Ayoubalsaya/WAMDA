@@ -11,10 +11,12 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+import re
+from difflib import SequenceMatcher
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
@@ -40,6 +42,7 @@ from app.schemas.reference import (
     ClientBalanceOut,
     ClientCurrencyLocationOut,
     ClientSearchResultOut,
+    SimilarClientOut,
     CurrencyOut,
     JournalEntryOut,
     JournalLineOut,
@@ -112,11 +115,16 @@ def search_clients(
     q: str = Query(min_length=1), limit: int = Query(default=20, le=50), db: OrmSession = Depends(get_db)
 ) -> list[ClientSearchResultOut]:
     pattern = f"%{q}%"
+    # بحث الاسم على `search_name` المُطبَّع (أ/إ/آ=ا · ة=ه · ى=ي · بلا تشكيل/تطويل/مسافات زائدة) بنفس دالة القاعدة التي
+    # تملأه (`fn_normalize_arabic`) — «احمد» تجد «أحمد» (٢٠٢٦-١٠-٠٢: كان البحث يطابق `name_ar` الخام فلا يجدها،
+    # وهو السبب الأول لإنشاء عملاء مكرَّرين). الكود والهاتف يبقيان خاماً.
+    norm_pattern = func.concat("%", func.fn_normalize_arabic(q), "%")
     rows = db.execute(
         select(Client)
         .where(
             Client.is_active.is_(True),
-            (Client.name_ar.ilike(pattern)) | (Client.code.ilike(pattern)) | (Client.phone.ilike(pattern)),
+            (Client.search_name.ilike(norm_pattern)) | (Client.name_ar.ilike(pattern))
+            | (Client.code.ilike(pattern)) | (Client.phone.ilike(pattern)),
         )
         .order_by(Client.name_ar)
         .limit(limit)
@@ -125,6 +133,51 @@ def search_clients(
         ClientSearchResultOut(id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed)
         for c in rows
     ]
+
+
+_SIMILAR_NAME_RATIO = 0.8
+_PHONE_TAIL = 8  # آخر ٨ أرقام (يتجاهل +218/00218/الصفر الأول وأي رموز تنسيق)
+
+
+@router.get(
+    "/clients/similar", response_model=list[SimilarClientOut],
+    dependencies=[Depends(require_role(Action.CREATE_CLIENT))],
+)
+def similar_clients(
+    name: str = Query(min_length=1), phone: Optional[str] = Query(default=None), db: OrmSession = Depends(get_db)
+) -> list[SimilarClientOut]:
+    """منع تكرار العملاء قبل الإنشاء (٢٠٢٦-١٠-٠٢): عملاء بأسماء مطابقة/مشابهة **بعد توحيد الكتابة العربية** بنفس
+    دالة القاعدة (`fn_normalize_arabic`: أ/إ/آ=ا · ة=ه · ى=ي · بلا تشكيل/تطويل/مسافات زائدة)، أو بنفس الهاتف.
+    الاسم: مطابق إن تساوى بعد التوحيد أو تساوت مجموعة كلماته (ترتيب مختلف)، ومشابه إن بلغت نسبة التشابه ٠٫٨.
+    الهاتف: مطابقة آخر ٨ أرقام."""
+    norm = db.execute(select(func.fn_normalize_arabic(name))).scalar_one()
+    tokens = [t for t in norm.split(" ") if len(t) >= 2]
+    digits = re.sub(r"\D", "", phone or "")
+    tail = digits[-_PHONE_TAIL:] if len(digits) >= _PHONE_TAIL else None
+
+    conds = [Client.search_name.ilike(f"%{t}%") for t in tokens]
+    if tail:
+        conds.append(Client.phone.isnot(None))
+    if not conds:
+        return []
+    candidates = db.execute(select(Client).where(Client.is_active.is_(True), or_(*conds)).limit(500)).scalars().all()
+
+    found: list[tuple[int, float, SimilarClientOut]] = []
+    for c in candidates:
+        cand = c.search_name
+        reason, rank, score = None, 9, 0.0
+        if tail and c.phone and re.sub(r"\D", "", c.phone)[-_PHONE_TAIL:] == tail:
+            reason, rank = "نفس الهاتف", 0
+        if norm and (cand == norm or sorted(cand.split(" ")) == sorted(norm.split(" "))):
+            reason, rank, score = "اسم مطابق", min(rank, 1), 1.0
+        else:
+            score = SequenceMatcher(None, norm, cand).ratio() if norm else 0.0
+            if score >= _SIMILAR_NAME_RATIO and reason is None:
+                reason, rank = "اسم مشابه", 2
+        if reason is not None:
+            found.append((rank, -score, SimilarClientOut(
+                id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed, reason=reason)))
+    return [row for _, _, row in sorted(found, key=lambda t: (t[0], t[1]))[:5]]
 
 
 @router.get(

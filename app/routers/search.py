@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
@@ -64,7 +64,9 @@ def search(
         query = query.where(JournalEntry.created_by.in_(matching_user_ids or [-1]))
     if q:
         matching_client_ids = db.execute(
-            select(Client.id).where(or_(Client.name_ar.ilike(f"%{q}%"), Client.search_name.ilike(f"%{q}%")))
+            select(Client.id).where(or_(
+                Client.name_ar.ilike(f"%{q}%"), Client.search_name.ilike(func.concat("%", func.fn_normalize_arabic(q), "%"))
+            ))
         ).scalars().all()
         query = query.where(
             or_(

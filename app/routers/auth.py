@@ -26,6 +26,7 @@ from app.schemas.auth import (
     RecoverStartResponse,
 )
 from app.security import auth_service, csrf, passwords, sessions
+from app.security.permissions import Action, has_permission
 from app.security.deps import SESSION_COOKIE_NAME, enforce_login_rate_limit, get_current_user, verify_csrf
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -165,4 +166,5 @@ def me(current_user: User = Depends(get_current_user)) -> CurrentUserResponse:
     return CurrentUserResponse(
         id=current_user.id, username=current_user.username, full_name=current_user.full_name,
         role=current_user.role, must_change_password=current_user.must_change_password,
+        permissions=sorted(a.value for a in Action if has_permission(current_user.role, a)),
     )
