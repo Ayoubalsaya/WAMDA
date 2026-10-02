@@ -10,13 +10,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.engine import numbering
 from app.engine.rounding import RoundingKind, round_amount
-from app.models import CurrencyLot, LotConsumption
-from app.models.enums import LotStatus
+from app.models import CurrencyLot, JournalEntry, LotConsumption
+from app.models.enums import EntryStatus, LotStatus
 
 
 class LotStockExhaustedError(Exception):
@@ -175,3 +175,68 @@ def apply_consumption(
         rows.append(row)
     db.flush()
     return rows
+
+
+# ═══ العكس (٢٠٢٦-١٠-٠٢): إلغاء/تعديل قيد استهلك من دفعة يعيد الكمية ويضيف صفاً عكسياً ═══
+
+
+def live_consumptions(db: Session, lot_id: int) -> list[LotConsumption]:
+    """الاستهلاكات الحيّة: أصلية لم تُعكس (لا صف عكسي يشير إليها)، مرتّبة زمنياً."""
+    reversed_ids = select(LotConsumption.reverses_consumption_id).where(
+        LotConsumption.lot_id == lot_id, LotConsumption.reverses_consumption_id.isnot(None)
+    )
+    return list(db.execute(
+        select(LotConsumption)
+        .where(LotConsumption.lot_id == lot_id, LotConsumption.reverses_consumption_id.is_(None),
+               LotConsumption.id.notin_(reversed_ids))
+        .order_by(LotConsumption.consumed_at, LotConsumption.id)
+    ).scalars())
+
+
+def net_consumed_qty(db: Session, lot_id: int) -> Decimal:
+    """صافي الاستهلاك = Σ الصفوف الأصلية − Σ الصفوف العكسية."""
+    gross, reversed_ = db.execute(
+        select(
+            func.coalesce(func.sum(LotConsumption.qty).filter(LotConsumption.reverses_consumption_id.is_(None)), 0),
+            func.coalesce(func.sum(LotConsumption.qty).filter(LotConsumption.reverses_consumption_id.isnot(None)), 0),
+        ).where(LotConsumption.lot_id == lot_id)
+    ).one()
+    return Decimal(gross) - Decimal(reversed_)
+
+
+def consuming_entry_nos(db: Session, lot_id: int) -> list[str]:
+    """أرقام القيود التي ما زالت تستهلك من الدفعة (الحيّة فقط) — للرسائل العربية."""
+    entry_ids = [c.entry_id for c in live_consumptions(db, lot_id)]
+    if not entry_ids:
+        return []
+    rows = db.execute(select(JournalEntry.id, JournalEntry.entry_no).where(JournalEntry.id.in_(entry_ids))).all()
+    by_id = dict(rows)
+    return list(dict.fromkeys(by_id[i] for i in entry_ids if i in by_id))
+
+
+def reverse_consumptions(db: Session, *, original: JournalEntry, reversal: JournalEntry, now: datetime) -> int:
+    """يُستدعى من `posting.reverse_entry` لكل عكس (إلغاء · تعديل · سلسلة): كل استهلاك حيّ للقيد الأصلي
+    يُعاد كميته لدفعته ويُضاف **صف عكسي** (append-only — الأصل لا يُحذف ولا يُعدَّل)، وتُعاد فتح الدفعة
+    المقفلة لأن البيع استهلك آخرها (ما لم يكن قيد فتحها نفسه مُلغى). يُعيد عدد الصفوف المعكوسة."""
+    reversed_ids = select(LotConsumption.reverses_consumption_id).where(LotConsumption.reverses_consumption_id.isnot(None))
+    originals = db.execute(
+        select(LotConsumption)
+        .where(LotConsumption.entry_id == original.id, LotConsumption.reverses_consumption_id.is_(None),
+               LotConsumption.id.notin_(reversed_ids))
+        .order_by(LotConsumption.id)
+    ).scalars().all()
+    for c in originals:
+        lot = db.execute(select(CurrencyLot).where(CurrencyLot.id == c.lot_id).with_for_update()).scalar_one()
+        lot.remaining_qty = lot.remaining_qty + c.qty
+        if lot.status == LotStatus.CLOSED:
+            source = db.get(JournalEntry, lot.source_entry_id)
+            if source is not None and source.status != EntryStatus.REVERSED:
+                lot.status = LotStatus.OPEN
+                lot.closed_at = None
+        db.add(LotConsumption(
+            lot_id=c.lot_id, entry_id=reversal.id, qty=c.qty, client_rate=c.client_rate,
+            cost_share=-c.cost_share, revenue=-c.revenue, profit=-c.profit, profit_currency=c.profit_currency,
+            consumed_at=now, reverses_consumption_id=c.id,
+        ))
+    db.flush()
+    return len(originals)

@@ -11,6 +11,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     func,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -58,9 +59,16 @@ class LotConsumption(Base):
     profit: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     profit_currency: Mapped[str] = mapped_column(Text, ForeignKey("currencies.code"), nullable=False)
     consumed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    # ٢٠٢٦-١٠-٠٢: صف عكسي (append-only، لا حذف): عكس/تعديل قيد استهلك من دفعة يُضيف صفاً بنفس `qty`
+    # الموجبة (قيد الـ`qty > 0` باقٍ) يشير إلى الصف الأصلي، بقيم مالية (cost_share/revenue/profit)
+    # **سالبة** فتُلغي أثر الأصل في أي مجموع. صافي الاستهلاك = Σ الأصلية − Σ العكسية.
+    reverses_consumption_id: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("lot_consumptions.id"))
 
     __table_args__ = (
         CheckConstraint("qty > 0", name="ck_lot_consumptions_qty_positive"),
         Index("ix_lot_consumptions_lot", "lot_id"),
         Index("ix_lot_consumptions_entry", "entry_id"),
+        # صف أصلي يُعكس مرة واحدة فقط
+        Index("uq_lot_consumptions_reverses", "reverses_consumption_id", unique=True,
+              postgresql_where=text("reverses_consumption_id IS NOT NULL")),
     )

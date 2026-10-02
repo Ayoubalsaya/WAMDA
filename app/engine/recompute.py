@@ -102,20 +102,54 @@ def verify_swift_consistency(db: Session) -> list[str]:
 
 
 def verify_lots_consistency(db: Session) -> list[str]:
-    """§٢-٨: remaining_qty = original_qty - مجموع الاستهلاكات، وCLOSED عند الصفر فقط."""
+    """§٢-٨: remaining_qty = original_qty − **صافي** الاستهلاك (الأصلية − العكسية)، مع فحوص بنيوية على
+    الصفوف العكسية (٢٠٢٦-١٠-٠٢: الفحص القديم يجمع كل الصفوف فلا يكشف استهلاكاً بقي حيّاً بعد عكس قيده —
+    مخزون يضيع بصمت — لأن عكس القيد لم يكن يلمس الصفوف أصلاً).
+
+    ١) remaining_qty = original_qty − صافي الاستهلاك.
+    ٢) **كل استهلاك قيده REVERSED له صف عكسي** (وإلا فهذا بالذات الخسارة الصامتة).
+    ٣) كل صف عكسي يطابق أصله: نفس الدفعة ونفس الكمية، وقيده هو القيد العاكس لقيد الأصل.
+    ٤) الحالة: remaining=0 ⇒ CLOSED؛ وCLOSED برصيد > 0 لا يصحّ إلا لدفعة قيدُها المُنشئ مُلغى.
+    """
     problems: list[str] = []
+    status_of = dict(db.execute(select(JournalEntry.id, JournalEntry.status)).all())
+    reversed_by = dict(db.execute(select(JournalEntry.id, JournalEntry.reversed_by_entry_id)).all())
+    all_rows = db.execute(select(LotConsumption)).scalars().all()
+    by_id = {c.id: c for c in all_rows}
+    reversed_ids = {c.reverses_consumption_id for c in all_rows if c.reverses_consumption_id is not None}
+    by_lot: dict[int, list[LotConsumption]] = {}
+    for c in all_rows:
+        by_lot.setdefault(c.lot_id, []).append(c)
+
     for lot in db.execute(select(CurrencyLot)).scalars():
-        consumed = db.execute(
-            select(func.coalesce(func.sum(LotConsumption.qty), 0)).where(LotConsumption.lot_id == lot.id)
-        ).scalar_one()
-        expected_remaining = lot.original_qty - consumed
+        rows = by_lot.get(lot.id, [])
+        gross = sum((c.qty for c in rows if c.reverses_consumption_id is None), Decimal("0"))
+        undone = sum((c.qty for c in rows if c.reverses_consumption_id is not None), Decimal("0"))
+        expected_remaining = lot.original_qty - (gross - undone)
         if expected_remaining != lot.remaining_qty:
             problems.append(
                 f"currency_lots.lot_no={lot.lot_no}: remaining_qty={lot.remaining_qty} "
-                f"لا يطابق original_qty-consumed={expected_remaining}"
+                f"لا يطابق original_qty-net_consumed={expected_remaining}"
             )
+        for c in rows:
+            if c.reverses_consumption_id is None:
+                if status_of.get(c.entry_id) == EntryStatus.REVERSED and c.id not in reversed_ids:
+                    problems.append(
+                        f"currency_lots.lot_no={lot.lot_no}: استهلاك id={c.id} (qty={c.qty}) قيده {c.entry_id} مُلغى "
+                        f"لكن لا صف عكسي له — الكمية ضائعة من المخزون"
+                    )
+            else:
+                orig = by_id.get(c.reverses_consumption_id)
+                if orig is None or orig.lot_id != c.lot_id or orig.qty != c.qty:
+                    problems.append(f"currency_lots.lot_no={lot.lot_no}: صف عكسي id={c.id} لا يطابق أصله (دفعة/كمية)")
+                elif reversed_by.get(orig.entry_id) != c.entry_id:
+                    problems.append(f"currency_lots.lot_no={lot.lot_no}: صف عكسي id={c.id} ليس تابعاً للقيد العاكس لقيد أصله")
         if lot.remaining_qty == 0 and lot.status != LotStatus.CLOSED:
             problems.append(f"currency_lots.lot_no={lot.lot_no}: remaining_qty=0 لكن الحالة {lot.status} لا CLOSED")
+        if lot.remaining_qty > 0 and lot.status == LotStatus.CLOSED and status_of.get(lot.source_entry_id) != EntryStatus.REVERSED:
+            problems.append(
+                f"currency_lots.lot_no={lot.lot_no}: الحالة CLOSED وفيها رصيد {lot.remaining_qty} بينما قيدها المُنشئ غير مُلغى"
+            )
     return problems
 
 

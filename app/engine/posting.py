@@ -450,6 +450,10 @@ def reverse_entry(
     original.status = EntryStatus.REVERSED
     original.reversed_by_entry_id = reversal.id
     db.flush()
+    # قيد استهلك من دفعة رمبي (بيع/…): تُعاد الكمية ويُضاف صف عكسي — لكل مسار عكس (إلغاء/تعديل/سلسلة)
+    from app.engine import lots_fifo
+
+    lots_fifo.reverse_consumptions(db, original=original, reversal=reversal, now=now)
     return reversal
 
 

@@ -388,6 +388,13 @@ def accounts_banks(db: OrmSession = Depends(get_db)) -> BanksResponse:
     return BanksResponse(accounts=rows, totals=totals)
 
 
+def _live_only(rows: list[LotConsumption]) -> list[LotConsumption]:
+    """الاستهلاكات الحيّة فقط: يُستثنى كل صف عكسي وكل أصل عُكس (٢٠٢٦-١٠-٠٢) — فلا يُحتسب بيع مُلغى في
+    عدد المبيعات ولا متوسط السعر ولا الربح."""
+    reversed_ids = {c.reverses_consumption_id for c in rows if c.reverses_consumption_id is not None}
+    return [c for c in rows if c.reverses_consumption_id is None and c.id not in reversed_ids]
+
+
 def _lot_row(lot: CurrencyLot, *, consumptions: list[LotConsumption], partner_name: Optional[str], external_ref: Optional[str]) -> LotRow:
     total_profit = sum((c.profit for c in consumptions), Decimal("0"))
     total_qty = sum((c.qty for c in consumptions), Decimal("0"))
@@ -416,7 +423,7 @@ def list_lots(db: OrmSession = Depends(get_db)) -> list[LotRow]:
     lot_ids = [l.id for l in lots]
     consumptions = db.execute(select(LotConsumption).where(LotConsumption.lot_id.in_(lot_ids))).scalars().all()
     by_lot: dict[int, list[LotConsumption]] = defaultdict(list)
-    for c in consumptions:
+    for c in _live_only(consumptions):
         by_lot[c.lot_id].append(c)
 
     source_entry_ids = [l.source_entry_id for l in lots]
@@ -446,9 +453,9 @@ def lot_detail(lot_id: int, db: OrmSession = Depends(get_db)) -> LotDetail:
     lot = db.get(CurrencyLot, lot_id)
     if lot is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا دفعة بالمعرّف {lot_id}")
-    consumptions = db.execute(
+    consumptions = _live_only(db.execute(
         select(LotConsumption).where(LotConsumption.lot_id == lot_id).order_by(LotConsumption.consumed_at)
-    ).scalars().all()
+    ).scalars().all())
 
     entry_ids = [c.entry_id for c in consumptions]
     entries = {e.id: e for e in db.execute(select(JournalEntry).where(JournalEntry.id.in_(entry_ids))).scalars().all()} if entry_ids else {}

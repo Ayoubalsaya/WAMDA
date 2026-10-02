@@ -64,6 +64,7 @@ from app.schemas.operations import (
     EditRequest,
     EditResponse,
     EntryResponse,
+    ExchangeLotRequest,
     ExpenseRequest,
     HistoryResponse,
     HistoryStep,
@@ -271,11 +272,42 @@ _CREATE_DISPATCH: dict[OperationType, tuple[type[BaseModel], Callable]] = {
 }
 
 
+def _create_exchange_lot(db: OrmSession, op: ExchangeLotRequest, user: User, now: datetime, idem: str) -> JournalEntry:
+    """بيع رمبي من مخزون السويفت (FIFO تلقائي، بلا cost_rate) — للتعديل: يُستدعى بعد عكس الأصل في
+    المعاملة نفسها فيستهلك الجديد من دفعات أُعيدت كمياتها لتوّها."""
+    client = _get_client(db, op.client_id)
+    entry = _run(lambda: exchange_op.execute_via_lot(
+        db, client=client, from_location_code=op.from_location_code, to_location_code=op.to_location_code,
+        amount=op.amount, client_rate=op.client_rate, work_timezone=settings.work_timezone,
+        created_by=user.id, now=now, idempotency_key=idem, description=op.description,
+    ))
+    entry.note = op.note
+    return entry
+
+
+def _dispatch_for(entry: JournalEntry):
+    """نوع الطلب ودالة الإنشاء لتعديل `entry`. EXCHANGE بلا `cost_rate` وبعميل = بيع رمبي من دفعة
+    (`execute_via_lot` يترك cost_rate فارغاً) — مخطّطه `ExchangeLotRequest` لا مخطّط الأسعار."""
+    if entry.operation_type == OperationType.EXCHANGE and entry.cost_rate is None and entry.client_id is not None:
+        return ExchangeLotRequest, _create_exchange_lot
+    return _CREATE_DISPATCH.get(entry.operation_type)
+
+
 def _get_entry(db: OrmSession, entry_id: int) -> JournalEntry:
     entry = db.get(JournalEntry, entry_id)
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا قيد بالمعرّف {entry_id}")
     return entry
+
+
+def _reject_reversal_entry(entry: JournalEntry) -> None:
+    """قيد عكسي (ناتج عن إلغاء/تعديل) لا يُلغى ولا يُعدَّل: عكسه كان سيُعيد أثر القيد الأصلي في الحسابات
+    دون إعادة استهلاكه من الدفعة — مخزون رمبي يتباين بصمت. المسار الصحيح: أدخل عملية جديدة."""
+    if entry.reverses_entry_id is not None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"القيد {entry.entry_no} قيد عكسي ناتج عن إلغاء/تعديل — لا يُلغى ولا يُعدَّل؛ أدخل عملية جديدة بدلاً منه",
+        )
 
 
 def _reverse_one(db: OrmSession, entry: JournalEntry, *, reason: str, created_by: int, now) -> JournalEntry:
@@ -325,6 +357,7 @@ def cancel_entry(
     entry = _get_entry(db, entry_id)
     if entry.status != EntryStatus.POSTED:
         raise HTTPException(status.HTTP_409_CONFLICT, f"القيد بحالة {entry.status.value} — لا يمكن إلغاؤه")
+    _reject_reversal_entry(entry)
     reason = payload.reason
     now = system_clock()
 
@@ -361,12 +394,13 @@ def edit_entry(
     entry = _get_entry(db, entry_id)
     if entry.status != EntryStatus.POSTED:
         raise HTTPException(status.HTTP_409_CONFLICT, f"القيد بحالة {entry.status.value} — لا يمكن تعديله")
+    _reject_reversal_entry(entry)
     if entry.chain_ref:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
             "عملية ضمن سلسلة (معالج الخطوتين) لا تُعدَّل مباشرة — ألغِ السلسلة كاملة وأعد إدخالها من جديد",
         )
-    dispatch = _CREATE_DISPATCH.get(entry.operation_type)
+    dispatch = _dispatch_for(entry)
     if dispatch is None:  # pragma: no cover — كل الأنواع الاثنتي عشرة مُغطاة في _CREATE_DISPATCH
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"لا دعم لتعديل عمليات {entry.operation_type.value}")
     schema_cls, create_fn = dispatch

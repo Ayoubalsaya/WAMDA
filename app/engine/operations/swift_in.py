@@ -122,10 +122,16 @@ def reverse(db: Session, *, entry: JournalEntry, reason: str, created_by: int, n
     في نفس المعاملة — يُرفض إن استُهلك جزء من الدفعة التي فتحها بالفعل.
     """
     lot = db.execute(select(CurrencyLot).where(CurrencyLot.source_entry_id == entry.id)).scalar_one_or_none()
-    if lot is not None and lot.remaining_qty != lot.original_qty:
-        raise SwiftInAlreadyConsumedError(
-            f"الدفعة {lot.lot_no} استُهلك منها جزء — لا يمكن عكس قيد SWIFT_IN الذي فتحها"
-        )
+    if lot is not None:
+        consumers = lots_fifo.consuming_entry_nos(db, lot.id)
+        if consumers or lot.remaining_qty != lot.original_qty:
+            # ٢٠٢٦-١٠-٠٢: الرفض بحسب **صافي** الاستهلاك (بعد العكوس) — إلغاء البيع يعيد الكمية فيُمكن
+            # عندها عكس هذا القيد؛ والرسالة تسمّي القيود التي لا تزال تستهلك منها.
+            names = "، ".join(consumers) if consumers else "—"
+            raise SwiftInAlreadyConsumedError(
+                f"الدفعة {lot.lot_no} استُهلك منها جزء — لا يمكن عكس قيد SWIFT_IN الذي فتحها. "
+                f"القيود المستهلِكة: {names}. ألغِ هذه القيود أولاً ثم أعد المحاولة"
+            )
 
     reversal = posting.reverse_entry(db, entry, reason=reason, created_by=created_by, now=now)
 

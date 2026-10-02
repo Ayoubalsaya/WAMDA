@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.engine import chain
+from app.engine.lots_fifo import LotStockExhaustedError
 from app.engine import clock as _clock
 from app.engine.accounts_repo import (
     AccountNotFoundError,
@@ -83,6 +84,8 @@ _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
     (AccountNotFoundError, status.HTTP_404_NOT_FOUND),
     (CreditLimitExceededError, status.HTTP_409_CONFLICT),
     (InsufficientBalanceError, status.HTTP_409_CONFLICT),
+    # ٢٠٢٦-١٠-٠٢: مخزون رمبي غير كافٍ (بيع من دفعة أو تعديله) — كان ٥٠٠ خاماً
+    (LotStockExhaustedError, status.HTTP_409_CONFLICT),
     (IdempotencyConflict, status.HTTP_409_CONFLICT),
     (BackdatedEntryRequiresAdminError, status.HTTP_403_FORBIDDEN),
     (OutageWindowRequiredError, status.HTTP_403_FORBIDDEN),

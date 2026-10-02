@@ -236,7 +236,8 @@ def _purge(db: Session) -> dict[str, list[str]]:
     # سجل استهلاك يفسّر ذلك، وفشل `recompute.verify` بعدها. الدفعات التي ستُحذف نفسها لا تحتاج إعادة.
     db.execute(text(f"""
         UPDATE currency_lots l SET remaining_qty = l.remaining_qty + c.qty
-        FROM (SELECT lot_id, SUM(qty) AS qty FROM lot_consumptions WHERE entry_id IN {entries} GROUP BY lot_id) c
+        FROM (SELECT lot_id, SUM(CASE WHEN reverses_consumption_id IS NULL THEN qty ELSE -qty END) AS qty
+              FROM lot_consumptions WHERE entry_id IN {entries} GROUP BY lot_id) c
         WHERE l.id = c.lot_id AND l.source_entry_id NOT IN {entries}
     """))
     db.execute(text("UPDATE currency_lots SET status = 'OPEN', closed_at = NULL WHERE status = 'CLOSED' AND remaining_qty > 0"))
