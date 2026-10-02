@@ -117,8 +117,8 @@ def test_balance_card_404_unknown_client(db, client):
 
 def _make_portal_client(db, *, password: str = "PortalPass!123"):
     c = f.make_client(db)
+    c.portal_enabled = True
     c.portal_password_hash = hash_password(password)
-    c.portal_must_change = False
     db.flush()
     return c
 

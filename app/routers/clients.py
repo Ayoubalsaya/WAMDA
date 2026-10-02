@@ -43,8 +43,8 @@ from app.schemas.clients import (
     StatementRow,
     UpdateClientRequest,
 )
-from app.schemas.portal import SetPortalCredentialsRequest
-from app.security import audit, passwords
+from app.schemas.portal import ClientPortalInviteCreatedResponse, ClientPortalStatusResponse
+from app.security import audit, client_portal_invites, client_portal_management
 from app.security.deps import require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -336,30 +336,114 @@ def client_statement(
     )
 
 
-@router.put(
-    "/clients/{client_id}/portal-credentials", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+@router.get(
+    "/clients/{client_id}/portal", response_model=ClientPortalStatusResponse,
+    dependencies=[Depends(require_role(Action.MANAGE_USERS))],
+)
+def get_client_portal_status(client_id: int, db: OrmSession = Depends(get_db)) -> ClientPortalStatusResponse:
+    client = _get_client_or_404(db, client_id)
+    now = system_clock()
+    status_value, invite_expires_at = client_portal_management.compute_status(db, client=client, now=now)
+    return ClientPortalStatusResponse(
+        status=status_value.value, last_login_at=client.portal_last_login_at, invite_expires_at=invite_expires_at,
+    )
+
+
+@router.post(
+    "/clients/{client_id}/portal/enable", response_model=ClientPortalInviteCreatedResponse,
     dependencies=[Depends(verify_csrf)],
 )
-def set_portal_credentials(
-    client_id: int, payload: SetPortalCredentialsRequest, db: OrmSession = Depends(get_db),
-    current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+def enable_client_portal(
+    client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> ClientPortalInviteCreatedResponse:
+    """غير مفعّلة/معطّلة → مفعّلة + دعوة أولى. الرابط يُعرَض هنا **مرة واحدة
+    فقط** — الخادم لا يحتفظ إلا ببصمته بعد هذا الرد."""
+    now = system_clock()
+    try:
+        _client, raw, expires_at = client_portal_management.enable(
+            db, actor_id=current_user.id, client_id=client_id, now=now,
+        )
+    except client_portal_management.ClientNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    db.commit()
+    return ClientPortalInviteCreatedResponse(invite_url=client_portal_invites.invite_url(raw), expires_at=expires_at)
+
+
+@router.post(
+    "/clients/{client_id}/portal/invite", response_model=ClientPortalInviteCreatedResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+def invite_client_portal(
+    client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> ClientPortalInviteCreatedResponse:
+    """دعوة معلّقة/منتهية → رابط جديد (يُبطل القديم تلقائياً)."""
+    now = system_clock()
+    try:
+        _client, raw, expires_at = client_portal_management.invite(
+            db, actor_id=current_user.id, client_id=client_id, now=now,
+        )
+    except client_portal_management.ClientNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except client_portal_management.PortalNotEnabledError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    db.commit()
+    return ClientPortalInviteCreatedResponse(invite_url=client_portal_invites.invite_url(raw), expires_at=expires_at)
+
+
+@router.post(
+    "/clients/{client_id}/portal/reset", response_model=ClientPortalInviteCreatedResponse,
+    dependencies=[Depends(verify_csrf)],
+)
+def reset_client_portal(
+    client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> ClientPortalInviteCreatedResponse:
+    """مفعّلة/مقفلة → تُبطل كلمة المرور الحالية فوراً + تُنهي كل الجلسات +
+    رابط دعوة جديد."""
+    now = system_clock()
+    try:
+        _client, raw, expires_at = client_portal_management.reset(
+            db, actor_id=current_user.id, client_id=client_id, now=now,
+        )
+    except client_portal_management.ClientNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except client_portal_management.PortalNotEnabledError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    db.commit()
+    return ClientPortalInviteCreatedResponse(invite_url=client_portal_invites.invite_url(raw), expires_at=expires_at)
+
+
+@router.post(
+    "/clients/{client_id}/portal/disable", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def disable_client_portal(
+    client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
 ) -> None:
-    """ينشئ/يُعيد ضبط دخول بوابة العميل (§٧-٦) — نفس نمط `POST /users`
-    بالضبط (كلمة مرور أولية يحدِّدها المدير، `MANAGE_USERS` مُعاد استخدامها
-    بالقياس — لا صلاحية مخصَّصة لهذا الإجراء تحديداً في §٧-١٣، وهو أقرب
-    مطابقة: إدارة دخول طرف آخر للنظام). يفرض `portal_must_change=True`
-    دائماً — نفس إجبار أول دخول المفروض على الموظفين."""
-    client = _get_client_or_404(db, client_id)
-    client.portal_password_hash = passwords.hash_password(payload.initial_password)
-    client.portal_must_change = True
-    client.portal_failed_attempts = 0
-    client.portal_locked_until = None
-    if payload.security_question is not None:
-        client.portal_security_question = payload.security_question
-    if payload.security_answer is not None:
-        client.portal_security_answer_hash = passwords.hash_security_answer(payload.security_answer)
-    audit.log_write(
-        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="PORTAL_CREDENTIALS_SET",
-        entity="clients", entity_id=client.id,
-    )
+    """يُنهي كل جلسات العميل النشطة فوراً + يُبطل كلمة المرور وأي دعوة حيّة."""
+    now = system_clock()
+    try:
+        client_portal_management.disable(db, actor_id=current_user.id, client_id=client_id, now=now)
+    except client_portal_management.ClientNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    db.commit()
+
+
+@router.post(
+    "/clients/{client_id}/portal/unlock", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(verify_csrf)],
+)
+def unlock_client_portal(
+    client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
+) -> None:
+    try:
+        client_portal_management.unlock(db, actor_id=current_user.id, client_id=client_id)
+    except client_portal_management.ClientNotFoundError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     db.commit()

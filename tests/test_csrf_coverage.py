@@ -28,6 +28,8 @@ CSRF_EXEMPT = {
     "POST /portal/login",
     "POST /portal/recover/start",
     "POST /portal/recover/complete",
+    "POST /portal/invite/verify",
+    "POST /portal/invite/accept",
 }
 
 _MUTATING = {"POST", "PUT", "PATCH", "DELETE"}
@@ -57,8 +59,8 @@ def _login_allowed(db, c: TestClient, kind: str) -> None:
     c.get("/health")
     if kind == PORTAL:
         cl = f.make_client(db)
+        cl.portal_enabled = True
         cl.portal_password_hash = hash_password("PortalPass!123")
-        cl.portal_must_change = False
         db.flush()
         r = c.post("/portal/login", json={"code": cl.code, "password": "PortalPass!123"})
         assert r.status_code == 200

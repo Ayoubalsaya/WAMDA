@@ -1,13 +1,13 @@
 """اختبارات HTTP لبوابة العميل (`app/routers/portal.py`، §٧-٦) — تشمل
-اختبارات القبول ٤٠ (عزل البوابة) · ٤١ (`cost_rate` محجوب) · ٤٢ (لا شيء
-قبل تغيير كلمة المرور)."""
+اختبارات القبول ٤٠ (عزل البوابة) · ٤١ (`cost_rate` محجوب). اختبار القبول
+٤٢ (لا شيء قبل تغيير كلمة المرور) أُلغي — راجع `ACCEPTANCE_CANCELLED` في
+conftest.py."""
 
 from __future__ import annotations
 
 import uuid
 from decimal import Decimal
 
-import pyotp
 import pytest
 from fastapi.testclient import TestClient
 
@@ -36,10 +36,10 @@ def _headers(client: TestClient, idem: str | None = None) -> dict:
     return {"X-CSRF-Token": token, "Idempotency-Key": idem or uuid.uuid4().hex}
 
 
-def _make_portal_client(db, *, password: str = "PortalPass!123", must_change: bool = False):
+def _make_portal_client(db, *, password: str = "PortalPass!123"):
     c = f.make_client(db)
+    c.portal_enabled = True
     c.portal_password_hash = hash_password(password)
-    c.portal_must_change = must_change
     c.portal_security_question = "ما اسم أول عميل؟"
     from app.security.passwords import hash_security_answer
 
@@ -52,18 +52,6 @@ def _portal_login(client: TestClient, code: str, password: str = "PortalPass!123
     resp = client.post("/portal/login", json={"code": code, "password": password})
     assert resp.status_code == 200, resp.text
     return resp.json()
-
-
-def _staff_login(db, client: TestClient, *, role: str = "ADMIN"):
-    user = f.make_user(db, role=role)
-    user.password_hash = hash_password("Sup3rSecret!1")
-    user.must_change_password = False
-    user.totp_secret = pyotp.random_base32()
-    db.flush()
-    code = pyotp.TOTP(user.totp_secret).now()
-    resp = client.post("/auth/login", json={"username": user.username, "password": "Sup3rSecret!1", "totp_code": code})
-    assert resp.status_code == 200
-    return user
 
 
 def _find_key_anywhere(payload, key: str) -> list[str]:
@@ -86,9 +74,19 @@ def _find_key_anywhere(payload, key: str) -> list[str]:
 def test_portal_login_success_uses_separate_cookie_from_staff(db, client):
     c = _make_portal_client(db)
     result = _portal_login(client, c.code)
-    assert result == {"status": "ok", "must_change_password": False}
+    assert result == {"status": "ok"}
     assert client.cookies.get("wamda_portal_session")
     assert client.cookies.get("wamda_session") is None
+
+
+def test_portal_login_disabled_portal_rejected(db, client):
+    """بوابة معطّلة (`portal_enabled=False`) ترفض الدخول حتى بكلمة مرور
+    صحيحة — نفس رسالة الرفض العامة، لا تمييز."""
+    c = _make_portal_client(db)
+    c.portal_enabled = False
+    db.flush()
+    resp = client.post("/portal/login", json={"code": c.code, "password": "PortalPass!123"})
+    assert resp.status_code == 401
 
 
 def test_portal_login_wrong_password_rejected_and_locks_after_five(db, client):
@@ -107,27 +105,11 @@ def test_portal_unknown_code_rejected_generic_message(db, client):
     assert resp.status_code == 401
 
 
-@pytest.mark.acceptance(42)
-def test_portal_must_change_password_sees_nothing(db, client, now):
-    """اختبار القبول ٤٢: عميل قبل تغيير كلمة المرور أول دخول → لا يرى شيئاً."""
-    c = _make_portal_client(db, must_change=True)
-    result = _portal_login(client, c.code)
-    assert result["must_change_password"] is True
-
-    # /me يبقى متاحاً عمداً (تحتاجه الواجهة لعرض شاشة تغيير كلمة المرور نفسها)
-    me = client.get("/portal/me")
-    assert me.status_code == 200
-    assert me.json()["must_change_password"] is True
-
-    # كل شيء آخر محجوب تماماً
-    balances = client.get("/portal/balances")
-    assert balances.status_code == 403
-    statement = client.get("/portal/statement?currency=LYD&location=TRIPOLI")
-    assert statement.status_code == 403
-
-
 def test_portal_change_password_then_access_granted(db, client, now):
-    c = _make_portal_client(db, must_change=True)
+    """تغيير كلمة المرور الطوعي (العميل مسجَّل دخوله فعلاً) يبقى مسموحاً —
+    لا علاقة له بإلغاء `portal_must_change`/اختبار القبول ٤٢ (راجع
+    `ACCEPTANCE_CANCELLED` في conftest.py وPROGRESS.md)."""
+    c = _make_portal_client(db)
     _portal_login(client, c.code)
     resp = client.post(
         "/portal/change-password",
@@ -211,34 +193,6 @@ def test_portal_responses_never_contain_cost_rate(db, client, now):
 
     leaks = {label: hits for label, body in responses if (hits := _find_key_anywhere(body, "cost_rate"))}
     assert not leaks, f"cost_rate ظهر في رد بوابة لم يُتوقَّع ظهوره فيه: {leaks}"
-
-
-def test_admin_sets_portal_credentials_then_client_can_login(db, client):
-    _staff_login(db, client, role="ADMIN")
-    c = f.make_client(db)
-    resp = client.put(
-        f"/clients/{c.id}/portal-credentials",
-        json={"initial_password": "FirstTimePass!789", "security_question": "س؟", "security_answer": "ج"},
-        headers=_headers(client),
-    )
-    assert resp.status_code == 204
-
-    client2 = TestClient(app, base_url="https://testserver")
-    app.dependency_overrides[get_db] = lambda: db
-    result = client2.post("/portal/login", json={"code": c.code, "password": "FirstTimePass!789"})
-    assert result.status_code == 200
-    assert result.json()["must_change_password"] is True
-
-
-def test_accountant_cannot_set_portal_credentials(db, client):
-    _staff_login(db, client, role="ACCOUNTANT")
-    c = f.make_client(db)
-    resp = client.put(
-        f"/clients/{c.id}/portal-credentials",
-        json={"initial_password": "FirstTimePass!789"},
-        headers=_headers(client),
-    )
-    assert resp.status_code == 403
 
 
 def test_portal_recover_flow(db, client):

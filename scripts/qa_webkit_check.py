@@ -64,8 +64,8 @@ def setup_db() -> None:
             pc = Client(code=QA_PORTAL_CODE, name_ar=QA_PORTAL_NAME, search_name=QA_PORTAL_NAME, credit_allowed=False)
             db.add(pc)
         pc.is_active = True
+        pc.portal_enabled = True
         pc.portal_password_hash = hash_password(QA_PORTAL_PASS)
-        pc.portal_must_change = False
         pc.portal_failed_attempts = 0
         pc.portal_locked_until = None
         db.commit()

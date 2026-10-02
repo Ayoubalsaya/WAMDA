@@ -45,6 +45,8 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /portal/login": PUBLIC,
     "POST /portal/recover/start": PUBLIC,
     "POST /portal/recover/complete": PUBLIC,
+    "POST /portal/invite/verify": PUBLIC,
+    "POST /portal/invite/accept": PUBLIC,
     # موظف موثَّق (مدير أو محاسب)
     "GET /auth/me": STAFF,
     "POST /auth/logout": STAFF,
@@ -128,7 +130,13 @@ ROUTE_AUTH: dict[str, str] = {
     # مدير فقط
     "PATCH /clients/{client_id}/credit-allowed": ADMIN,
     "PUT /clients/{client_id}/credit-limits/{currency_code}": ADMIN,
-    "PUT /clients/{client_id}/portal-credentials": ADMIN,
+    # §٧-٦ إدارة بوابة العميل (٢٠٢٦-١٠-٠٢) — تستبدل PUT /portal-credentials المحذوف
+    "GET /clients/{client_id}/portal": ADMIN,
+    "POST /clients/{client_id}/portal/enable": ADMIN,
+    "POST /clients/{client_id}/portal/invite": ADMIN,
+    "POST /clients/{client_id}/portal/reset": ADMIN,
+    "POST /clients/{client_id}/portal/disable": ADMIN,
+    "POST /clients/{client_id}/portal/unlock": ADMIN,
     "GET /users": ADMIN,
     "POST /users": ADMIN,
     "PATCH /users/{user_id}": ADMIN,
@@ -231,8 +239,8 @@ def _staff_login(db, c: TestClient, role: str) -> None:
 
 def _portal_login(db, c: TestClient) -> None:
     client_row = f.make_client(db)
+    client_row.portal_enabled = True
     client_row.portal_password_hash = hash_password("PortalPass!123")
-    client_row.portal_must_change = False
     db.flush()
     r = c.post("/portal/login", json={"code": client_row.code, "password": "PortalPass!123"})
     assert r.status_code == 200, r.text

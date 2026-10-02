@@ -30,6 +30,9 @@ from app.schemas.clients import ClientBalanceRow, StatementResponse
 from app.schemas.reference import CurrencyOut, LocationOut
 from app.schemas.portal import (
     PortalChangePasswordRequest,
+    PortalInviteAcceptRequest,
+    PortalInviteVerifyRequest,
+    PortalInviteVerifyResponse,
     PortalLoginRequest,
     PortalLoginResponse,
     PortalMeResponse,
@@ -37,12 +40,13 @@ from app.schemas.portal import (
     PortalRecoverStartRequest,
     PortalRecoverStartResponse,
 )
-from app.security import csrf, passwords, portal_auth_service, portal_lockout, sessions
+from app.security import client_portal_invites, csrf, passwords, portal_auth_service, portal_lockout, sessions
 from app.security.deps import (
     PORTAL_SESSION_COOKIE_NAME,
+    enforce_portal_invite_rate_limit,
     enforce_portal_login_rate_limit,
     get_current_client,
-    require_portal_password_changed,
+    require_portal_access,
     verify_csrf,
 )
 
@@ -98,7 +102,7 @@ def portal_login(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     db.commit()
     _set_portal_session_cookie(response, result.raw_token)
-    return PortalLoginResponse(status="ok", must_change_password=result.must_change_password)
+    return PortalLoginResponse(status="ok")
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None, dependencies=[Depends(verify_csrf)])
@@ -154,16 +158,41 @@ def portal_recover_complete(payload: PortalRecoverCompleteRequest, db: OrmSessio
 
 @router.get("/me", response_model=PortalMeResponse)
 def portal_me(current_client: Client = Depends(get_current_client)) -> PortalMeResponse:
-    """بلا `require_portal_password_changed` عمداً — الواجهة تحتاج معرفة
-    `must_change_password` نفسها لتقرر عرض شاشة تغيير كلمة المرور أولاً."""
-    return PortalMeResponse(
-        code=current_client.code, name_ar=current_client.name_ar, must_change_password=current_client.portal_must_change,
-    )
+    return PortalMeResponse(code=current_client.code, name_ar=current_client.name_ar)
+
+
+@router.post("/invite/verify", response_model=PortalInviteVerifyResponse, dependencies=[Depends(enforce_portal_invite_rate_limit)])
+def portal_invite_verify(payload: PortalInviteVerifyRequest, db: OrmSession = Depends(get_db)) -> PortalInviteVerifyResponse:
+    now = system_clock()
+    client = client_portal_invites.verify_invite(db, token=payload.token, now=now)
+    if client is None:
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "رابط الدعوة غير صالح أو منتهي")
+    db.commit()
+    first_name = client.name_ar.split()[0] if client.name_ar.strip() else client.name_ar
+    return PortalInviteVerifyResponse(client_first_name=first_name)
+
+
+@router.post(
+    "/invite/accept", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
+    dependencies=[Depends(enforce_portal_invite_rate_limit)],
+)
+def portal_invite_accept(payload: PortalInviteAcceptRequest, db: OrmSession = Depends(get_db)) -> None:
+    now = system_clock()
+    try:
+        client_portal_invites.accept_invite(db, token=payload.token, new_password=payload.password, now=now)
+    except client_portal_invites.InvalidInviteError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except client_portal_invites.PortalDisabledError as exc:
+        db.commit()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    db.commit()
 
 
 @router.get("/currencies", response_model=list[CurrencyOut])
 def portal_currencies(
-    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
 ) -> list[CurrencyOut]:
     """بيانات مرجعية غير حسّاسة (رمز/اسم/منازل عشرية) — بلا `cost_rate`
     بالطبع، لازمة للواجهة كي تُنسِّق كل مبلغ بدقة عملته الفعلية بدل ست
@@ -176,7 +205,7 @@ def portal_currencies(
 
 @router.get("/locations", response_model=list[LocationOut])
 def portal_locations(
-    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
 ) -> list[LocationOut]:
     rows = db.execute(select(Location).where(Location.is_active.is_(True)).order_by(Location.code)).scalars().all()
     return [LocationOut(code=r.code, name_ar=r.name_ar, country=r.country) for r in rows]
@@ -184,7 +213,7 @@ def portal_locations(
 
 @router.get("/balances", response_model=list[ClientBalanceRow])
 def portal_balances(
-    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
 ) -> list[ClientBalanceRow]:
     return _client_balances(db, current_client.id)
 
@@ -194,7 +223,7 @@ def portal_statement(
     currency: str = Query(...), location: str = Query(...),
     date_from: Optional[date] = Query(default=None, alias="from"),
     date_to: Optional[date] = Query(default=None, alias="to"),
-    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
 ) -> StatementResponse:
     return compute_client_statement(
         db, client_id=current_client.id, currency=currency, location=location, date_from=date_from, date_to=date_to,
@@ -203,7 +232,7 @@ def portal_statement(
 
 @router.get("/balance-card.png")
 def portal_balance_card(
-    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_password_changed),
+    db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
 ) -> Response:
     """بطاقة رصيد العميل نفسه — **لا معرّف عميل في المسار أو الاستعلام
     إطلاقاً** (نفس بنية `/portal/balances`/`/portal/statement` بالضبط،

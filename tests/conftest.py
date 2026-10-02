@@ -108,6 +108,7 @@ def _reset_login_rate_limiters():
 
     deps._login_rate_limiter.reset()
     deps._portal_login_rate_limiter.reset()
+    deps._portal_invite_rate_limiter.reset()
     yield
 
 
@@ -129,6 +130,10 @@ ACCEPTANCE_CANCELLED: dict[int, str] = {
     31: "مستفيد إلزامي في REMIT_OUT — سجل المستفيدين أُلغي بالكامل (قرار مالك ٢٠٢٦-٠٩-٢٢)",
     32: "رقم حساب إلزامي عند إنشاء مستفيد — نفس الإلغاء أعلاه",
     33: "لقطة وجهة التحويل (RemitOutDestination) — نفس الإلغاء أعلاه",
+    42: "لا شيء قبل تغيير كلمة المرور أول دخول — `portal_must_change` حُذف "
+        "نهائياً (قرار مالك ٢٠٢٦-١٠-٠٢، إدارة بوابة العميل): لا مسار يُنشئ "
+        "كلمة مرور نيابة عن العميل بعد الآن — يختارها بنفسه حصراً عبر قبول "
+        "رابط دعوة، فلا توجد حالة «جلسة بكلمة مرور لم يخترها بعد»",
 }
 
 

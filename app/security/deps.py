@@ -27,6 +27,12 @@ _login_rate_limiter = RateLimiter(
 _portal_login_rate_limiter = RateLimiter(
     max_hits=settings.portal_login_rate_limit_max, window_seconds=settings.login_rate_limit_window_seconds
 )
+# نقطتا الدعوة العامتان (`/portal/invite/verify`/`/portal/invite/accept`) —
+# دلو منفصل عن دخول البوابة نفسه (استنفاد أحدهما لا يحجب الآخر)، نفس حدّ
+# العميل الأوسع (هاتف بشبكة متغيّرة).
+_portal_invite_rate_limiter = RateLimiter(
+    max_hits=settings.portal_login_rate_limit_max, window_seconds=settings.login_rate_limit_window_seconds
+)
 
 
 def _rate_limit_key(request: Request) -> str:
@@ -74,6 +80,12 @@ def enforce_portal_login_rate_limit(request: Request) -> None:
     _enforce(_portal_login_rate_limiter, request)
 
 
+def enforce_portal_invite_rate_limit(request: Request) -> None:
+    """تبعية على `POST /portal/invite/verify` و`POST /portal/invite/accept`
+    — نقطتان عامتان قبل أي جلسة، تحتاجان نفس حماية تحديد المعدل."""
+    _enforce(_portal_invite_rate_limiter, request)
+
+
 def get_current_user(
     request: Request,
     db: OrmSession = Depends(get_db),
@@ -115,21 +127,22 @@ def get_current_client(
     if session_row is None or session_row.subject_type != SessionSubjectType.CLIENT:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "الجلسة غير صالحة أو منتهية")
     client = db.get(Client, session_row.subject_id)
-    if client is None or not client.is_active:
+    if client is None or not client.is_active or not client.portal_enabled:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "الحساب غير نشط")
     request.state.portal_session_id = str(session_row.id)
     return client
 
 
-def require_portal_password_changed(current_client: Client = Depends(get_current_client)) -> Client:
-    """§٧-٦/اختبار القبول ٤٢: عميل قبل تغيير كلمة المرور أول دخول لا يرى
-    شيئاً — نفس مبدأ `require_password_changed` للموظف بالضبط. يفحص أيضاً
-    `Action.VIEW_OWN_STATEMENT` عبر `PERMISSION_MATRIX` الموجودة أصلاً منذ
-    المرحلة ٤ (`CLIENT_ROLE` كانت مُعرَّفة بانتظار هذه المرحلة) — تكرار
-    بنيوي مقصود مع فحص `subject_type` في `get_current_client`، لا اعتماد
-    عليه وحده."""
-    if current_client.portal_must_change:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "يجب تغيير كلمة المرور أولاً")
+def require_portal_access(current_client: Client = Depends(get_current_client)) -> Client:
+    """§٧-٦: يفحص `Action.VIEW_OWN_STATEMENT` عبر `PERMISSION_MATRIX` —
+    تكرار بنيوي مقصود مع فحص `subject_type`/`portal_enabled` في
+    `get_current_client`، لا اعتماد عليه وحده.
+
+    ⚠ كانت تُدعى `require_portal_password_changed` وتفرض أيضاً
+    `portal_must_change` (اختبار القبول ٤٢) — أُلغي ذلك الحقل والفحص
+    (٢٠٢٦-١٠-٠٢، قرار مالك): العميل يختار كلمته بنفسه دوماً عبر قبول
+    رابط الدعوة، فلا توجد حالة "جلسة بلا كلمة مرور مُختارة" بعد الآن
+    — راجع PROGRESS.md قسم إدارة بوابة العميل."""
     try:
         require_permission(CLIENT_ROLE, Action.VIEW_OWN_STATEMENT)
     except PermissionDeniedError as exc:  # pragma: no cover — CLIENT_ROLE يملكها دائماً، دفاع بنيوي إضافي فقط

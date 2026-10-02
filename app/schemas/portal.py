@@ -1,8 +1,11 @@
 """مخطّطات بوابة العميل (§٧-٦) — مشاهدة فقط، بلا `cost_rate` إطلاقاً في
-أي مخطّط هنا (نفس قاعدة `app/schemas/clients.py`، لا استثناء)."""
+أي مخطّط هنا (نفس قاعدة `app/schemas/clients.py`، لا استثناء). يشمل أيضاً
+مخطّطات **إدارة** البوابة من طاقم الموظفين (`app/routers/clients.py`) —
+نفس الملف كان يحمل `SetPortalCredentialsRequest` سابقاً (محذوف الآن)."""
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -15,7 +18,6 @@ class PortalLoginRequest(BaseModel):
 
 class PortalLoginResponse(BaseModel):
     status: str  # "ok" | "locked"
-    must_change_password: Optional[bool] = None
 
 
 class PortalChangePasswordRequest(BaseModel):
@@ -40,14 +42,33 @@ class PortalRecoverCompleteRequest(BaseModel):
 class PortalMeResponse(BaseModel):
     code: str
     name_ar: str
-    must_change_password: bool
 
 
-class SetPortalCredentialsRequest(BaseModel):
-    """طاقم الموظفين فقط (مدير) — يُنشئ/يُعيد ضبط دخول البوابة لعميل، نفس
-    نمط `CreateUserRequest` (كلمة مرور أولية يحدِّدها المدير، لا تُولَّد
-    عشوائياً)."""
+class PortalInviteVerifyRequest(BaseModel):
+    token: str
 
-    initial_password: str = Field(min_length=10)
-    security_question: Optional[str] = None
-    security_answer: Optional[str] = None
+
+class PortalInviteVerifyResponse(BaseModel):
+    client_first_name: str
+
+
+class PortalInviteAcceptRequest(BaseModel):
+    token: str
+    password: str = Field(min_length=10)
+
+
+class ClientPortalStatusResponse(BaseModel):
+    """`status` مُشتقّة دائماً — لا تُخزَّن (قرار مالك)، راجع
+    `app/security/client_portal_management.compute_status`."""
+
+    status: str  # ClientPortalStatus
+    last_login_at: Optional[datetime] = None
+    invite_expires_at: Optional[datetime] = None
+
+
+class ClientPortalInviteCreatedResponse(BaseModel):
+    """رابط الدعوة الخام — يُعرَض **مرة واحدة فقط** في رد الإنشاء، لا يُحفَظ
+    ولا يُستعاد لاحقاً (الخادم لا يملك إلا بصمته)."""
+
+    invite_url: str
+    expires_at: datetime
