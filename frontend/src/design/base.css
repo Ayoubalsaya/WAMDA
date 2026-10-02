@@ -204,8 +204,12 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-s
   font-size: var(--fs-sm);
 }
 
-/* ── أحجام الأيقونات المركزية (lucide يضع width/height كسمات؛ CSS يتفوّق عليها) ──────────────── */
-.seg-tabs-dock .seg-tab svg, .operation-tab svg, .btn svg, .btn-text svg { width: var(--icon-sm); height: var(--icon-sm); }
-.seg-tabs-rail svg { width: var(--icon-lg); height: var(--icon-lg); }
-.sidebar-center-btn svg { width: var(--icon-lg); height: var(--icon-lg); }
-.app-search svg, .user-chip svg, .activity-icon svg, .client-search-box svg { width: var(--icon-md); height: var(--icon-md); }
+/* ── أحجام الأيقونات المركزية (lucide يضع width/height/stroke-width كسمات؛ CSS يتفوّق عليها) ──────
+   كل حجم/سمك من tokens.css حصراً — لا قيمة في TSX تُعتمد. ──────────────────────────────────── */
+svg.lucide { stroke-width: var(--icon-stroke); }
+.seg-tabs-rail svg, .sidebar-center-btn svg { width: var(--icon-rail); height: var(--icon-rail); }
+.seg-tabs-dock .seg-tab svg, .operation-tab svg, .seg-tabs-pill .seg-tab svg, .btn svg, .btn-text svg { width: var(--icon-tab); height: var(--icon-tab); }
+.btn-sm svg { width: var(--icon-sm); height: var(--icon-sm); }
+.activity-icon svg, .activity-item svg, .date-control svg, .alerts-list svg, .notif-dropdown svg { width: var(--icon-list); height: var(--icon-list); }
+.app-topbar svg { width: var(--icon-bar); height: var(--icon-bar); }
+.client-search-box svg, .empty-client-icon svg { width: var(--icon-list); height: var(--icon-list); }

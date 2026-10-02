@@ -18,9 +18,9 @@
  * components/SegmentedTabs.css (.seg-tabs-rail). */
 
 .sidebar-center-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: 20px;
+  width: 64px;
+  height: 64px;
+  border-radius: 22px;
   background: #fff;
   border: none;
   display: flex;

@@ -240,7 +240,7 @@
   background: transparent; border: 0; border-radius: var(--radius-sm); font: inherit; text-align: start; cursor: pointer; color: inherit;
 }
 .activity-item:hover, .activity-item:focus-visible { background: var(--sky-50); outline: none; }
-.activity-icon { width: var(--control-icon); height: var(--control-icon); flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--sky-100); color: var(--sky-700); }
+.activity-icon { width: calc(var(--icon-list) + 22px); height: calc(var(--icon-list) + 22px); flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--sky-100); color: var(--sky-700); }
 .activity-icon.tone-in { background: var(--money-in-bg); color: var(--money-in-text); }
 .activity-icon.tone-out { background: var(--money-out-bg); color: var(--money-out-text); }
 .activity-icon.tone-exchange { background: var(--exchange-bg); color: var(--exchange-text); }

@@ -46,7 +46,7 @@
   margin-inline-start: auto;
 }
 .user-chip-avatar {
-  width: var(--control-icon); height: var(--control-icon);
+  width: calc(var(--icon-bar) + 20px); height: calc(var(--icon-bar) + 20px);
   border-radius: 999px;
   background: var(--sky-100);
   color: var(--sky-700);
@@ -58,7 +58,7 @@
 
 /* د-٢: زر الجرس + قائمة التنبيهات المنسدلة */
 .notif-bell-root { position: relative; }
-.notif-bell-btn { width: 42px; padding: 0; position: relative; }
+.notif-bell-btn { width: var(--control-h); padding: 0; position: relative; }
 .notif-dot {
   position: absolute; top: -4px; left: -4px;
   min-width: 16px; height: 16px; padding: 0 4px;
