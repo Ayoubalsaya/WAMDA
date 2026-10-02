@@ -3,6 +3,8 @@ import { api, ApiError } from '../api/client'
 import type {
   AutoMatchResponse, PartnerRow, PartnerStatementDetail, PartnerStatementSummary, StatementLineOut,
 } from '../api/types'
+import { DecimalError, DecimalInput } from '../components/DecimalInput'
+import { decimalInputError } from '../lib/decimalInput'
 import './ReconciliationScreen.css'
 
 interface NewLine { value_date: string; description: string; amount: string }
@@ -23,6 +25,22 @@ function NewStatementModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
+    // بند مكتمل جزئياً (مبلغ بلا تاريخ أو العكس) كان يُحذف بصمت من الطلب رغم
+    // ظهوره في الشاشة — الآن يُرفض برسالة تسمّي رقم البند.
+    const sentLines: NewLine[] = []
+    for (const [i, l] of lines.entries()) {
+      if (!l.value_date && !l.amount && !l.description) continue
+      if (!l.value_date || !l.amount) {
+        setError(`البند ${i + 1}: أكمل التاريخ والمبلغ معاً أو احذف البند`)
+        return
+      }
+      const amountError = decimalInputError(l.amount)
+      if (amountError) {
+        setError(`البند ${i + 1} — «المبلغ»: ${amountError}`)
+        return
+      }
+      sentLines.push(l)
+    }
     setBusy(true)
     setError(null)
     try {
@@ -30,9 +48,7 @@ function NewStatementModal({
         partner_id: partnerId,
         period_from: periodFrom,
         period_to: periodTo,
-        lines: lines
-          .filter((l) => l.value_date && l.amount)
-          .map((l) => ({ value_date: l.value_date, description: l.description || undefined, amount: l.amount })),
+        lines: sentLines.map((l) => ({ value_date: l.value_date, description: l.description || undefined, amount: l.amount })),
       })
       onCreated(statement)
     } catch (err) {
@@ -68,7 +84,10 @@ function NewStatementModal({
           <div className="op-row" key={i} style={{ marginBottom: 8 }}>
             <input type="date" value={l.value_date} onChange={(e) => updateLine(i, { value_date: e.target.value })} style={{ flex: 1 }} />
             <input placeholder="الوصف" value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} style={{ flex: 1.4 }} />
-            <input placeholder="المبلغ" inputMode="decimal" value={l.amount} onChange={(e) => updateLine(i, { amount: e.target.value })} style={{ flex: 1 }} />
+            <div style={{ flex: 1 }}>
+              <DecimalInput placeholder="المبلغ" value={l.amount} onChange={(v) => updateLine(i, { amount: v })} style={{ width: '100%' }} />
+              <DecimalError value={l.amount} />
+            </div>
           </div>
         ))}
         <button
@@ -142,7 +161,8 @@ function AdjustModal({
         <div className="op-row" style={{ marginBottom: 10 }}>
           <div className="field" style={{ flex: 1 }}>
             <label className="field-label" htmlFor="adj-amt">المبلغ</label>
-            <input id="adj-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            <DecimalInput id="adj-amt" value={amount} onChange={(v) => { setAmount(v); setError(null) }} required />
+            <DecimalError value={amount} />
           </div>
           <div className="field" style={{ flex: 1 }}>
             <label className="field-label" htmlFor="adj-dir">الاتجاه</label>

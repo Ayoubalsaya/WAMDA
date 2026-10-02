@@ -4,13 +4,16 @@
 // لكنه ليس مصدر الحقيقة.
 
 import Decimal from 'decimal.js'
+import { parseDecimalSafe } from './decimalInput'
 
 export const PIVOT_CODE = 'USD'
 
 // §١-٤: دولار → ثانوية = ضرب · ثانوية → دولار = قسمة
 export function convertPreview(amount: string, rate: string, fromCurrency: string): Decimal {
-  const a = new Decimal(amount || 0)
-  const r = new Decimal(rate || 0)
+  // تحليل آمن: نص غير رقمي في حقل (أرقام عربية، حروف…) كان يرمي DecimalError
+  // داخل useMemo فيُسقط الواجهة كلها (شاشة بيضاء) — الآن يعامَل كصفر.
+  const a = parseDecimalSafe(amount)
+  const r = parseDecimalSafe(rate)
   if (r.isZero()) return new Decimal(0)
   return fromCurrency === PIVOT_CODE ? a.times(r) : a.dividedBy(r)
 }

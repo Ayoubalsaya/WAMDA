@@ -5,6 +5,8 @@ import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { decimalInputError } from '../../lib/decimalInput'
 import { AmountStage, ExchangeSummary, FormGuide, PillTabs } from './journalUi'
 import './journal-design.css'
 
@@ -19,7 +21,8 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [step, setStep] = useState<1 | 2>(1)
   const [idemKey] = useState(newIdempotencyKey())
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // الخطأ مرتبط بقيم النموذج لحظة الإرسال؛ أي تعديل لاحق يُخفيه (٢٠٢٦-١٠-٠٢)
+  const [errorState, setErrorState] = useState<{ message: string; atKey: string } | null>(null)
   const [result, setResult] = useState<ExchangeChainResponse | null>(null)
 
   // ٢٠٢٦-٠٩-٢٥: نطاقان (طلب مالك، الفجوة المعلَنة في دفعة الخزينة
@@ -48,6 +51,13 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [step2Client, setStep2Client] = useState('')
   const [step2Reason, setStep2Reason] = useState('')
   const [note, setNote] = useState('')
+
+  const formKey = JSON.stringify([
+    scope, step, fromCurrency, toCurrency, amount, step1Cost, step1Client, step1Reason, step2Cost, step2Client, step2Reason,
+    fromLocation, step1ToLocation, step2ToLocation, step1SourceAccount, step1DestAccount, step2DestAccount, client?.id ?? null,
+  ])
+  const error = errorState && errorState.atKey === formKey ? errorState.message : null
+  const setError = (message: string | null) => setErrorState(message === null ? null : { message, atKey: formKey })
 
   const step1FromLocations = useMemo(() => locationsForCurrency(fromCurrency), [fromCurrency, locationsForCurrency])
   const step1ToLocations = useMemo(() => locationsForCurrency(PIVOT_CODE), [locationsForCurrency])
@@ -88,6 +98,17 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
   async function save() {
     if (scope === 'CLIENT' && !client) return
+    const numeric: [string, string][] = [
+      ['المبلغ', amount], ['سعر التنفيذ — الخطوة ١', step1Client], ['سعر التنفيذ — الخطوة ٢', step2Client],
+      ...(scope === 'CLIENT' ? [['سعر التكلفة — الخطوة ١', step1Cost], ['سعر التكلفة — الخطوة ٢', step2Cost]] as [string, string][] : []),
+    ]
+    for (const [label, value] of numeric) {
+      const message = decimalInputError(value)
+      if (message) {
+        setError(`«${label}»: ${message}`)
+        return
+      }
+    }
     setBusy(true)
     setError(null)
     try {
@@ -181,12 +202,14 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <AmountStage id="wizard-amount" label="المبلغ" value={amount} onChange={setAmount} currencyCode={fromCurrency} />
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
-                <input className="num" value={step1Client} onChange={(e) => setStep1Client(e.target.value)} />
+                <DecimalInput className="num" value={step1Client} onChange={setStep1Client} />
+<DecimalError value={step1Client} />
               </div>
               {scope === 'CLIENT' && (
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
-                  <input className="num" value={step1Cost} onChange={(e) => setStep1Cost(e.target.value)} />
+                  <DecimalInput className="num" value={step1Cost} onChange={setStep1Cost} />
+<DecimalError value={step1Cost} />
                 </div>
               )}
             </div>
@@ -254,12 +277,14 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             <div className="form-row">
               <div className="field field-rate">
                 <label className="field-label">{scope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
-                <input className="num" value={step2Client} onChange={(e) => setStep2Client(e.target.value)} />
+                <DecimalInput className="num" value={step2Client} onChange={setStep2Client} />
+<DecimalError value={step2Client} />
               </div>
               {scope === 'CLIENT' && (
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
-                  <input className="num" value={step2Cost} onChange={(e) => setStep2Cost(e.target.value)} />
+                  <DecimalInput className="num" value={step2Cost} onChange={setStep2Cost} />
+<DecimalError value={step2Cost} />
                 </div>
               )}
             </div>

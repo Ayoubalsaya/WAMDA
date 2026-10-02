@@ -10,6 +10,8 @@ import type {
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { decimalInputError } from '../../lib/decimalInput'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { AmountStage, ExchangeSummary, FormGuide, PillTabs, SelectWrap } from './journalUi'
 import './journal-design.css'
@@ -69,6 +71,13 @@ const LEVEL2: TabMeta[] = [
 const ALL_TABS = [...LEVEL1, ...LEVEL2]
 
 // العمليات التي تمسّ حساب عميل مباشرة — البقية تخصّ الشركة/الشريك وحدها
+// أسماء الحقول الرقمية في الحمولة ← الاسم الظاهر في الشاشة (للرسالة العربية)
+const NUMERIC_FIELD_LABELS: Record<string, string> = {
+  amount: 'المبلغ', total_amount: 'المبلغ', cost_rate: 'سعر التكلفة', client_rate: 'سعر العميل',
+  fee_amount: 'الرسوم', return_fee_amount: 'رسوم الإرجاع', bank_conversion_rate: 'سعر تحويل البنك',
+  client_commission_amount: 'عمولة العميل', cost_commission_amount: 'تكلفة العمولة',
+}
+
 const REQUIRES_CLIENT = new Set<OpTab>(['RECEIPT', 'PAYMENT', 'EXCHANGE', 'CASH_TRANSFER', 'REMIT_OUT', 'SWIFT_RETURN'])
 const ADMIN_ONLY_TABS = new Set<OpTab>(['OPENING', 'ADJUSTMENT'])
 
@@ -119,7 +128,10 @@ export function OperationForm({
   const [idemKey, setIdemKey] = useState(newIdempotencyKey())
   const [editReason, setEditReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // الخطأ مرتبط بقيم النموذج لحظة الإرسال (`formKey`)؛ أيّ تعديل لاحق لأي
+  // حقل يُخفيه — ٢٠٢٦-١٠-٠٢: كان رد ٤٢٢ لمحاولة سابقة (cost_rate=0) يبقى ظاهراً
+  // بجوار حقل صُحِّح إلى ٩٫٠٥ فيبدو كأن الخادم استلم ٠ من القيمة المعروضة.
+  const [errorState, setErrorState] = useState<{ message: string; atKey: string } | null>(null)
   const [success, setSuccess] = useState<EntryResponse | null>(null)
   // ب: رصيد صندوق/مراسل سيصبح سالباً — الخادم يرفض بـ٤٠٩ فور المحاولة
   // العادية؛ هذا يحفظ نفس الطلب لإعادة إرساله بعد إدخال سبب إلزامي
@@ -175,6 +187,16 @@ export function OperationForm({
   const [pendingSwift, setPendingSwift] = useState<PendingSwiftMovement[]>([])
   const [openingAccountMode, setOpeningAccountMode] = useState<'system' | 'client'>('system')
   const [clientBalancesForOpening, setClientBalancesForOpening] = useState<ClientBalance[]>([])
+
+  const formKey = JSON.stringify([
+    tab, exchangeScope, currencyCode, locationCode, amount, accountCode, toCurrency, toLocation, costRate, clientRate,
+    negativeMarginReason, treasurySourceAccount, treasuryDestAccount, fromLocation, toLocationCt, sourceAccount,
+    executionAccount, collectionAccount, collectFromCompanyAccount, collectionLocation, commissionCurrency,
+    clientCommission, costCommission, costCorrespondentAccount, fields, entryDate, backdateReason, editReason,
+    client?.id ?? null, openingAccountMode,
+  ])
+  const error = errorState && errorState.atKey === formKey ? errorState.message : null
+  const setError = (message: string | null) => setErrorState(message === null ? null : { message, atKey: formKey })
 
   function resetForm() {
     setCurrencyCode(''); setLocationCode(''); setAmount(''); setAccountCode('')
@@ -466,6 +488,16 @@ export function OperationForm({
     }
     const req = buildRequest()
     if (!req) return
+    // قيمة رقمية غير صالحة (فاصلة «,» مثلاً) لا تُرسَل — رسالة عربية باسم الحقل
+    for (const [key, label] of Object.entries(NUMERIC_FIELD_LABELS)) {
+      const raw = req.payload[key]
+      const message = typeof raw === 'string' ? decimalInputError(raw) : null
+      if (message) {
+        const shown = key === 'client_rate' && exchangeScope === 'TREASURY' && tab === 'EXCHANGE' ? 'سعر التنفيذ' : label
+        setError(`«${shown}»: ${message}`)
+        return
+      }
+    }
     // ج: OPENING له as_of_date الخاص به أصلاً (نفس الدور) — لا يُضاف تاريخ
     // مشترك ثانٍ فوقه. كل التبويبات الأخرى تحمل entry_date/backdate_reason.
     const payload = tab === 'OPENING'
@@ -726,11 +758,13 @@ export function OperationForm({
                 </div>
                 <div className="field">
                   <label className="field-label">عمولة العميل (تحصيل)</label>
-                  <input className="num" value={clientCommission} onChange={(e) => setClientCommission(e.target.value)} />
+                  <DecimalInput className="num" value={clientCommission} onChange={setClientCommission} />
+<DecimalError value={clientCommission} />
                 </div>
                 <div className="field">
                   <label className="field-label">تكلفة العمولة</label>
-                  <input className="num" value={costCommission} onChange={(e) => setCostCommission(e.target.value)} />
+                  <DecimalInput className="num" value={costCommission} onChange={setCostCommission} />
+<DecimalError value={costCommission} />
                 </div>
               </div>
 
@@ -784,11 +818,13 @@ export function OperationForm({
               <div className="form-row">
                 <div className="field field-rate">
                   <label className="field-label">سعر العميل</label>
-                  <input className="num" value={fields.client_rate ?? ''} onChange={(e) => setField('client_rate', e.target.value)} />
+                  <DecimalInput className="num" value={fields.client_rate ?? ''} onChange={(v) => setField('client_rate', v)} />
+<DecimalError value={fields.client_rate ?? ''} />
                 </div>
                 <div className="field field-rate">
                   <label className="field-label">سعر التكلفة</label>
-                  <input className="num" value={fields.cost_rate ?? ''} onChange={(e) => setField('cost_rate', e.target.value)} />
+                  <DecimalInput className="num" value={fields.cost_rate ?? ''} onChange={(v) => setField('cost_rate', v)} />
+<DecimalError value={fields.cost_rate ?? ''} />
                   <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
                 </div>
               </div>
@@ -874,7 +910,8 @@ export function OperationForm({
                 <AmountStage id="swiftin-total" label="المبلغ الواصل" value={fields.total_amount ?? ''} onChange={(v) => setField('total_amount', v)} />
                 <div className="field">
                   <label className="field-label">الرسوم الفعلية</label>
-                  <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
+                  <DecimalInput className="num" placeholder="0" value={fields.fee_amount ?? ''} onChange={(v) => setField('fee_amount', v)} />
+<DecimalError value={fields.fee_amount ?? ''} />
                 </div>
               </div>
               <AccountPicker
@@ -883,7 +920,8 @@ export function OperationForm({
               />
               <div className="field">
                 <label className="field-label">سعر تحويل البنك للرمبي (اختياري)</label>
-                <input className="num" value={fields.bank_conversion_rate ?? ''} onChange={(e) => setField('bank_conversion_rate', e.target.value)} />
+                <DecimalInput className="num" value={fields.bank_conversion_rate ?? ''} onChange={(v) => setField('bank_conversion_rate', v)} />
+<DecimalError value={fields.bank_conversion_rate ?? ''} />
                 <span className="rate-hint">
                   {fields.bank_conversion_rate
                     ? 'سيُفتَح دفعة رمبي جديدة تلقائياً بهذا السعر عند الترحيل'
@@ -920,7 +958,8 @@ export function OperationForm({
                 <AmountStage id="swiftreturn-total" label="المبلغ المرتجع كاملاً" value={fields.total_amount ?? ''} onChange={(v) => setField('total_amount', v)} />
                 <div className="field">
                   <label className="field-label">رسوم على العميل</label>
-                  <input className="num" value={fields.return_fee_amount ?? ''} onChange={(e) => setField('return_fee_amount', e.target.value)} />
+                  <DecimalInput className="num" placeholder="0" value={fields.return_fee_amount ?? ''} onChange={(v) => setField('return_fee_amount', v)} />
+<DecimalError value={fields.return_fee_amount ?? ''} />
                 </div>
                 <div className="field">
                   <label className="field-label">موقع العميل</label>
@@ -951,7 +990,8 @@ export function OperationForm({
                 <AmountStage id="localmove-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
                 <div className="field">
                   <label className="field-label">رسوم (اختياري — تُقيَّد في 5200)</label>
-                  <input className="num" value={fields.fee_amount ?? ''} onChange={(e) => setField('fee_amount', e.target.value)} />
+                  <DecimalInput className="num" placeholder="0" value={fields.fee_amount ?? ''} onChange={(v) => setField('fee_amount', v)} />
+<DecimalError value={fields.fee_amount ?? ''} />
                 </div>
               </div>
             </>
@@ -1075,12 +1115,14 @@ export function OperationForm({
                 <>
                   <div className="field field-rate">
                     <label className="field-label">{exchangeScope === 'TREASURY' ? 'سعر التنفيذ' : 'سعر العميل'}</label>
-                    <input className="num" value={clientRate} onChange={(e) => setClientRate(e.target.value)} />
+                    <DecimalInput className="num" value={clientRate} onChange={setClientRate} />
+<DecimalError value={clientRate} />
                   </div>
                   {exchangeScope === 'CLIENT' && (
                     <div className="field field-rate">
                       <label className="field-label">سعر التكلفة</label>
-                      <input className="num" value={costRate} onChange={(e) => setCostRate(e.target.value)} />
+                      <DecimalInput className="num" value={costRate} onChange={setCostRate} />
+<DecimalError value={costRate} />
                       <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
                     </div>
                   )}

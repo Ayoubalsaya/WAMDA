@@ -5,6 +5,8 @@ import { api, ApiError } from '../../api/client'
 import type { ClientDetail, StatementResponse } from '../../api/types'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
+import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { decimalInputError } from '../../lib/decimalInput'
 import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
@@ -259,6 +261,11 @@ function CreditLimitEditor({
   useEffect(() => setValue(current ? new Decimal(current).toFixed(decimals) : ''), [current, decimals])
 
   async function save() {
+    const limitError = decimalInputError(value)
+    if (limitError) {
+      setError(`«حد الائتمان»: ${limitError}`)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -275,7 +282,9 @@ function CreditLimitEditor({
     <div className="op-row" style={{ marginTop: 12, alignItems: 'flex-end' }}>
       <div className="field" style={{ maxWidth: 200 }}>
         <label className="field-label">حد الائتمان بعملة {currency}</label>
-        <input className="num" value={value} onChange={(e) => setValue(e.target.value)} />
+        {/* الفارغ يُحفَظ صفراً (لا ائتمان) — placeholder ٠ كي يطابق المعروضُ المُرسَلَ */}
+        <DecimalInput className="num" placeholder="0" value={value} onChange={(v) => { setValue(v); setError(null) }} />
+        <DecimalError value={value} />
       </div>
       <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void save()}>حفظ الحد</button>
       {error && <span style={{ color: 'var(--money-out-text)', fontSize: 12 }}>{error}</span>}

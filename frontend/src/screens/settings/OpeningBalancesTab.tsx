@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, OpeningBalanceRow } from '../../api/types'
 import { AccountPicker } from '../../components/AccountPicker'
+import { DecimalError, DecimalInput } from '../../components/DecimalInput'
+import { decimalInputError } from '../../lib/decimalInput'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
 
@@ -62,6 +64,11 @@ export function OpeningBalancesTab() {
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!amount || !asOfDate || !currencyCode) return
+    const amountError = decimalInputError(amount)
+    if (amountError) {
+      setError(`«المبلغ»: ${amountError}`)
+      return
+    }
     if (mode === 'system' && !accountCode) return
     if (mode === 'client' && (!client || !clientLocation)) return
     setBusy(true)
@@ -146,7 +153,8 @@ export function OpeningBalancesTab() {
           <div className="op-row" style={{ marginBottom: 10 }}>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label" htmlFor="ob-amt">المبلغ ({currencyCode || '—'})</label>
-              <input id="ob-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+              <DecimalInput id="ob-amt" value={amount} onChange={(v) => { setAmount(v); setError(null) }} required />
+              <DecimalError value={amount} />
             </div>
             <div className="field" style={{ flex: 1 }}>
               <label className="field-label" htmlFor="ob-dir">الاتجاه</label>

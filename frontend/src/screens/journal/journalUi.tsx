@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
+import { DecimalError, DecimalInput } from '../../components/DecimalInput'
 
 // مفردات تصميم دفتر اليومية (docs/design/journal-redesign-plan.md) كمكوّنات
 // عرض صرفة — لا منطق ولا حالة هنا؛ القيم كلها تأتي من الشاشة (الأنماط في
@@ -49,9 +50,10 @@ export function AmountStage({
     <div className="field amount-stage">
       <label className="field-label" htmlFor={id}>{label}</label>
       <div className="amount-entry">
-        <input id={id} className="num" inputMode="decimal" placeholder="0.000" value={value} onChange={(e) => onChange(e.target.value)} />
+        <DecimalInput id={id} className="num" placeholder="0.000" value={value} onChange={onChange} />
         {currencyCode && <span className="amount-currency num">{currencyCode}</span>}
       </div>
+      <DecimalError value={value} />
     </div>
   )
 }

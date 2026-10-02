@@ -137,6 +137,8 @@ input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-al
   color: var(--text-muted);
   margin-inline-start: 2px;
 }
+.field-error { font-size: 12px; color: var(--money-out-text); margin-inline-start: 2px; }
+input[aria-invalid="true"] { border-color: var(--money-out-text); }
 
 /* ── جدول ──────────────────────────────────────────────────────────── */
 table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
