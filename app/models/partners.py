@@ -8,6 +8,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     Text,
@@ -50,7 +51,12 @@ class Client(Base):
     credit_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # ⚠ clients.credit_limit حُذف — انظر ClientCreditLimit أدناه (حد لكل عملة).
     portal_password_hash: Mapped[Optional[str]] = mapped_column(Text)
-    portal_must_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # ⚠ portal_must_change حُذف (٢٠٢٦-١٠-٠٢، قرار مالك — إدارة بوابة العميل):
+    # لم يعد هناك مسار يُنشئ كلمة مرور نيابة عن العميل — العميل يختارها
+    # بنفسه دوماً عبر قبول رابط الدعوة (`client_portal_invites`)، فلا توجد
+    # حالة "كلمة مرور مفروضة يجب تغييرها أول دخول" بعد الآن.
+    portal_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    portal_last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     portal_security_question: Mapped[Optional[str]] = mapped_column(Text)
     portal_security_answer_hash: Mapped[Optional[str]] = mapped_column(Text)
     portal_failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -58,6 +64,32 @@ class Client(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_by: Mapped[Optional[int]] = mapped_column(BigInteger, ForeignKey("users.id"))
+
+
+class ClientPortalInvite(Base):
+    """رابط دعوة لمرة واحدة يعيّن به العميل كلمة مروره بنفسه (§٧-٦ — إدارة
+    بوابة العميل، ٢٠٢٦-١٠-٠٢). يُخزَّن `token_hash` (SHA-256) فقط — الرمز
+    الخام لا يُخزَّن ولا يظهر إلا في رد إنشاء الدعوة مرة واحدة، ولا يُمرَّر
+    أبداً في مسار/استعلام (`#invite=` في الواجهة، جسم الطلب في الـAPI) كي
+    لا يظهر في أي سجل وصول خادم.
+
+    لا حذف للصفوف (سياسة المشروع) — دعوة جديدة تُبطل القديمة (`revoked_at`)
+    بدل حذفها؛ "الدعوة الحيّة" الحالية هي الأحدث بلا `used_at`/`revoked_at`."""
+
+    __tablename__ = "client_portal_invites"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    client_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("clients.id"), nullable=False)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_client_portal_invites_client", "client_id"),
+    )
 
 
 class ClientCreditLimit(Base):

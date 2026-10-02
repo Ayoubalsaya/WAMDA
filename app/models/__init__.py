@@ -6,6 +6,7 @@ from app.models.accounts import Account, AccountNumberAssignment, AccountNumberC
 from app.models.partners import (
     Client,
     ClientCreditLimit,
+    ClientPortalInvite,
     Partner,
 )
 from app.models.journal import EntryComment, JournalEntry, JournalLine
@@ -38,6 +39,7 @@ __all__ = [
     "AccountNumberCounter",
     "Client",
     "ClientCreditLimit",
+    "ClientPortalInvite",
     "Partner",
     "EntryComment",
     "JournalEntry",
