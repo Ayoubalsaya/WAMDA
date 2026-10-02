@@ -11,7 +11,7 @@ from pathlib import Path
 from tests import factories as f
 from tests.ui_support import _composer, _open_tab, journal_page, live_server, qa_identity  # noqa: F401
 
-ALLOWED = {18, 20, 22, 24, 26, 28}  # tokens: sm 18 · md 20 · tab 22 · list/bar/lg 24 · rail 26–28
+ALLOWED = {29, 32, 35, 38, 45}  # tokens ×١٫٦ (٢٠٢٦-١٠-٠٣): sm 29 · md 32 · tab 35 · list/bar 38 · rail 45
 
 SIZES_JS = """(sel) => [...document.querySelectorAll(sel)].filter(s => s.getBoundingClientRect().width)
   .map(s => Math.round(s.getBoundingClientRect().width * 10) / 10)"""
@@ -63,11 +63,13 @@ def test_rendered_icon_sizes_in_every_zone(journal_page):
         return got
 
     zones = {
-        "الشريط الجانبي": (".sidebar svg", 26, 28),
-        "تبويبات العمليات": (".operation-dock .seg-tab svg", 22, 22),
-        "سجل العمليات": (".activity-panel .activity-icon svg", 24, 24),
-        "الجرس": (".notif-bell-btn svg", 22, 24),
-        "أزرار النماذج": ("button.client-quick-create svg", 18, 22),
+        "الشريط الجانبي (تبويبات)": (".sidebar .seg-row-base svg", 45, 45),
+        "الشريط الجانبي (زر +)": (".sidebar-center-btn svg", 45, 45),
+        "تبويبات العمليات": (".operation-dock .seg-tab svg", 35, 35),
+        "سجل العمليات": (".activity-panel .activity-icon svg", 38, 38),
+        "الجرس": (".notif-bell-btn svg", 38, 38),
+        "الشريط العلوي": (".app-topbar svg", 38, 38),
+        "أزرار النماذج": ("button.client-quick-create svg", 35, 35),
     }
     table = []
     for name, (sel, lo, hi) in zones.items():
@@ -89,3 +91,19 @@ def test_every_visible_icon_size_comes_from_the_allowed_set(journal_page):
     pg.wait_for_timeout(700)
     stray = [row for row in pg.evaluate(ALL_JS) if row[0] not in ALLOWED]
     assert not stray, "أيقونات بحجم خارج tokens (تتسرّب من size={…} في TSX):\n" + "\n".join(map(str, stray))
+
+
+def test_dashboard_card_icons_and_settings_screen(journal_page):
+    pg = journal_page
+    pg.mode = "stub"
+    tabs = pg.locator(".sidebar .seg-row-base .seg-tab")
+    tabs.nth(0).click()
+    pg.wait_for_selector(".alerts-list svg", timeout=10000)
+    pg.wait_for_timeout(1500)  # أنيميشن دخول البطاقات (مقياس) يُنهي قبل القياس
+    got = pg.evaluate(SIZES_JS, ".alerts-list svg")
+    assert got and all(w == 38 for w in got), f"بطاقات لوحة التحكم: {sorted(set(got))}"
+    _shot(pg, "dashboard.png")
+    tabs.nth(7).click()
+    pg.wait_for_timeout(1000)
+    stray = [row for row in pg.evaluate(ALL_JS) if row[0] not in ALLOWED]
+    assert not stray, str(stray)

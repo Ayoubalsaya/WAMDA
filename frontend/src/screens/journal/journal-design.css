@@ -218,7 +218,7 @@
   padding: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-sm); background: #fff;
 }
 .date-control > button {
-  display: inline-grid; place-items: center; flex: none; width: var(--control-icon); height: var(--control-h-sm); padding: 0;
+  display: inline-grid; place-items: center; flex: none; width: var(--control-icon); height: var(--control-icon); padding: 0;
   border: 0; border-radius: 9px; background: var(--sky-50); color: var(--sky-700); cursor: pointer;
 }
 .date-control > button:hover:not(:disabled) { background: var(--sky-100); }

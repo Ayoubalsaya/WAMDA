@@ -110,7 +110,7 @@
 /* ── rail: الشريط الجانبي رأسياً (أيقونات فقط) ───────────────────────── */
 .seg-tabs-rail { gap: 6px; }
 .seg-tabs-rail .seg-row { gap: 6px; }
-.seg-tabs-rail .seg-tab { width: calc(var(--rail-w) - 8px); height: 72px; color: rgba(255, 255, 255, .82); }
+.seg-tabs-rail .seg-tab { width: calc(var(--rail-w) - 8px); height: 88px; color: rgba(255, 255, 255, .82); }
 .seg-tabs-rail .seg-pill {
   left: auto; right: 0; width: calc(100% + 22px); background: var(--canvas);
   border-start-start-radius: 24px; border-end-start-radius: 24px;

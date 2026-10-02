@@ -18,9 +18,9 @@
  * components/SegmentedTabs.css (.seg-tabs-rail). */
 
 .sidebar-center-btn {
-  width: 64px;
-  height: 64px;
-  border-radius: 22px;
+  width: 84px;
+  height: 84px;
+  border-radius: 28px;
   background: #fff;
   border: none;
   display: flex;
@@ -38,7 +38,7 @@
 .sidebar-center-btn.is-open svg { transform: rotate(135deg); }
 .center-btn-label {
   position: absolute;
-  top: 64px;
+  top: 84px;
   font-size: var(--fs-2xs);
   color: #fff;
   white-space: nowrap;
