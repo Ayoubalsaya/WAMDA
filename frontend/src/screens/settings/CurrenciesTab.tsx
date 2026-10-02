@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../../api/client'
 import type { CurrencyAdminRow } from '../../api/types'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 function CreateCurrencyForm({ onCreated }: { onCreated: () => void }) {
   const [code, setCode] = useState('')
@@ -9,7 +10,7 @@ function CreateCurrencyForm({ onCreated }: { onCreated: () => void }) {
   const [decimals, setDecimals] = useState(2)
   const [sortOrder, setSortOrder] = useState(0)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ code: 'الكود', name_ar: 'الاسم', symbol: 'الرمز', decimals: 'المنازل العشرية', sort_order: 'الترتيب' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -22,14 +23,14 @@ function CreateCurrencyForm({ onCreated }: { onCreated: () => void }) {
       setCode(''); setNameAr(''); setSymbol(''); setDecimals(2); setSortOrder(0)
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء العملة')
+      report(err, 'تعذّر إنشاء العملة')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field" style={{ maxWidth: 90 }}>
         <label className="field-label" htmlFor="cc-code">الكود</label>
         <input id="cc-code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={8} required />
@@ -49,6 +50,7 @@ function CreateCurrencyForm({ onCreated }: { onCreated: () => void }) {
       </div>
       <button type="submit" className="btn btn-primary" disabled={busy}>+ عملة جديدة</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }

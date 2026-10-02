@@ -156,3 +156,85 @@ def test_raw_shape_on_other_screens_create_client_modal(journal_page):
         pg.get_by_role("button", name="إلغاء", exact=True).click()
         pg.click("button[title^='دفتر اليومية']")
         pg.wait_for_selector(".journal-col-center")
+
+
+# ═══ البند ٤ (٢٠٢٦-١٠-٠٢): الرسالة تحت الحقل نفسه في بقية الشاشات أيضاً ═══
+
+import json  # noqa: E402
+
+
+def _structured_422(*errors):
+    """ردّ ٤٢٢ بالشكل الذي ينتجه معالج الخادم (`app/validation_errors.py`)."""
+    items = [{"loc": [f], "field": f, "label": lbl, "message": msg, "type": "x"} for f, lbl, msg in errors]
+    detail = "؛ ".join(f"«{lbl}»: {msg}" for _, lbl, msg in errors)
+    return json.dumps({"detail": detail, "errors": items}, ensure_ascii=False)
+
+
+def _field_error_text(pg, root, label: str) -> str:
+    field = root.locator(".field", has=pg.locator("label.field-label", has_text=label)).first
+    return field.locator("[data-field-error]").inner_text()
+
+
+def test_create_client_modal_field_errors_under_their_fields(journal_page):
+    pg = journal_page
+    pg.mode = "stub"
+
+    def structured(route):
+        if route.request.method == "POST":
+            route.fulfill(status=422, content_type="application/json", body=_structured_422(
+                ("name_ar", "الاسم بالعربية", "هذا الحقل مطلوب"), ("code", "الكود", "الصيغة غير صحيحة")))
+        else:
+            route.continue_()
+
+    pg.route("**/clients", structured)
+    try:
+        pg.click("button[title^='العملاء']")
+        pg.wait_for_selector(".clients-screen")
+        pg.get_by_role("button", name=re.compile("عميل جديد")).first.click()
+        pg.fill("#new-client-code", "QA-X")
+        pg.fill("#new-client-name", "س")
+        pg.get_by_role("button", name="حفظ", exact=True).click()
+        pg.wait_for_timeout(500)
+        modal = pg.locator(".modal-veil")
+        # الاسم الظاهر في الشاشة («الاسم»، «كود العميل») لا اسم الخادم الافتراضي
+        assert _field_error_text(pg, modal, "الاسم") == "«الاسم»: هذا الحقل مطلوب"
+        assert _field_error_text(pg, modal, "كود العميل") == "«كود العميل»: الصيغة غير صحيحة"
+        _assert_no_raw(pg, "create-client structured")
+        # أول تعديل في أي حقل يُخفي الأخطاء القديمة
+        pg.fill("#new-client-name", "سلمى")
+        assert modal.locator("[data-field-error]").count() == 0
+    finally:
+        pg.unroute("**/clients", structured)
+        pg.get_by_role("button", name="إلغاء", exact=True).click()
+        pg.click("button[title^='دفتر اليومية']")
+        pg.wait_for_selector(".journal-col-center")
+
+
+def test_settings_currency_form_field_errors_under_their_fields(journal_page):
+    pg = journal_page
+    pg.mode = "stub"
+
+    def structured(route):
+        if route.request.method == "POST":
+            route.fulfill(status=422, content_type="application/json", body=_structured_422(
+                ("decimals", "عدد المنازل العشرية", "يجب ألا يزيد عن 6"), ("symbol", "الرمز", "هذا الحقل مطلوب")))
+        else:
+            route.continue_()
+
+    pg.route("**/settings/currencies", structured)
+    try:
+        pg.click("button[title^='الإعدادات']")
+        pg.get_by_role("tab", name="العملات").click()
+        pg.fill("#cc-code", "ZZZ")
+        pg.fill("#cc-name", "اختبار")
+        pg.fill("#cc-symbol", "z")
+        pg.get_by_role("button", name=re.compile("عملة جديدة")).click()
+        pg.wait_for_timeout(500)
+        form = pg.locator("form", has=pg.locator("#cc-code"))
+        assert _field_error_text(pg, form, "المنازل العشرية") == "«المنازل العشرية»: يجب ألا يزيد عن 6"
+        assert _field_error_text(pg, form, "الرمز") == "«الرمز»: هذا الحقل مطلوب"
+        _assert_no_raw(pg, "currency structured")
+    finally:
+        pg.unroute("**/settings/currencies", structured)
+        pg.click("button[title^='دفتر اليومية']")
+        pg.wait_for_selector(".journal-col-center")

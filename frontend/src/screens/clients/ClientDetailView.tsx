@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Decimal from 'decimal.js'
 import { ArrowRight, PenLine } from 'lucide-react'
-import { api, ApiError } from '../../api/client'
+import { api } from '../../api/client'
 import type { ClientDetail, StatementResponse } from '../../api/types'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
@@ -11,6 +11,7 @@ import { EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { ClientPortalSection } from './ClientPortalSection'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 interface ClientDetailViewProps {
   clientId: number
@@ -256,7 +257,7 @@ function CreditLimitEditor({
 }: { clientId: number; currency: string; current?: string; decimals: number; onSaved: () => Promise<void> }) {
   const [value, setValue] = useState(current ? new Decimal(current).toFixed(decimals) : '')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors((key, server) => (key === 'limit_amount' ? `حد الائتمان بعملة ${currency}` : (server ?? 'الحقل')))
 
   useEffect(() => setValue(current ? new Decimal(current).toFixed(decimals) : ''), [current, decimals])
 
@@ -272,14 +273,14 @@ function CreditLimitEditor({
       await api.put(`/clients/${clientId}/credit-limits/${currency}`, { limit_amount: value || '0' })
       await onSaved()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر حفظ حد الائتمان')
+      report(err, 'تعذّر حفظ حد الائتمان')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="op-row" style={{ marginTop: 12, alignItems: 'flex-end' }}>
+    <div ref={formRef} className="op-row" style={{ marginTop: 12, alignItems: 'flex-end' }}>
       <div className="field" style={{ maxWidth: 200 }}>
         <label className="field-label">حد الائتمان بعملة {currency}</label>
         {/* الفارغ يُحفَظ صفراً (لا ائتمان) — placeholder ٠ كي يطابق المعروضُ المُرسَلَ */}
@@ -288,6 +289,7 @@ function CreditLimitEditor({
       </div>
       <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void save()}>حفظ الحد</button>
       {error && <span style={{ color: 'var(--money-out-text)', fontSize: 12 }}>{error}</span>}
+      {portals}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError } from '../../api/client'
+import { api } from '../../api/client'
 import type { FoundingPeriodStatus, PeriodRow } from '../../api/types'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 const MONTH_NAMES = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -12,7 +13,7 @@ function CloseOrReopenForm({ onDone }: { onDone: () => void }) {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ year: 'السنة', month: 'الشهر' })
 
   async function submit(action: 'close' | 'reopen') {
     setBusy(true)
@@ -21,14 +22,14 @@ function CloseOrReopenForm({ onDone }: { onDone: () => void }) {
       await api.post(`/periods/${action}`, { year, month })
       onDone()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّرت العملية')
+      report(err, 'تعذّرت العملية')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <div ref={formRef} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field">
         <label className="field-label" htmlFor="period-year">السنة</label>
         <input id="period-year" type="number" value={year} onChange={(e) => setYear(Number(e.target.value))} style={{ width: 100 }} />
@@ -42,6 +43,7 @@ function CloseOrReopenForm({ onDone }: { onDone: () => void }) {
       <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void submit('close')}>إقفال الفترة</button>
       <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => void submit('reopen')}>فتح فترة مقفلة</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </div>
   )
 }
@@ -85,7 +87,7 @@ function FoundingPeriodSection() {
   const [status, setStatus] = useState<FoundingPeriodStatus | null>(null)
   const [acknowledge, setAcknowledge] = useState(false)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({  })
 
   async function reload() {
     const data = await api.get<FoundingPeriodStatus>('/periods/founding')
@@ -103,7 +105,7 @@ function FoundingPeriodSection() {
       })
       setStatus(updated)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إقفال الفترة التأسيسية')
+      report(err, 'تعذّر إقفال الفترة التأسيسية')
     } finally {
       setBusy(false)
     }
@@ -113,7 +115,7 @@ function FoundingPeriodSection() {
   const suspenseEntries = Object.entries(status.suspense_balance_by_currency)
 
   return (
-    <div className="card">
+    <div ref={formRef} className="card">
       <div className="card-title" style={{ marginBottom: 12 }}>الفترة التأسيسية</div>
       <div style={{ marginBottom: 12 }}>
         الحالة: <span className={`badge ${status.is_open ? 'badge-status-posted' : 'badge-status-reversed'}`}>{status.is_open ? 'مفتوحة' : 'مُقفلة'}</span>
@@ -150,6 +152,7 @@ function FoundingPeriodSection() {
         </>
       )}
       {error && <div className="alert alert-critical" style={{ marginTop: 12 }}>{error}</div>}
+      {portals}
     </div>
   )
 }

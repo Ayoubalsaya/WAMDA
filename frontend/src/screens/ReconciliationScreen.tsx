@@ -6,6 +6,7 @@ import type {
 import { DecimalError, DecimalInput } from '../components/DecimalInput'
 import { decimalInputError } from '../lib/decimalInput'
 import './ReconciliationScreen.css'
+import { useFormErrors } from '../hooks/useFormErrors'
 
 interface NewLine { value_date: string; description: string; amount: string }
 
@@ -17,7 +18,7 @@ function NewStatementModal({
   const [periodTo, setPeriodTo] = useState('')
   const [lines, setLines] = useState<NewLine[]>([{ value_date: '', description: '', amount: '' }])
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors((key, server) => { const m = key.match(/^lines\.(\d+)\.(\w+)$/); if (m) return `البند ${Number(m[1]) + 1} — ${m[2] === 'amount' ? 'المبلغ' : m[2] === 'value_date' ? 'التاريخ' : 'الوصف'}`; return ({ partner_id: 'الشريك', period_from: 'من تاريخ', period_to: 'إلى تاريخ', lines: 'بنود الكشف' } as Record<string, string>)[key] ?? server ?? 'الحقل' })
 
   function updateLine(i: number, patch: Partial<NewLine>) {
     setLines((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)))
@@ -52,7 +53,7 @@ function NewStatementModal({
       })
       onCreated(statement)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الكشف')
+      report(err, 'تعذّر إنشاء الكشف')
     } finally {
       setBusy(false)
     }
@@ -60,7 +61,7 @@ function NewStatementModal({
 
   return (
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
-      <form className="card new-op-panel" style={{ width: 520 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <form ref={formRef} className="card new-op-panel" style={{ width: 520 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3 className="card-title" style={{ marginBottom: 16 }}>كشف مراسل جديد</h3>
         <div className="field" style={{ marginBottom: 12 }}>
           <label className="field-label" htmlFor="recon-partner">الشريك</label>
@@ -97,6 +98,7 @@ function NewStatementModal({
           + بند آخر
         </button>
         {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
+        {portals}
         <div className="op-row">
           <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
           <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>حفظ</button>
@@ -120,7 +122,7 @@ function AdjustModal({
   const [isDebit, setIsDebit] = useState(true)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ account_code: 'حساب المراسل', currency_code: 'العملة', amount: 'المبلغ', is_debit: 'الاتجاه', reason: 'السبب' })
 
   const reasonOk = reason.trim().length >= 3
 
@@ -135,7 +137,7 @@ function AdjustModal({
       })
       onDone()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّرت التسوية')
+      report(err, 'تعذّرت التسوية')
     } finally {
       setBusy(false)
     }
@@ -143,7 +145,7 @@ function AdjustModal({
 
   return (
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
-      <form className="card new-op-panel" style={{ width: 460 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <form ref={formRef} className="card new-op-panel" style={{ width: 460 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3 className="card-title" style={{ marginBottom: 4 }}>تسوية الفرق بقيد ADJUSTMENT</h3>
         <div className="text-muted" style={{ fontSize: 12, marginBottom: 14 }}>
           يُرحَّل قيد تسوية ويُربَط بهذا السطر مباشرة. السبب إلزامي (§٥-١٢).
@@ -180,6 +182,7 @@ function AdjustModal({
           />
         </div>
         {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
+        {portals}
         <div className="op-row">
           <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
           <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !reasonOk}>

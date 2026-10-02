@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError, newIdempotencyKey } from '../../api/client'
+import { api, newIdempotencyKey } from '../../api/client'
 import type { ClientSearchResult, OpeningBalanceRow } from '../../api/types'
 import { AccountPicker } from '../../components/AccountPicker'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
 import { decimalInputError } from '../../lib/decimalInput'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
 import { useReferenceData } from '../../hooks/useReferenceData'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 const SOURCE_TYPES: { v: string; label: string }[] = [
   { v: 'VERIFIED', label: 'مؤكَّد (مستند/كشف)' },
@@ -36,7 +37,7 @@ export function OpeningBalancesTab() {
   const [confidence, setConfidence] = useState('HIGH')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ account_code: 'الحساب', currency_code: 'العملة', amount: 'المبلغ', is_debit: 'الاتجاه', as_of_date: 'بتاريخ', source_type: 'المصدر', confidence: 'درجة الثقة', source_note: 'ملاحظة المصدر' })
   const [ok, setOk] = useState<string | null>(null)
 
   const selectedAccount = accounts.find((a) => a.code === accountCode)
@@ -86,7 +87,7 @@ export function OpeningBalancesTab() {
       setAmount(''); setNote('')
       await reload()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الرصيد الافتتاحي')
+      report(err, 'تعذّر تسجيل الرصيد الافتتاحي')
     } finally {
       setBusy(false)
     }
@@ -105,7 +106,7 @@ export function OpeningBalancesTab() {
             ]}
           />
         </div>
-        <form onSubmit={submit}>
+        <form ref={formRef} onSubmit={submit}>
           {mode === 'system' ? (
             <div style={{ marginBottom: 10 }}>
               <AccountPicker value={accountCode} onChange={setAccountCode} spec={{ mode: 'full' }} label="الحساب" />
@@ -187,6 +188,7 @@ export function OpeningBalancesTab() {
             <input id="ob-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="مثلاً: كشف بنك الصين ٢٠٢٦-٠١-٠١" />
           </div>
           {error && <div className="alert alert-critical" style={{ marginBottom: 10 }}>{error}</div>}
+          {portals}
           {ok && <div className="alert alert-info" style={{ marginBottom: 10 }}>{ok}</div>}
           <button type="submit" className="btn btn-primary" disabled={busy}>تسجيل الرصيد الافتتاحي</button>
         </form>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, ApiError } from '../api/client'
+import { api } from '../api/client'
 import type { AccountOut, CompanyProfile, PartnerRow, UserListRow } from '../api/types'
 import { useReferenceData } from '../hooks/useReferenceData'
 import { SegmentedTabs } from '../components/SegmentedTabs'
@@ -9,6 +9,7 @@ import { LocationsTab } from './settings/LocationsTab'
 import { OpeningBalancesTab } from './settings/OpeningBalancesTab'
 import { PeriodsTab } from './settings/PeriodsTab'
 import './SettingsScreen.css'
+import { useFormErrors } from '../hooks/useFormErrors'
 
 type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts' | 'currencies' | 'locations' | 'opening-balances' | 'periods' | 'audit-log'
 
@@ -34,7 +35,7 @@ function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTAN
   const [nameAr, setNameAr] = useState('')
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ name_ar: 'اسم الشركة' })
 
   useEffect(() => {
     void api.get<CompanyProfile>('/settings/company').then((p) => { setProfile(p); setNameAr(p.name_ar) })
@@ -50,7 +51,7 @@ function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTAN
       setProfile(updated)
       setSaved(true)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر الحفظ')
+      report(err, 'تعذّر الحفظ')
     } finally {
       setBusy(false)
     }
@@ -58,7 +59,7 @@ function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTAN
 
   if (!profile) return <p className="text-muted">...جارٍ التحميل</p>
   return (
-    <form onSubmit={save} style={{ maxWidth: 420 }}>
+    <form ref={formRef} onSubmit={save} style={{ maxWidth: 420 }}>
       <div className="field" style={{ marginBottom: 12 }}>
         <label className="field-label" htmlFor="settings-company-name">اسم الشركة</label>
         <input
@@ -68,6 +69,7 @@ function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTAN
       </div>
       {currentUserRole !== 'ADMIN' && <p className="text-muted" style={{ fontSize: 12.5 }}>عرض فقط — التعديل بصلاحية المدير</p>}
       {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
+      {portals}
       {saved && <div className="alert alert-info" style={{ marginBottom: 12 }}>تم الحفظ</div>}
       {currentUserRole === 'ADMIN' && (
         <button type="submit" className="btn btn-primary" disabled={busy}>حفظ</button>
@@ -82,7 +84,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
   const [role, setRole] = useState<'ADMIN' | 'ACCOUNTANT'>('ACCOUNTANT')
   const [initialPassword, setInitialPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ username: 'اسم المستخدم', full_name: 'الاسم الكامل', role: 'الدور', initial_password: 'كلمة مرور مبدئية' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -93,14 +95,14 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
       setUsername(''); setFullName(''); setInitialPassword(''); setRole('ACCOUNTANT')
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء المستخدم')
+      report(err, 'تعذّر إنشاء المستخدم')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field"><label className="field-label" htmlFor="su-username">اسم المستخدم</label><input id="su-username" value={username} onChange={(e) => setUsername(e.target.value)} required /></div>
       <div className="field"><label className="field-label" htmlFor="su-fullname">الاسم الكامل</label><input id="su-fullname" value={fullName} onChange={(e) => setFullName(e.target.value)} required /></div>
       <div className="field">
@@ -113,6 +115,7 @@ function CreateUserForm({ onCreated }: { onCreated: () => void }) {
       <div className="field"><label className="field-label" htmlFor="su-pass">كلمة مرور مبدئية</label><input id="su-pass" type="password" value={initialPassword} onChange={(e) => setInitialPassword(e.target.value)} minLength={10} required /></div>
       <button type="submit" className="btn btn-primary" disabled={busy}>+ مستخدم جديد</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }
@@ -156,7 +159,7 @@ function CreatePartnerForm({ onCreated }: { onCreated: () => void }) {
   const [country, setCountry] = useState('')
   const [phone, setPhone] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ code: 'الكود', name_ar: 'الاسم', country: 'الدولة', contact_phone: 'هاتف' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -167,20 +170,21 @@ function CreatePartnerForm({ onCreated }: { onCreated: () => void }) {
       setCode(''); setNameAr(''); setCountry(''); setPhone('')
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الشريك')
+      report(err, 'تعذّر إنشاء الشريك')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field"><label className="field-label" htmlFor="sp-code">الكود</label><input id="sp-code" value={code} onChange={(e) => setCode(e.target.value)} required /></div>
       <div className="field"><label className="field-label" htmlFor="sp-name">الاسم</label><input id="sp-name" value={nameAr} onChange={(e) => setNameAr(e.target.value)} required /></div>
       <div className="field"><label className="field-label" htmlFor="sp-country">الدولة</label><input id="sp-country" value={country} onChange={(e) => setCountry(e.target.value)} required /></div>
       <div className="field"><label className="field-label" htmlFor="sp-phone">هاتف (اختياري)</label><input id="sp-phone" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
       <button type="submit" className="btn btn-primary" disabled={busy}>+ شريك جديد</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }
@@ -197,7 +201,7 @@ function CreatePartnerAccountForm({ partnerId, onCreated }: { partnerId: number;
   const [currency, setCurrency] = useState('')
   const [location, setLocation] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ parent_code: 'النوع', currency_code: 'العملة', location_code: 'الموقع' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -207,14 +211,14 @@ function CreatePartnerAccountForm({ partnerId, onCreated }: { partnerId: number;
       await api.post(`/partners/${partnerId}/accounts`, { parent_code: parentCode, currency_code: currency, location_code: location })
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب')
+      report(err, 'تعذّر إنشاء الحساب')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, margin: '8px 0', alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, margin: '8px 0', alignItems: 'flex-end' }}>
       <div className="field">
         <label className="field-label">النوع</label>
         <select value={parentCode} onChange={(e) => setParentCode(e.target.value)}>
@@ -237,6 +241,7 @@ function CreatePartnerAccountForm({ partnerId, onCreated }: { partnerId: number;
       </div>
       <button type="submit" className="btn btn-secondary btn-sm" disabled={busy || !currency || !location}>+ حساب</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }
@@ -317,7 +322,7 @@ function CreateBankAccountForm({ onCreated }: { onCreated: () => void }) {
   const [currency, setCurrency] = useState('')
   const [location, setLocation] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ currency_code: 'العملة', location_code: 'الموقع' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -327,14 +332,14 @@ function CreateBankAccountForm({ onCreated }: { onCreated: () => void }) {
       await api.post('/settings/bank-accounts', { currency_code: currency, location_code: location })
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الحساب')
+      report(err, 'تعذّر إنشاء الحساب')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field">
         <label className="field-label">العملة</label>
         <select value={currency} onChange={(e) => { setCurrency(e.target.value); setLocation('') }} required>
@@ -351,6 +356,7 @@ function CreateBankAccountForm({ onCreated }: { onCreated: () => void }) {
       </div>
       <button type="submit" className="btn btn-primary" disabled={busy || !currency || !location}>+ حساب بنكي جديد</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }

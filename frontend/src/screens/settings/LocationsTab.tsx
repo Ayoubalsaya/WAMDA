@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../../api/client'
 import type { ClientCurrencyLocationRow, LocationAdminRow } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 function CreateLocationForm({ onCreated }: { onCreated: () => void }) {
   const [code, setCode] = useState('')
   const [nameAr, setNameAr] = useState('')
   const [country, setCountry] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ code: 'الكود', name_ar: 'الاسم', country: 'الدولة' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -19,14 +20,14 @@ function CreateLocationForm({ onCreated }: { onCreated: () => void }) {
       setCode(''); setNameAr(''); setCountry('')
       onCreated()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء الموقع')
+      report(err, 'تعذّر إنشاء الموقع')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 16, alignItems: 'flex-end' }}>
       <div className="field" style={{ maxWidth: 110 }}>
         <label className="field-label" htmlFor="cl-code">الكود</label>
         <input id="cl-code" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} maxLength={32} required />
@@ -35,6 +36,7 @@ function CreateLocationForm({ onCreated }: { onCreated: () => void }) {
       <div className="field"><label className="field-label" htmlFor="cl-country">الدولة</label><input id="cl-country" value={country} onChange={(e) => setCountry(e.target.value)} required /></div>
       <button type="submit" className="btn btn-primary" disabled={busy}>+ موقع جديد</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }
@@ -116,7 +118,7 @@ function AddClientCurrencyLocationForm({ onAdded }: { onAdded: () => void }) {
   const [currencyCode, setCurrencyCode] = useState('')
   const [locationCode, setLocationCode] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ currency_code: 'العملة', location_code: 'الموقع' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -128,14 +130,14 @@ function AddClientCurrencyLocationForm({ onAdded }: { onAdded: () => void }) {
       setCurrencyCode(''); setLocationCode('')
       onAdded()
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إضافة التركيبة')
+      report(err, 'تعذّر إضافة التركيبة')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <form onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
+    <form ref={formRef} onSubmit={submit} className="op-row" style={{ flexWrap: 'wrap', gap: 8, marginBottom: 12, alignItems: 'flex-end' }}>
       <div className="field">
         <label className="field-label" htmlFor="ccl-ccy">العملة</label>
         <select id="ccl-ccy" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} required>
@@ -152,6 +154,7 @@ function AddClientCurrencyLocationForm({ onAdded }: { onAdded: () => void }) {
       </div>
       <button type="submit" className="btn btn-primary" disabled={busy}>+ سماح تركيبة</button>
       {error && <div className="alert alert-critical" style={{ width: '100%' }}>{error}</div>}
+      {portals}
     </form>
   )
 }

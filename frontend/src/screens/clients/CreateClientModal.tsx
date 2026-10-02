@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { api, ApiError } from '../../api/client'
+import { api } from '../../api/client'
 import type { ClientDetail } from '../../api/types'
+import { useFormErrors } from '../../hooks/useFormErrors'
 
 interface CreateClientModalProps {
   onClose: () => void
@@ -13,7 +14,7 @@ export function CreateClientModal({ onClose, onCreated }: CreateClientModalProps
   const [phone, setPhone] = useState('')
   const [idNumber, setIdNumber] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { ref: formRef, error, setError, report, portals } = useFormErrors({ code: 'كود العميل', name_ar: 'الاسم', phone: 'الهاتف', id_number: 'رقم الهوية' })
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -25,7 +26,7 @@ export function CreateClientModal({ onClose, onCreated }: CreateClientModalProps
       })
       onCreated(client)
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر إنشاء العميل')
+      report(err, 'تعذّر إنشاء العميل')
     } finally {
       setBusy(false)
     }
@@ -33,7 +34,7 @@ export function CreateClientModal({ onClose, onCreated }: CreateClientModalProps
 
   return (
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
-      <form className="card new-op-panel" style={{ width: 420 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+      <form ref={formRef} className="card new-op-panel" style={{ width: 420 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3 className="card-title" style={{ marginBottom: 16 }}>عميل جديد</h3>
         <div className="field" style={{ marginBottom: 12 }}>
           <label className="field-label" htmlFor="new-client-code">كود العميل</label>
@@ -52,6 +53,7 @@ export function CreateClientModal({ onClose, onCreated }: CreateClientModalProps
           <input id="new-client-id" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
         </div>
         {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
+        {portals}
         <div className="op-row">
           <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
           <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy}>حفظ</button>
