@@ -72,15 +72,24 @@ def test_resolving_suspense_difference_moves_out_of_3900(db, now):
     admin = f.make_user(db, role="ADMIN")
     client = f.make_client(db)
     client_account = accounts_repo.get_or_create_client_account(db, client=client, currency_code="LYD", location_code="TRIPOLI")
+
+    # ٣٩٠٠/٣١٠٠ حسابان عامان مفردان (ليسا نطاقاً معزولاً لكل اختبار مثل
+    # حسابات العميل/البنك العشوائية أعلاه) — يحملان أرصدة حقيقية سابقة من
+    # فِكستورات QA دائمة مُلتزَمة عمداً (مثال: فِكستور بوابة WebKit، راجع
+    # PROGRESS.md)، فلا يصحّ افتراض أنهما يبدآن من صفر. كل الفحوص أدناه
+    # فرق ناتج عن أفعال هذا الاختبار تحديداً، لا قيمة مطلقة.
+    suspense = accounts_repo.get_currency_subaccount(db, "3900", "LYD")
+    capital = accounts_repo.get_currency_subaccount(db, "3100", "LYD")
+    suspense_balance_start = db.get(AccountBalance, suspense.id).balance
+    capital_balance_start = db.get(AccountBalance, capital.id).balance
+
     opening_balance.execute(
         db, account_code=client_account.code, currency_code="LYD", amount=Decimal("1000.000"), is_debit=True,
         as_of_date=date(2026, 1, 1), source_type=OpeningSourceType.RECONSTRUCTED, confidence=ConfidenceLevel.LOW,
         approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
     )
-    suspense = accounts_repo.get_currency_subaccount(db, "3900", "LYD")
-    capital = accounts_repo.get_currency_subaccount(db, "3100", "LYD")
-    balance_before = db.get(AccountBalance, suspense.id).balance
-    assert balance_before == Decimal("1000.000")
+    suspense_balance_before = db.get(AccountBalance, suspense.id).balance
+    assert suspense_balance_before == suspense_balance_start + Decimal("1000.000")
 
     # قيد تسوية: يُحدَّد مصدر الفرق فعلياً برأس المال — من 3900 إلى 3100.
     # لا وحدة عملية مخصَّصة لهذا في الاثني عشر بعد (الوثيقة تصفه فقط
@@ -95,8 +104,8 @@ def test_resolving_suspense_difference_moves_out_of_3900(db, now):
     draft.add(account_id=capital.id, currency_code="LYD", credit=Decimal("1000.000"))
     posting.post_entry(db, draft, posted_by=admin.id, now=now)
 
-    assert db.get(AccountBalance, suspense.id).balance == Decimal("0.000")
-    assert db.get(AccountBalance, capital.id).balance == Decimal("1000.000")
+    assert db.get(AccountBalance, suspense.id).balance == suspense_balance_start
+    assert db.get(AccountBalance, capital.id).balance == capital_balance_start + Decimal("1000.000")
 
 
 @pytest.mark.acceptance(37)
