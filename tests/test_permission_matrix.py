@@ -100,6 +100,7 @@ ROUTE_AUTH: dict[str, str] = {
     # مدير + محاسب (POST_ENTRY)
     "GET /clients": POST_ENTRY,
     "GET /clients/search": POST_ENTRY,
+    "GET /clients/similar": POST_ENTRY,  # CREATE_CLIENT (نفس أدوار POST_ENTRY: مدير/محاسب) — منع تكرار العميل قبل الإنشاء
     "GET /clients/{client_id}": POST_ENTRY,
     "POST /clients": POST_ENTRY,
     "PATCH /clients/{client_id}": POST_ENTRY,
