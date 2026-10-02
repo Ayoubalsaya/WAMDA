@@ -31,7 +31,7 @@ export function AuditLogTab() {
         <button type="button" className="btn btn-primary" onClick={() => void load()}>بحث</button>
       </div>
       {rows === null ? (
-        <p className="text-muted" style={{ fontSize: 13 }}>اضغط "بحث" لعرض السجل (قد يكون طويلاً — يبدأ فارغاً عمداً)</p>
+        <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>اضغط "بحث" لعرض السجل (قد يكون طويلاً — يبدأ فارغاً عمداً)</p>
       ) : (
         <table className="data-table">
           <thead><tr><th>الوقت</th><th>الفاعل</th><th>الإجراء</th><th>الكيان</th><th></th></tr></thead>
@@ -43,7 +43,7 @@ export function AuditLogTab() {
                   onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
                 >
                   <td className="num">{new Date(r.at).toLocaleString('ar-LY')}</td>
-                  <td>{r.actor_label} <span className="text-muted" style={{ fontSize: 11 }}>({r.actor_type === 'USER' ? 'موظف' : 'عميل'})</span></td>
+                  <td>{r.actor_label} <span className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>({r.actor_type === 'USER' ? 'موظف' : 'عميل'})</span></td>
                   <td><span className="badge badge-chain">{r.action}</span></td>
                   <td className="text-muted">{r.entity}{r.entity_id ? ` #${r.entity_id}` : ''}</td>
                   <td className="text-muted">{expandedId === r.id ? '▲' : '▼'}</td>
@@ -53,14 +53,14 @@ export function AuditLogTab() {
                     <td colSpan={5} style={{ background: 'var(--sky-50)', padding: 'var(--space-3)' }}>
                       {r.before_json && (
                         <div style={{ marginBottom: 6 }}>
-                          <div className="text-muted" style={{ fontSize: 11 }}>قبل</div>
-                          <pre className="num" style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.before_json, null, 2)}</pre>
+                          <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>قبل</div>
+                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.before_json, null, 2)}</pre>
                         </div>
                       )}
                       {r.after_json && (
                         <div>
-                          <div className="text-muted" style={{ fontSize: 11 }}>بعد</div>
-                          <pre className="num" style={{ fontSize: 11, whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.after_json, null, 2)}</pre>
+                          <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>بعد</div>
+                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.after_json, null, 2)}</pre>
                         </div>
                       )}
                     </td>

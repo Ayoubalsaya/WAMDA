@@ -24,8 +24,8 @@
   justify-content: center;
   box-shadow: var(--shadow-elevated);
 }
-.portal-login-name { font-size: 26px; font-weight: 700; color: var(--sky-900); }
-.portal-login-tagline { font-size: 13.5px; color: var(--text-secondary); }
+.portal-login-name { font-size: var(--fs-h1); font-weight: 700; color: var(--sky-900); }
+.portal-login-tagline { font-size: var(--fs-sm); color: var(--text-secondary); }
 .portal-login-form {
   width: 100%;
   max-width: 360px;

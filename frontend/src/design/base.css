@@ -10,7 +10,7 @@ body {
   font-family: var(--font-ar);
   background: var(--canvas);
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--fs-md);
   line-height: 1.7;
   letter-spacing: 0;
 }
@@ -28,19 +28,19 @@ button, input, select, textarea { font-family: inherit; }
 }
 
 .screen-title {
-  font-size: 24px;
+  font-size: var(--fs-h2);
   font-weight: 700;
   line-height: 1.4;
 }
 
 .card-title {
-  font-size: 14.5px;
+  font-size: var(--fs-md);
   font-weight: 600;
   line-height: 1.5;
 }
 
 .field-label {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 500;
   line-height: 1.5;
   color: var(--text-secondary);
@@ -64,17 +64,18 @@ button, input, select, textarea { font-family: inherit; }
   gap: var(--space-2);
   font-family: inherit;
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--fs-md);
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
-  height: 44px;
+  height: var(--control-h);
   padding: 0 var(--space-5);
+  white-space: nowrap;
 }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
-.btn-lg { height: 52px; }
-.btn-sm { height: 34px; font-size: 13px; padding: 0 var(--space-4); }
+.btn-lg { height: var(--control-h-lg); }
+.btn-sm { height: var(--control-h-sm); font-size: var(--fs-sm); padding: 0 var(--space-4); }
 
 .btn-primary { background: var(--sky-500); color: #fff; box-shadow: var(--shadow-primary-btn); }
 .btn-primary:hover:not(:disabled) { background: var(--sky-600); }
@@ -85,7 +86,7 @@ button, input, select, textarea { font-family: inherit; }
 .btn-danger { background: #fff; color: var(--money-out-text); border-color: var(--money-out-text); }
 .btn-text {
   background: transparent; color: var(--sky-700); height: auto; padding: 0;
-  border: none; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+  border: none; font-family: inherit; font-size: var(--fs-md); font-weight: 600; cursor: pointer;
 }
 .btn-text:hover:not(:disabled) { text-decoration: underline; }
 .btn-text:disabled { opacity: .5; cursor: not-allowed; text-decoration: none; }
@@ -102,19 +103,19 @@ button, input, select, textarea { font-family: inherit; }
   gap: var(--space-1);
 }
 input:not([type="checkbox"]):not([type="radio"]), select, textarea {
-  height: 44px;
+  height: var(--control-h);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--sky-50);
   padding: 0 var(--space-4);
-  font-size: 15px;
+  font-size: var(--fs-md);
   font-family: inherit;
   color: var(--text-primary);
   width: 100%;
 }
 textarea {
   height: auto;
-  min-height: 44px;
+  min-height: var(--control-h);
   padding: var(--space-3) var(--space-4);
   line-height: 1.5;
   resize: vertical;
@@ -128,25 +129,25 @@ input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:f
 input::placeholder, textarea::placeholder { color: var(--text-muted); opacity: 1; }
 input:disabled, select:disabled, textarea:disabled { opacity: .6; cursor: not-allowed; }
 .field-amount input {
-  height: 52px;
-  font-size: 20px;
+  height: var(--control-h-lg);
+  font-size: var(--fs-h3);
   font-weight: 700;
 }
 .field-rate .rate-hint {
-  font-size: 12px;
+  font-size: var(--fs-xs);
   color: var(--text-muted);
   margin-inline-start: 2px;
 }
-.field-error { font-size: 12px; color: var(--money-out-text); margin-inline-start: 2px; }
+.field-error { font-size: var(--fs-xs); color: var(--money-out-text); margin-inline-start: 2px; }
 input[aria-invalid="true"] { border-color: var(--money-out-text); }
 
 /* ── جدول ──────────────────────────────────────────────────────────── */
-table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+table.data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
 .data-table th {
   text-align: start;
   color: var(--text-secondary);
   font-weight: 500;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border);
 }
@@ -163,7 +164,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--fs-2xs);
   font-weight: 600;
   line-height: 1.4;
   border-radius: 999px;
@@ -185,7 +186,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   align-items: flex-start;
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }
 .alert-info { background: var(--sky-100); color: var(--sky-800); }
 .alert-warning { background: var(--pending-bg); color: #92400E; }
@@ -200,5 +201,11 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   border-radius: var(--radius-sm);
   padding: var(--space-2) var(--space-3);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--fs-sm);
 }
+
+/* ── أحجام الأيقونات المركزية (lucide يضع width/height كسمات؛ CSS يتفوّق عليها) ──────────────── */
+.seg-tabs-dock .seg-tab svg, .operation-tab svg, .btn svg, .btn-text svg { width: var(--icon-sm); height: var(--icon-sm); }
+.seg-tabs-rail svg { width: var(--icon-lg); height: var(--icon-lg); }
+.sidebar-center-btn svg { width: var(--icon-lg); height: var(--icon-lg); }
+.app-search svg, .user-chip svg, .activity-icon svg, .client-search-box svg { width: var(--icon-md); height: var(--icon-md); }

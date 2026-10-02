@@ -99,7 +99,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
         {!editing ? (
           <div className="client-detail-header">
             <div>
-              <h2 className="screen-title" style={{ fontSize: 20 }}>{detail.name_ar}</h2>
+              <h2 className="screen-title" style={{ fontSize: 'var(--fs-h3)' }}>{detail.name_ar}</h2>
               <div className="num text-muted">{detail.code}{detail.phone ? ` · ${detail.phone}` : ''}</div>
             </div>
             <div className="op-row" style={{ gap: 8 }}>
@@ -148,7 +148,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="client-balance-total">
           <span>الإجمالي</span>
-          <span className={`num ${totalForCcy.lt(0) ? 'money-negative' : ''}`} style={{ fontSize: 22, fontWeight: 700 }}>
+          <span className={`num ${totalForCcy.lt(0) ? 'money-negative' : ''}`} style={{ fontSize: 'var(--fs-h3)', fontWeight: 700 }}>
             {totalForCcy.toFixed(decimals)}
           </span>
           {ccy && <CurrencyBadge code={ccy.code} />}
@@ -186,7 +186,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
             <span className="text-muted">إلى</span>
             <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-xs)', cursor: 'pointer' }}>
               <input type="checkbox" checked={includeReversed} onChange={(e) => setIncludeReversed(e.target.checked)} />
               إظهار الملغاة
             </label>
@@ -225,7 +225,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
                     <td className="num">{r.entry_date}</td>
                     <td className="num">{r.entry_no}</td>
                     <td style={r.status === 'REVERSED' ? { textDecoration: 'line-through' } : undefined}>{r.operation_type}</td>
-                    <td>{r.description}{r.note && <div className="text-muted" style={{ fontSize: 11 }}>{r.note}</div>}</td>
+                    <td>{r.description}{r.note && <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>{r.note}</div>}</td>
                     <td className="num">{r.client_rate ?? '—'}</td>
                     <td className="num">{new Decimal(r.debit).toFixed(decimals)}</td>
                     <td className="num">{new Decimal(r.credit).toFixed(decimals)}</td>
@@ -288,7 +288,7 @@ function CreditLimitEditor({
         <DecimalError value={value} />
       </div>
       <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void save()}>حفظ الحد</button>
-      {error && <span style={{ color: 'var(--money-out-text)', fontSize: 12 }}>{error}</span>}
+      {error && <span style={{ color: 'var(--money-out-text)', fontSize: 'var(--fs-xs)' }}>{error}</span>}
       {portals}
     </div>
   )

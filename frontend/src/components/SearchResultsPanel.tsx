@@ -43,8 +43,8 @@ export function SearchResultsPanel({ chips, onRemoveChip, onClose, currentUserRo
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="search-results-panel card" onClick={(e) => e.stopPropagation()}>
         <div className="search-results-header">
-          <h3 className="screen-title" style={{ fontSize: 17 }}>نتائج البحث</h3>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+          <h3 className="screen-title" style={{ fontSize: 'var(--fs-xl)' }}>نتائج البحث</h3>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--fs-xs)', cursor: 'pointer' }}>
             <input type="checkbox" checked={includeReversed} onChange={(e) => setIncludeReversed(e.target.checked)} />
             إظهار الملغاة
           </label>
@@ -62,7 +62,7 @@ export function SearchResultsPanel({ chips, onRemoveChip, onClose, currentUserRo
               </button>
             </span>
           ))}
-          {chips.length === 0 && <span className="text-muted" style={{ fontSize: 13 }}>اكتب في شريط البحث لإضافة رقائق</span>}
+          {chips.length === 0 && <span className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>اكتب في شريط البحث لإضافة رقائق</span>}
         </div>
 
         {loading && <p className="text-muted">...جارٍ البحث</p>}

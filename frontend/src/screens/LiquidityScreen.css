@@ -1,6 +1,6 @@
 .liquidity-table-wrap { overflow-x: auto; }
 .liquidity-table .col-amount { min-width: 120px; }
-.liquidity-net { font-weight: 700; font-size: 15px; }
+.liquidity-net { font-weight: 700; font-size: var(--fs-lg); }
 .liquidity-bar-track { width: 90px; height: 8px; border-radius: 4px; background: var(--sky-100); overflow: hidden; }
 .liquidity-bar-fill { height: 100%; border-radius: 4px; }
 .liquidity-bar-fill.is-positive { background: var(--money-in-text); }

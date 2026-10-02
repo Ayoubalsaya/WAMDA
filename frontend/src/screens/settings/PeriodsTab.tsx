@@ -133,7 +133,7 @@ function FoundingPeriodSection() {
           ))}
         </div>
       ) : (
-        <p className="text-muted" style={{ fontSize: 13 }}>رصيد فروق التأسيس صفري في كل العملات</p>
+        <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>رصيد فروق التأسيس صفري في كل العملات</p>
       )}
       {status.is_open && (
         <>

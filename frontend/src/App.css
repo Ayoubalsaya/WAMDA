@@ -13,18 +13,18 @@
 
 .app-main {
   flex: 1;
-  margin-inline-start: 104px;
+  margin-inline-start: var(--sidebar-w);
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 
 .app-topbar {
-  height: 74px;
+  height: 80px;
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: 0 var(--space-6);
+  padding: 0 var(--page-pad);
   background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
@@ -32,7 +32,7 @@
 .app-search {
   flex: 1;
   max-width: 420px;
-  height: 40px;
+  height: var(--control-h);
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--sky-50);
@@ -46,7 +46,7 @@
   margin-inline-start: auto;
 }
 .user-chip-avatar {
-  width: 36px; height: 36px;
+  width: var(--control-icon); height: var(--control-icon);
   border-radius: 999px;
   background: var(--sky-100);
   color: var(--sky-700);
@@ -65,7 +65,7 @@
   border-radius: 999px;
   background: var(--pending-text);
   color: #fff;
-  font-size: 10px; font-weight: 700;
+  font-size: var(--fs-2xs); font-weight: 700;
   display: flex; align-items: center; justify-content: center;
   border: 2px solid var(--surface);
 }

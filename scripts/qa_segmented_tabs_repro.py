@@ -33,13 +33,16 @@ from app.security.passwords import hash_password
 
 ROOT = Path(__file__).resolve().parent.parent
 SHOTS = ROOT / "docs" / "design" / "journal-redesign-shots" / "segtabs-repro"
-BASE = "http://127.0.0.1:8000"
+import os
+
+# QA_BASE/QA_BASE_WEBKIT يتجاوزان العناوين الافتراضية (مثلاً خادم لقطات على منفذ آخر بقاعدة مؤقتة عبر DATABASE_URL)
+BASE = os.environ.get("QA_BASE", "http://127.0.0.1:8000")
 # WebKit تحديداً لا يمنح استثناء "loopback موثوق" لسمة Secure على الكوكي
 # (خلافاً لـChromium) — كوكي الجلسة Secure لا يُرسَل فوق HTTP العادي مهما
 # فعلنا، فيبقى الدخول عالقاً بصمت. موثَّق مسبقاً (راجع PROGRESS.md، جولة
 # تحقُّق WebKit). الحل هنا: خادم uvicorn إضافي مؤقّت بشهادة موقَّعة ذاتياً
 # على ٨٤٤٣ فقط لهذا القناة، يخدم نفس التطبيق/القاعدة — لا تغيير تطبيقي.
-BASE_WEBKIT = "https://127.0.0.1:8443"
+BASE_WEBKIT = os.environ.get("QA_BASE_WEBKIT", "https://127.0.0.1:8443")
 
 QA_USER, QA_PASS, QA_SECRET = "qa_jrnl_admin", "QaJrnl!Pass9", "JBSWY3DPEHPK3PXP"
 

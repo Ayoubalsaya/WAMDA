@@ -141,7 +141,7 @@ export function PortalHomeScreen({ me, onLogout }: PortalHomeScreenProps) {
             {!statement && <p className="text-muted">...جارٍ التحميل</p>}
             {statement && (
               <div className="portal-tx-list">
-                {statement.rows.length === 0 && <p className="text-muted" style={{ fontSize: 13 }}>لا حركة في هذا الحساب بعد</p>}
+                {statement.rows.length === 0 && <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>لا حركة في هذا الحساب بعد</p>}
                 {statement.rows.map((r) => {
                   const isDebit = Number(r.debit) !== 0
                   const amount = isDebit ? r.debit : r.credit

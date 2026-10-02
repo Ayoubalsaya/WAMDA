@@ -116,8 +116,8 @@ export default function App() {
           <div className="user-chip">
             <div className="user-chip-avatar">{user.full_name.slice(0, 1)}</div>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{user.full_name}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user.role === 'ADMIN' ? 'مدير' : 'محاسب'}</div>
+              <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 600 }}>{user.full_name}</div>
+              <div style={{ fontSize: 'var(--fs-2xs)', color: 'var(--text-muted)' }}>{user.role === 'ADMIN' ? 'مدير' : 'محاسب'}</div>
             </div>
             <button type="button" className="btn-text" onClick={() => void logout()}>خروج</button>
           </div>

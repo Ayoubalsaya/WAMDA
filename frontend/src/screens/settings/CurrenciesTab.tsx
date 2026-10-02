@@ -97,7 +97,7 @@ function CurrencyEditRow({ row, onSaved, onCancel }: { row: CurrencyAdminRow; on
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>حفظ</button>
           <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCancel}>إلغاء</button>
         </div>
-        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 'var(--fs-xs)' }}>{error}</div>}
       </td>
     </tr>
   )
@@ -136,7 +136,7 @@ function CurrencyDisplayRow({ row, onEdit, onToggled }: { row: CurrencyAdminRow;
             {row.is_active ? 'تعطيل' : 'تفعيل'}
           </button>
         </div>
-        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 'var(--fs-xs)' }}>{error}</div>}
       </td>
     </tr>
   )

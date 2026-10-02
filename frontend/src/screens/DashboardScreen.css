@@ -1,10 +1,10 @@
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: var(--space-4);
 }
 .kpi-card { display: flex; flex-direction: column; gap: 4px; }
-.kpi-value { font-size: 30px; font-weight: 700; }
+.kpi-value { font-size: clamp(1.5rem, 1.8vw, var(--fs-num)); font-weight: 700; overflow-wrap: anywhere; }
 
 .dashboard-mid-row, .dashboard-bottom-row {
   display: grid;
@@ -23,7 +23,7 @@
 .alerts-list { display: flex; flex-direction: column; gap: 8px; }
 
 .top-clients-list { display: flex; flex-direction: column; gap: 12px; }
-.top-client-info { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13.5px; }
+.top-client-info { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: var(--fs-sm); }
 .top-client-bar-track { height: 6px; border-radius: 3px; background: var(--sky-100); overflow: hidden; }
 .top-client-bar-fill { height: 100%; background: var(--sky-500); border-radius: 3px; }
 

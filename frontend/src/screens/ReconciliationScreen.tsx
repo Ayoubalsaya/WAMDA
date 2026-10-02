@@ -147,7 +147,7 @@ function AdjustModal({
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
       <form ref={formRef} className="card new-op-panel" style={{ width: 460 }} onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <h3 className="card-title" style={{ marginBottom: 4 }}>تسوية الفرق بقيد ADJUSTMENT</h3>
-        <div className="text-muted" style={{ fontSize: 12, marginBottom: 14 }}>
+        <div className="text-muted" style={{ fontSize: 'var(--fs-xs)', marginBottom: 14 }}>
           يُرحَّل قيد تسوية ويُربَط بهذا السطر مباشرة. السبب إلزامي (§٥-١٢).
         </div>
         <div className="op-row" style={{ marginBottom: 10 }}>
@@ -224,7 +224,7 @@ function TheirLineActions({
         onClick={() => void call(() => api.patch(`/reconciliation/statements/${statementId}/lines/${line.id}/resolve`, {}))}>
         تسوية بلا قيد
       </button>
-      {error && <span style={{ color: 'var(--red-600, #dc2626)', fontSize: 12 }}>{error}</span>}
+      {error && <span style={{ color: 'var(--red-600, #dc2626)', fontSize: 'var(--fs-xs)' }}>{error}</span>}
     </div>
   )
 }
@@ -258,7 +258,7 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
         <div>
           <button type="button" className="btn-text" onClick={onBack}>← رجوع للكشوفات</button>
           <div className="card-title" style={{ marginTop: 8 }}>{detail.partner_name_ar}</div>
-          <div className="text-muted" style={{ fontSize: 12.5 }}>{detail.period_from} → {detail.period_to}</div>
+          <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{detail.period_from} → {detail.period_to}</div>
         </div>
         <button type="button" className="btn btn-primary" disabled={matching} onClick={() => void runAutoMatch()}>
           {matching ? '...جارٍ المطابقة' : 'مطابقة تلقائية'}
@@ -291,7 +291,7 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
                       <TheirLineActions statementId={statementId} line={l}
                         onChanged={() => void reload()} onAdjust={() => setAdjustLine(l)} />
                     )}
-                    {l.matched_entry_no && <div className="text-muted" style={{ fontSize: 11 }}>↔ {l.matched_entry_no}</div>}
+                    {l.matched_entry_no && <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>↔ {l.matched_entry_no}</div>}
                   </td>
                   <td className="num" style={{ fontWeight: 600 }}>{l.amount}</td>
                   <td><span className={`badge ${l.status === 'RESOLVED' ? 'badge-status-posted' : 'badge-status-reversed'}`}>{l.status === 'RESOLVED' ? 'مُسوَّى' : 'مفتوح'}</span></td>
@@ -311,7 +311,7 @@ function StatementDetailView({ statementId, onBack }: { statementId: number; onB
                 <tr key={e.entry_id} className={e.matched_line_id === null ? 'recon-danger-row' : ''}>
                   <td className="num">{e.entry_date}</td>
                   <td className="num">{e.entry_no}</td>
-                  <td>{e.operation_type}{e.matched_line_id === null && <div className="recon-danger" style={{ fontSize: 11 }}>لم ينفّذوها بعد</div>}</td>
+                  <td>{e.operation_type}{e.matched_line_id === null && <div className="recon-danger" style={{ fontSize: 'var(--fs-2xs)' }}>لم ينفّذوها بعد</div>}</td>
                   <td className="num" style={{ fontWeight: 600 }}>{e.amount}</td>
                 </tr>
               ))}

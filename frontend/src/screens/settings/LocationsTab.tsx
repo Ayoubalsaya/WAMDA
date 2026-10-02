@@ -71,7 +71,7 @@ function LocationEditRow({ row, onSaved, onCancel }: { row: LocationAdminRow; on
           <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => void save()}>حفظ</button>
           <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={onCancel}>إلغاء</button>
         </div>
-        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 'var(--fs-xs)' }}>{error}</div>}
       </td>
     </tr>
   )
@@ -107,7 +107,7 @@ function LocationDisplayRow({ row, onEdit, onToggled }: { row: LocationAdminRow;
             {row.is_active ? 'تعطيل' : 'تفعيل'}
           </button>
         </div>
-        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 12 }}>{error}</div>}
+        {error && <div className="alert alert-critical" style={{ marginTop: 6, fontSize: 'var(--fs-xs)' }}>{error}</div>}
       </td>
     </tr>
   )
@@ -176,7 +176,7 @@ function ClientCurrencyLocationsSection() {
   return (
     <div style={{ marginTop: 28 }}>
       <h3 className="card-title">تركيبات العملة والموقع المسموحة لحسابات العملاء</h3>
-      <p className="text-muted" style={{ marginTop: -4, marginBottom: 12, fontSize: 13 }}>
+      <p className="text-muted" style={{ marginTop: -4, marginBottom: 12, fontSize: 'var(--fs-sm)' }}>
         عميل لا يمكنه القبض أو الصرافة بعملة في موقع إلا بعد إضافة التركيبة هنا — لا حذف، إضافة فقط.
       </p>
       <AddClientCurrencyLocationForm onAdded={() => void reload()} />

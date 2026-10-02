@@ -1,4 +1,4 @@
-.clients-screen { padding: var(--space-6); max-width: 1200px; }
+.clients-screen { padding: var(--page-pad); max-width: 1760px; }
 
 .clients-header {
   display: flex;
@@ -20,7 +20,7 @@
   margin-top: var(--space-3);
   padding-top: var(--space-3);
   border-top: 1px solid var(--divider);
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }
 
 .client-balance-total {

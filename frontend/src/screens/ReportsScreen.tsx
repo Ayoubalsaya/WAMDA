@@ -113,9 +113,9 @@ function TrialBalanceTab({ currencies }: { currencies: Currency[] }) {
         {data.balanced ? 'الميزان متوازن لكل عملة ✓' : 'تنبيه: الميزان غير متوازن — يستحق فحصاً فورياً'}
       </div>
       <div className="acc-totals-row" style={{ margin: '12px 0' }}>
-        <span className="text-muted" style={{ fontSize: 12.5 }}>إجمالي مدين</span>
+        <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>إجمالي مدين</span>
         <AmountChips items={data.total_debit_by_currency} currencies={currencies} />
-        <span className="text-muted" style={{ fontSize: 12.5 }}>إجمالي دائن</span>
+        <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>إجمالي دائن</span>
         <AmountChips items={data.total_credit_by_currency} currencies={currencies} />
       </div>
       <table className="data-table">
@@ -144,11 +144,11 @@ function IncomeStatementTab({ currencies }: { currencies: Currency[] }) {
   return (
     <>
       <div className="acc-totals-row" style={{ marginBottom: 16 }}>
-        <span className="text-muted" style={{ fontSize: 12.5 }}>الصافي</span>
+        <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>الصافي</span>
         <AmountChips items={data.net_by_currency} currencies={currencies} />
       </div>
       <div className="acc-partner-group">
-        <div className="card-title" style={{ fontSize: 13.5, marginBottom: 6 }}>الإيرادات</div>
+        <div className="card-title" style={{ fontSize: 'var(--fs-sm)', marginBottom: 6 }}>الإيرادات</div>
         <table className="data-table">
           <thead><tr><th>الكود</th><th>الحساب</th><th>العملة</th><th>المبلغ</th></tr></thead>
           <tbody>
@@ -165,7 +165,7 @@ function IncomeStatementTab({ currencies }: { currencies: Currency[] }) {
         </table>
       </div>
       <div className="acc-partner-group">
-        <div className="card-title" style={{ fontSize: 13.5, marginBottom: 6 }}>المصروفات</div>
+        <div className="card-title" style={{ fontSize: 'var(--fs-sm)', marginBottom: 6 }}>المصروفات</div>
         <table className="data-table">
           <thead><tr><th>الكود</th><th>الحساب</th><th>العملة</th><th>المبلغ</th></tr></thead>
           <tbody>
@@ -368,20 +368,20 @@ function FoundingReconciliationTab({ currencies }: { currencies: Currency[] }) {
   return (
     <div className="kpi-grid">
       <div className="card kpi-card">
-        <div className="text-muted" style={{ fontSize: 12.5 }}>رصيد فروق التأسيس (٣٩٠٠)</div>
-        <div className="num" style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+        <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>رصيد فروق التأسيس (٣٩٠٠)</div>
+        <div className="num" style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginTop: 4 }}>
           <AmountChips items={data.suspense_balance_by_currency} currencies={currencies} />
         </div>
       </div>
       <div className="card kpi-card">
-        <div className="text-muted" style={{ fontSize: 12.5 }}>إجمالي الأرصدة الافتتاحية</div>
-        <div className="num" style={{ fontSize: 18, fontWeight: 700, marginTop: 4 }}>
+        <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>إجمالي الأرصدة الافتتاحية</div>
+        <div className="num" style={{ fontSize: 'var(--fs-xl)', fontWeight: 700, marginTop: 4 }}>
           <AmountChips items={data.opening_balances_total_by_currency} currencies={currencies} />
         </div>
-        <div className="text-muted" style={{ fontSize: 12, marginTop: 6 }}>{data.opening_balances_count} رصيد مُسجَّل</div>
+        <div className="text-muted" style={{ fontSize: 'var(--fs-xs)', marginTop: 6 }}>{data.opening_balances_count} رصيد مُسجَّل</div>
       </div>
       <div className="card kpi-card">
-        <div className="text-muted" style={{ fontSize: 12.5 }}>بنود مصالحة مفتوحة</div>
+        <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>بنود مصالحة مفتوحة</div>
         <div className="num kpi-value">{data.open_reconciliation_items}</div>
       </div>
     </div>

@@ -36,8 +36,8 @@ export function NewOperationPanel({ onSelect, onClose }: NewOperationPanelProps)
   return (
     <div className="modal-veil" role="dialog" aria-modal="true" onClick={onClose}>
       <div className="new-op-panel card" onClick={(e) => e.stopPropagation()}>
-        <h3 className="screen-title" style={{ fontSize: 18 }}>عملية جديدة</h3>
-        <p className="text-muted" style={{ fontSize: 13, marginTop: 4 }}>اختر نوع العملية</p>
+        <h3 className="screen-title" style={{ fontSize: 'var(--fs-xl)' }}>عملية جديدة</h3>
+        <p className="text-muted" style={{ fontSize: 'var(--fs-sm)', marginTop: 4 }}>اختر نوع العملية</p>
         <div className="new-op-grid">
           {LEVEL1.map((t) => <OpTile key={t.id} tile={t} onSelect={onSelect} />)}
         </div>

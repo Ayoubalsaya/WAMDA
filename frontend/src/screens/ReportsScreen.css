@@ -17,7 +17,7 @@
   border-radius: var(--radius-md);
   border: none;
   background: transparent;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -31,7 +31,7 @@
 .report-balanced-banner {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   font-weight: 600;
   background: var(--sky-50);
   color: var(--sky-700, #0369a1);

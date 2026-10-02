@@ -679,7 +679,7 @@ export function OperationForm({
 
         {isEdit && <FormGuide tone="warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — أدخل القيم الكاملة للعملية.</FormGuide>}
         {isEdit && client && (
-          <p className="text-muted" style={{ fontSize: 13 }}>العميل: {client.name_ar} ({client.code})</p>
+          <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>العميل: {client.name_ar} ({client.code})</p>
         )}
         {needsClient && !client && <FormGuide tone="info">اختر عميلاً من العمود الأيمن أولاً</FormGuide>}
         {adminBlocked && <FormGuide tone="warning">هذه العملية تتطلب صلاحية مدير — لن يقبلها الخادم لدورك الحالي.</FormGuide>}
@@ -706,7 +706,7 @@ export function OperationForm({
           )}
           {!isEdit && tab !== 'OPENING' && (
             entryDate === todayInTripoli() ? (
-              <p className="text-muted" style={{ fontSize: 12, margin: '-6px 0 0' }}>سيُسجَّل بتاريخ اليوم ({entryDate})</p>
+              <p className="text-muted" style={{ fontSize: 'var(--fs-xs)', margin: '-6px 0 0' }}>سيُسجَّل بتاريخ اليوم ({entryDate})</p>
             ) : (
               <FormGuide tone="warning">⚠ سيُسجَّل بتاريخ ماضٍ: {entryDate} — تحقَّق قبل الحفظ</FormGuide>
             )

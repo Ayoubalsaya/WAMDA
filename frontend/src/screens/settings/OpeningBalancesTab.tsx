@@ -129,7 +129,7 @@ export function OpeningBalancesTab() {
                     {clientResults.map((c) => (
                       <button type="button" key={c.id}
                         style={{ display: 'block', width: '100%', textAlign: 'start', padding: '8px 10px',
-                          background: 'none', border: 'none', cursor: 'pointer', fontSize: 13 }}
+                          background: 'none', border: 'none', cursor: 'pointer', fontSize: 'var(--fs-sm)' }}
                         onClick={() => { setClient(c); setClientResults([]) }}>
                         {c.code} — {c.name_ar}
                       </button>

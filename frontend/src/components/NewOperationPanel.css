@@ -32,13 +32,13 @@
   border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
 }
-.new-op-tile-label { font-weight: 700; font-size: 13.5px; }
-.new-op-tile-desc { font-size: 11px; color: var(--text-muted); }
+.new-op-tile-label { font-weight: 700; font-size: var(--fs-sm); }
+.new-op-tile-desc { font-size: var(--fs-2xs); color: var(--text-muted); }
 
 .new-op-more { margin-top: var(--space-4); }
 .new-op-more summary {
   cursor: pointer;
   color: var(--sky-700);
   font-weight: 600;
-  font-size: 13.5px;
+  font-size: var(--fs-sm);
 }

@@ -88,9 +88,9 @@
  * الحشو تماماً. */
 .seg-tabs-dock .seg-pill { top: var(--space-1); bottom: var(--space-1); height: auto; background: var(--sky-500); box-shadow: var(--shadow-primary-btn); }
 .operation-dock .seg-tabs-dock .seg-pill { top: 0; bottom: 0; }
-.seg-tabs-dock .seg-tab { min-height: 40px; padding: 0 var(--space-2); border-radius: 10px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.seg-tabs-dock .seg-tab { min-height: var(--tab-h); padding: 0 var(--space-2); border-radius: 10px; color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 500; }
 .seg-tabs-dock .seg-row-overlay .seg-tab { color: #fff; }
-.seg-tabs-dock .tab-icon { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 7px; flex: none; }
+.seg-tabs-dock .tab-icon { display: inline-grid; place-items: center; width: calc(var(--icon-md) + 6px); height: calc(var(--icon-md) + 6px); border-radius: 8px; flex: none; }
 .seg-tabs-dock .seg-row-overlay .tab-icon { background: rgba(255, 255, 255, .2); color: #fff; }
 .seg-tabs-dock .seg-row-base .tab-icon.tone-in { color: var(--money-in-text); }
 .seg-tabs-dock .seg-row-base .tab-icon.tone-out { color: var(--money-out-text); }
@@ -104,13 +104,13 @@
 .seg-tabs-pill { border: 1px solid var(--border); border-radius: 10px; background: var(--sky-50); }
 .seg-tabs-pill .seg-row { padding: 3px; gap: 3px; }
 .seg-tabs-pill .seg-pill { top: 3px; bottom: 3px; height: auto; background: #fff; box-shadow: 0 1px 4px rgba(16, 69, 91, .12); }
-.seg-tabs-pill .seg-tab { min-height: 32px; padding: 0 var(--space-3); border-radius: 8px; color: var(--text-secondary); font-size: 13px; font-weight: 500; }
+.seg-tabs-pill .seg-tab { min-height: var(--tab-h-pill); padding: 0 var(--space-3); border-radius: 8px; color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 500; }
 .seg-tabs-pill .seg-row-overlay .seg-tab { color: var(--sky-800); font-weight: 600; }
 
 /* ── rail: الشريط الجانبي رأسياً (أيقونات فقط) ───────────────────────── */
 .seg-tabs-rail { gap: 6px; }
 .seg-tabs-rail .seg-row { gap: 6px; }
-.seg-tabs-rail .seg-tab { width: 72px; height: 64px; color: rgba(255, 255, 255, .82); }
+.seg-tabs-rail .seg-tab { width: calc(var(--rail-w) - 8px); height: 68px; color: rgba(255, 255, 255, .82); }
 .seg-tabs-rail .seg-pill {
   left: auto; right: 0; width: calc(100% + 22px); background: var(--canvas);
   border-start-start-radius: 24px; border-end-start-radius: 24px;

@@ -1,0 +1,39 @@
+{
+  "symptoms_webkit": {
+    "rapid_sequence_final_aligned": true,
+    "rapid_sequence_overlay_mismatches": [],
+    "rapid_sequence_layout_mismatches": [],
+    "exchange_scope_overlay": "{\"visibleTexts\":[\"عميل\",\"خزينة\"],\"activeText\":\"خزينة\"}",
+    "exchange_scope_layout_mismatches": [],
+    "resize_mid_transition_aligned": true,
+    "resize_mid_transition_detail": {
+      "active": {
+        "x": 116.0625,
+        "y": 174.390625,
+        "width": 48.65625,
+        "height": 46
+      },
+      "pill": {
+        "x": 116.046875,
+        "y": 174.390625,
+        "width": 49,
+        "height": 46
+      }
+    },
+    "visibility_return_aligned": true,
+    "visibility_return_detail": {
+      "active": {
+        "x": 929.375,
+        "y": 182.296875,
+        "width": 83.125,
+        "height": 46
+      },
+      "pill": {
+        "x": 929.546875,
+        "y": 182.296875,
+        "width": 83,
+        "height": 46
+      }
+    }
+  }
+}

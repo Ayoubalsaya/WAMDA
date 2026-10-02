@@ -120,10 +120,25 @@ export function SegmentedTabs<T extends string>({
     const el = itemRefs.current.get(id)
     const container = containerRef.current
     if (!el || !container) return null
-    const er = el.getBoundingClientRect()
-    const cr = container.getBoundingClientRect()
-    containerSizeRef.current = { width: cr.width, height: cr.height }
-    return orientation === 'horizontal' ? [er.left - cr.left, er.right - cr.left] : [er.top - cr.top, er.bottom - cr.top]
+    // ٢٠٢٦-١٠-٠٢ (علّة جذرية، قيست حياً: كبسولة ١١٦px على تبويب ١٤٢px): `getBoundingClientRect` يُرجع أبعاداً **بعد**
+    // تحويلات الأسلاف — و`.screen-enter` يُحرّك الشاشة بـ`scale(.82)` ٤٢٠ms عند فتحها، فكان القياس أثناء الحركة
+    // يُصغِّر الموضع والعرض بنسبة الحركة اللحظية، ولا حدث (ResizeObserver/resize/fonts) يُطلَق عند انتهائها
+    // فتبقى الكبسولة خاطئة. القياس الآن بـ`offsetLeft/Top/Width/Height` (إحداثيات التخطيط، لا تتأثر بأي تحويل)،
+    // وهي نفس فضاء `position:absolute` للكبسولة وللـclip-path.
+    const origin = (node: HTMLElement) => {
+      let left = 0
+      let top = 0
+      let cur: HTMLElement | null = node
+      while (cur && cur !== container) {
+        left += cur.offsetLeft
+        top += cur.offsetTop
+        cur = cur.offsetParent as HTMLElement | null
+      }
+      return { left, top }
+    }
+    const { left, top } = origin(el)
+    containerSizeRef.current = { width: container.clientWidth, height: container.clientHeight }
+    return orientation === 'horizontal' ? [left, left + el.offsetWidth] : [top, top + el.offsetHeight]
   }, [orientation])
 
   // ٢٠٢٦-١٠-٠١ (بلاغ مالك — "عميلخزينة (بين حسابي شر..."): طبقة النص
@@ -258,14 +273,23 @@ export function SegmentedTabs<T extends string>({
     window.addEventListener('resize', snap)
     document.addEventListener('visibilitychange', snap)
     let cancelled = false
-    if (typeof document !== 'undefined' && 'fonts' in document) {
-      document.fonts.ready.then(() => { if (!cancelled) snap() }).catch(() => {})
+    const fonts = typeof document !== 'undefined' && 'fonts' in document ? document.fonts : null
+    if (fonts) {
+      fonts.ready.then(() => { if (!cancelled) snap() }).catch(() => {})
+      // ٢٠٢٦-١٠-٠٢ (تغيير حجم الخط مركزياً): خطوط الويب تُحمَّل بالأوزان عند أول استعمال — `ready` يُحَلّ مبكراً
+      // قبل وصول وزن لاحق (٥٠٠/٦٠٠) فيتّسع عرض التبويب بعد آخر قياس والكبسولة تبقى بعرضها القديم
+      // (قيس: كبسولة ١١٦px على تبويب ١٤٢px). كل دفعة خطوط تُحمَّل = إعادة قياس.
+      fonts.addEventListener('loadingdone', snap)
     }
+    // مرور إطار لاحق بعد التركيب: أول تخطيط قد يسبق تطبيق أحجام tokens/الخط النهائية
+    const settle = requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) snap() }))
     return () => {
       cancelled = true
+      cancelAnimationFrame(settle)
       ro?.disconnect()
       window.removeEventListener('resize', snap)
       document.removeEventListener('visibilitychange', snap)
+      fonts?.removeEventListener('loadingdone', snap)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length])

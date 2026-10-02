@@ -2,7 +2,7 @@
   position: fixed;
   inset-block: 0;
   inset-inline-start: 0;
-  width: 104px;
+  width: var(--sidebar-w);
   background: var(--identity-gradient);
   display: flex;
   flex-direction: column;
@@ -18,8 +18,8 @@
  * components/SegmentedTabs.css (.seg-tabs-rail). */
 
 .sidebar-center-btn {
-  width: 56px;
-  height: 56px;
+  width: 60px;
+  height: 60px;
   border-radius: 20px;
   background: #fff;
   border: none;
@@ -39,7 +39,7 @@
 .center-btn-label {
   position: absolute;
   top: 64px;
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
   color: #fff;
   white-space: nowrap;
 }

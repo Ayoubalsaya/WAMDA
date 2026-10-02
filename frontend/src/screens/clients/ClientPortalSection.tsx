@@ -110,7 +110,7 @@ export function ClientPortalSection({ clientId, clientName, clientPhone }: Clien
         <span className={`badge ${STATUS_BADGE_CLASS[status.status]}`}>{STATUS_LABEL[status.status]}</span>
       </div>
 
-      <div className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>
+      <div className="text-muted" style={{ fontSize: 'var(--fs-sm)', marginBottom: 12 }}>
         آخر دخول: {status.last_login_at ? new Date(status.last_login_at).toLocaleString('ar-LY') : 'لم يدخل بعد'}
         {status.invite_expires_at && (status.status === 'INVITE_PENDING' || status.status === 'INVITE_EXPIRED') && (
           <> · {formatTimeLeft(status.invite_expires_at)}</>
@@ -122,7 +122,7 @@ export function ClientPortalSection({ clientId, clientName, clientPhone }: Clien
       {revealed && (
         <div className="alert alert-warning" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <strong>لن يظهر هذا الرابط مرة أخرى — انسخه أو أرسله الآن</strong>
-          <div className="num" style={{ wordBreak: 'break-all', fontSize: 12 }}>{revealed.invite_url}</div>
+          <div className="num" style={{ wordBreak: 'break-all', fontSize: 'var(--fs-xs)' }}>{revealed.invite_url}</div>
           <div className="op-row" style={{ gap: 8 }}>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => void copyLink()}>
               <Copy size={14} /> {copied ? 'تم النسخ' : 'نسخ الرابط'}
@@ -155,7 +155,7 @@ export function ClientPortalSection({ clientId, clientName, clientPhone }: Clien
             </button>
             {confirming === 'disable' ? (
               <span className="op-row" style={{ gap: 6 }}>
-                <span className="text-muted" style={{ fontSize: 12 }}>تعطيل البوابة؟</span>
+                <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>تعطيل البوابة؟</span>
                 <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void runAction('disable')}>تأكيد</button>
                 <button type="button" className="btn-text" onClick={() => setConfirming(null)}>إلغاء</button>
               </span>
@@ -173,7 +173,7 @@ export function ClientPortalSection({ clientId, clientName, clientPhone }: Clien
             )}
             {confirming === 'reset' ? (
               <span className="op-row" style={{ gap: 6 }}>
-                <span className="text-muted" style={{ fontSize: 12 }}>إعادة التعيين تُبطل كلمة المرور الحالية وتُنهي جلساته — متأكد؟</span>
+                <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>إعادة التعيين تُبطل كلمة المرور الحالية وتُنهي جلساته — متأكد؟</span>
                 <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void runAction('reset')}>تأكيد</button>
                 <button type="button" className="btn-text" onClick={() => setConfirming(null)}>إلغاء</button>
               </span>
@@ -182,7 +182,7 @@ export function ClientPortalSection({ clientId, clientName, clientPhone }: Clien
             )}
             {confirming === 'disable' ? (
               <span className="op-row" style={{ gap: 6 }}>
-                <span className="text-muted" style={{ fontSize: 12 }}>تعطيل البوابة؟</span>
+                <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>تعطيل البوابة؟</span>
                 <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={() => void runAction('disable')}>تأكيد</button>
                 <button type="button" className="btn-text" onClick={() => setConfirming(null)}>إلغاء</button>
               </span>

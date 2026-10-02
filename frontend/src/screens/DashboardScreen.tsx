@@ -21,11 +21,11 @@ function ProfitColumn({
 }: { title: string; rows: { currency_code: string; amount: string }[]; currencies: Currency[] }) {
   return (
     <div className="profit-col">
-      <div className="text-muted" style={{ fontSize: 12.5, marginBottom: 8 }}>{title}</div>
-      {rows.length === 0 && <div className="text-muted" style={{ fontSize: 13 }}>لا شيء اليوم</div>}
+      <div className="text-muted" style={{ fontSize: 'var(--fs-xs)', marginBottom: 8 }}>{title}</div>
+      {rows.length === 0 && <div className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>لا شيء اليوم</div>}
       {rows.map((r) => (
         <div key={r.currency_code} className="profit-row">
-          <span className={`num ${Number(r.amount) >= 0 ? 'money-positive' : 'money-negative'}`} style={{ fontSize: 19, fontWeight: 700 }}>
+          <span className={`num ${Number(r.amount) >= 0 ? 'money-positive' : 'money-negative'}`} style={{ fontSize: 'var(--fs-h3)', fontWeight: 700 }}>
             {formatAmount(r.amount, r.currency_code, currencies)}
           </span>
           <CurrencyBadge code={r.currency_code} />
@@ -54,14 +54,14 @@ export function DashboardScreen() {
       <div className="kpi-grid" style={{ marginBottom: 16 }}>
         {data.kpis.funds.map((f) => (
           <div className="card kpi-card" key={`funds-${f.currency_code}`}>
-            <div className="text-muted" style={{ fontSize: 12.5 }}>أرصدة الصناديق والمراسلين والبنوك</div>
+            <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>أرصدة الصناديق والمراسلين والبنوك</div>
             <div className="num kpi-value">{formatAmount(f.amount, f.currency_code, currencies)}</div>
             <div style={{ marginTop: 4 }}><CurrencyBadge code={f.currency_code} /></div>
           </div>
         ))}
         {data.kpis.client_liabilities.map((l) => (
           <div className="card kpi-card" key={`liab-${l.currency_code}`}>
-            <div className="text-muted" style={{ fontSize: 12.5 }}>التزامات العملاء</div>
+            <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>التزامات العملاء</div>
             <div className="num kpi-value">{formatAmount(l.amount, l.currency_code, currencies)}</div>
             <div style={{ marginTop: 4 }}><CurrencyBadge code={l.currency_code} /></div>
           </div>
@@ -79,14 +79,14 @@ export function DashboardScreen() {
         </div>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}>تنبيهات</div>
-          {data.alerts.length === 0 && <div className="text-muted" style={{ fontSize: 13 }}>لا تنبيهات حالياً</div>}
+          {data.alerts.length === 0 && <div className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>لا تنبيهات حالياً</div>}
           <div className="alerts-list">
             {data.alerts.map((a, i) => {
               const Icon = SEVERITY_ICON[a.severity] ?? Info
               return (
                 <div key={i} className={`alert ${SEVERITY_CLASS[a.severity] ?? 'alert-info'}`}>
                   <Icon size={16} strokeWidth={1.9} />
-                  <span style={{ fontSize: 13 }}>{a.message_ar}</span>
+                  <span style={{ fontSize: 'var(--fs-sm)' }}>{a.message_ar}</span>
                 </div>
               )
             })}
@@ -123,13 +123,13 @@ export function DashboardScreen() {
         </div>
         <div className="card">
           <div className="card-title" style={{ marginBottom: 12 }}>أفضل ٥ عملاء</div>
-          {data.top_clients.length === 0 && <div className="text-muted" style={{ fontSize: 13 }}>لا بيانات كافية بعد</div>}
+          {data.top_clients.length === 0 && <div className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>لا بيانات كافية بعد</div>}
           <div className="top-clients-list">
             {data.top_clients.map((c) => (
               <div key={c.client_id} className="top-client-row">
                 <div className="top-client-info">
                   <span>{c.name_ar}</span>
-                  <span className="num text-muted" style={{ fontSize: 12 }}>{c.code}</span>
+                  <span className="num text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{c.code}</span>
                 </div>
                 <div className="top-client-bar-track">
                   <div className="top-client-bar-fill" style={{ width: `${(c.operation_count / maxClientBalance) * 100}%` }} />

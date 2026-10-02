@@ -12,7 +12,7 @@
 }
 .recon-col-head {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-sm);
   margin-bottom: 8px;
   padding-bottom: 6px;
   border-bottom: 2px solid var(--border, #e2e8f0);

@@ -60,8 +60,8 @@ export function NotificationsBell() {
       {open && (
         <div className="notif-dropdown card" role="dialog" aria-label="قائمة التنبيهات">
           <div className="card-title" style={{ marginBottom: 10 }}>التنبيهات</div>
-          {alerts === null && <p className="text-muted" style={{ fontSize: 13 }}>...جارٍ التحميل</p>}
-          {alerts !== null && list.length === 0 && <p className="text-muted" style={{ fontSize: 13 }}>لا تنبيهات حالياً</p>}
+          {alerts === null && <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>...جارٍ التحميل</p>}
+          {alerts !== null && list.length === 0 && <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>لا تنبيهات حالياً</p>}
           {list.length > 0 && (
             <div className="alerts-list">
               {list.map((a, i) => {
@@ -69,7 +69,7 @@ export function NotificationsBell() {
                 return (
                   <div key={i} className={`alert ${SEVERITY_CLASS[a.severity] ?? 'alert-info'}`}>
                     <Icon size={16} strokeWidth={1.9} />
-                    <span style={{ fontSize: 13 }}>{a.message_ar}</span>
+                    <span style={{ fontSize: 'var(--fs-sm)' }}>{a.message_ar}</span>
                   </div>
                 )
               })}

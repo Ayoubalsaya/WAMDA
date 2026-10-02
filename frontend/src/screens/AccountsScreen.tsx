@@ -24,7 +24,7 @@ function TotalsRow({ totals, currencies }: { totals: CurrencyAmount[]; currencie
   if (totals.length === 0) return null
   return (
     <div className="acc-totals-row">
-      <span className="text-muted" style={{ fontSize: 12.5 }}>الإجمالي</span>
+      <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>الإجمالي</span>
       {totals.map((t) => (
         <span key={t.currency_code} className="acc-total-chip">
           <span className="num" style={{ fontWeight: 700 }}>{formatAmount(t.amount, t.currency_code, currencies)}</span> <CurrencyBadge code={t.currency_code} />
@@ -76,7 +76,7 @@ function CorrespondentsTab({ currencies }: { currencies: Currency[] }) {
       <TotalsRow totals={data.totals} currencies={currencies} />
       {data.groups.map((g) => (
         <div key={g.partner_id ?? g.partner_name_ar} className="acc-partner-group">
-          <div className="card-title" style={{ fontSize: 13.5, marginBottom: 6 }}>{g.partner_name_ar}</div>
+          <div className="card-title" style={{ fontSize: 'var(--fs-sm)', marginBottom: 6 }}>{g.partner_name_ar}</div>
           <AccountsTable rows={g.accounts} currencies={currencies} />
         </div>
       ))}

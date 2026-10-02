@@ -71,7 +71,7 @@ export function ClientsListView({ onSelect, onCreate }: ClientsListViewProps) {
               <tr key={row.id} className="clients-row" onClick={() => onSelect(row.id)}>
                 <td>
                   <div style={{ fontWeight: 600 }}>{row.name_ar}</div>
-                  <div className="num text-muted" style={{ fontSize: 12 }}>{row.code}</div>
+                  <div className="num text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{row.code}</div>
                 </td>
                 {currencies.map((c) => {
                   const balance = row.balances.find((b) => b.currency_code === c.code)
@@ -84,7 +84,7 @@ export function ClientsListView({ onSelect, onCreate }: ClientsListViewProps) {
                             {formatAmount(balance.balance, currencyByCode(c.code))}
                           </div>
                           {limit && (
-                            <div className="num text-muted" style={{ fontSize: 11 }}>
+                            <div className="num text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>
                               حد {formatAmount(limit.limit_amount, currencyByCode(c.code))}
                             </div>
                           )}

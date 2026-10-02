@@ -152,13 +152,13 @@ export function EditedBadge({ entryId }: { entryId: number }) {
                   <div key={s.entry_id} className="today-op-detail" style={{ padding: 10 }}>
                     <div className="op-row" style={{ justifyContent: 'space-between' }}>
                       <strong>{KIND_LABELS[s.kind] ?? s.kind}</strong>
-                      <span className="text-muted" style={{ fontSize: 12 }}>{STATUS_LABELS[s.status] ?? s.status}</span>
+                      <span className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{STATUS_LABELS[s.status] ?? s.status}</span>
                     </div>
-                    <div className="num text-muted" style={{ fontSize: 12 }}>{s.entry_no}</div>
-                    <div style={{ fontSize: 12.5, marginTop: 4 }}>
+                    <div className="num text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{s.entry_no}</div>
+                    <div style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }}>
                       {s.created_by_name} — {new Date(s.created_at).toLocaleString('ar-LY')}
                     </div>
-                    {s.reason && <div style={{ fontSize: 12.5, marginTop: 4 }}>السبب: {s.reason}</div>}
+                    {s.reason && <div style={{ fontSize: 'var(--fs-xs)', marginTop: 4 }}>السبب: {s.reason}</div>}
                   </div>
                 ))}
               </div>
@@ -201,17 +201,17 @@ export function CommentsPanel({ entryId }: { entryId: number }) {
 
   return (
     <div style={{ marginTop: 10 }}>
-      <div className="text-muted" style={{ fontSize: 12, marginBottom: 6 }}>التعليقات</div>
+      <div className="text-muted" style={{ fontSize: 'var(--fs-xs)', marginBottom: 6 }}>التعليقات</div>
       {comments === null ? (
-        <p className="text-muted" style={{ fontSize: 12 }}>...جارٍ التحميل</p>
+        <p className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>...جارٍ التحميل</p>
       ) : comments.length === 0 ? (
-        <p className="text-muted" style={{ fontSize: 12 }}>لا تعليقات بعد</p>
+        <p className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>لا تعليقات بعد</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
           {comments.map((c) => (
-            <div key={c.id} style={{ fontSize: 12.5, borderRight: '2px solid var(--sky-500)', paddingRight: 8 }}>
+            <div key={c.id} style={{ fontSize: 'var(--fs-xs)', borderRight: '2px solid var(--sky-500)', paddingRight: 8 }}>
               <div>{c.body}</div>
-              <div className="text-muted" style={{ fontSize: 11 }}>
+              <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>
                 {c.created_by_name} — {new Date(c.created_at).toLocaleString('ar-LY')}
               </div>
             </div>

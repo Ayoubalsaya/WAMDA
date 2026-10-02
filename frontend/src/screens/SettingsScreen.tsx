@@ -67,7 +67,7 @@ function CompanyTab({ currentUserRole }: { currentUserRole: 'ADMIN' | 'ACCOUNTAN
           disabled={currentUserRole !== 'ADMIN'} required
         />
       </div>
-      {currentUserRole !== 'ADMIN' && <p className="text-muted" style={{ fontSize: 12.5 }}>عرض فقط — التعديل بصلاحية المدير</p>}
+      {currentUserRole !== 'ADMIN' && <p className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>عرض فقط — التعديل بصلاحية المدير</p>}
       {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
       {portals}
       {saved && <div className="alert alert-info" style={{ marginBottom: 12 }}>تم الحفظ</div>}
