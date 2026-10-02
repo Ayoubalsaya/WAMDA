@@ -18,7 +18,9 @@ from pathlib import Path
 from typing import Optional
 
 from app.cli.backup import BackupError, decrypt_file
-from app.cli.pg_tools import PgToolError, connection_params, create_database, database_url_for, drop_database, run_pg_restore
+from app.cli.pg_tools import (
+    PgToolError, connection_params, create_database, database_url_for, drop_database, list_databases, run_pg_restore,
+)
 
 
 def restore_into(*, backup_path: Path, target_database_url: str) -> None:
@@ -39,6 +41,20 @@ class VerifyOutcome:
         self.report = report
 
 
+RESTORE_TEST_PREFIX = "wamda_restore_test_"
+
+
+def sweep_stale_restore_databases() -> list[str]:
+    """يحذف أي قاعدة مؤقتة يتيمة من تشغيلات سابقة. تُرجِع ما حُذف. لا تمسّ إلا هذه البادئة حصراً."""
+    dropped = []
+    for name in list_databases(RESTORE_TEST_PREFIX):
+        drop_database(name)
+        dropped.append(name)
+    if dropped:
+        print(f"كُنست قواعد مؤقتة يتيمة من تشغيلات سابقة: {', '.join(dropped)}", file=sys.stderr)
+    return dropped
+
+
 def restore_test(*, backup_path: Path) -> VerifyOutcome:
     """استعادة إلى قاعدة مؤقتة عشوائية الاسم + recompute-balances --verify
     عليها، ثم حذفها دائماً (نجح الفحص أم لا)."""
@@ -47,9 +63,15 @@ def restore_test(*, backup_path: Path) -> VerifyOutcome:
 
     from app.engine import recompute
 
-    temp_db_name = f"wamda_restore_test_{uuid.uuid4().hex[:12]}"
-    create_database(temp_db_name)
+    # ٢٠٢٦-١٠-٠٣: الأداة تعمل أسبوعياً على السيرفر — يجب ألا تترك قاعدة مؤقتة أبداً.
+    # (١) كنس الأيتام: قاعدة `wamda_restore_test_*` تركتها تشغيلة سابقة ماتت قسراً (kill/انقطاع) تُحذف قبل البدء؛
+    # (٢) الحذف في `finally` دائماً — نجح الفحص أم فشل أم قُطع (KeyboardInterrupt/SIGTERM)؛
+    # (٣) الحذف يتحقق من الغياب ويعيد المحاولة ويرفع خطأً صريحاً إن بقيت القاعدة (لا فشل صامت).
+    sweep_stale_restore_databases()
+    completed = False  # اكتمل المسار الرئيسي بلا استثناء (لا يُعتمد على sys.exc_info: يتأثر بسياق المستدعي)
+    temp_db_name = f"{RESTORE_TEST_PREFIX}{uuid.uuid4().hex[:12]}"
     try:
+        create_database(temp_db_name)
         restore_into(backup_path=backup_path, target_database_url=database_url_for(temp_db_name))
 
         engine = create_engine(database_url_for(temp_db_name))
@@ -60,9 +82,16 @@ def restore_test(*, backup_path: Path) -> VerifyOutcome:
         finally:
             db.close()
             engine.dispose()
+        completed = True
         return VerifyOutcome(ok=report.ok, report=report)
     finally:
-        drop_database(temp_db_name)
+        try:
+            drop_database(temp_db_name)
+        except PgToolError as exc:
+            if completed:
+                raise  # لا استثناء جارٍ: الفشل في الحذف هو الخطأ نفسه، يظهر للمشغِّل (exit 1)
+            # استثناء أصلي جارٍ (فشل الاستعادة/الفحص): يبقى هو الظاهر، ويُطبَع تحذير الحذف
+            print(f"⚠ {exc}", file=sys.stderr)
 
 
 def cli_restore(backup_file: str, target_db: Optional[str], confirm_text: Optional[str]) -> None:
@@ -89,6 +118,15 @@ def cli_restore(backup_file: str, target_db: Optional[str], confirm_text: Option
 
 
 def cli_restore_test(backup_file: str) -> None:
+    import signal
+
+    def _terminate(_signum, _frame):  # SIGTERM (systemd/cron timeout) ← استثناء فيعمل `finally` ويُحذف المؤقت
+        raise SystemExit(143)
+
+    try:
+        signal.signal(signal.SIGTERM, _terminate)
+    except (ValueError, OSError):  # خيط غير رئيسي/نظام بلا SIGTERM
+        pass
     try:
         outcome = restore_test(backup_path=Path(backup_file))
     except (BackupError, PgToolError) as exc:

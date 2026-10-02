@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -108,23 +109,50 @@ def _admin_connection_params() -> ConnectionParams:
 
 
 def create_database(name: str) -> None:
-    admin = _admin_connection_params()
-    cmd = [
-        psql_executable(), "--no-password", "-h", admin.host, "-p", admin.port, "-U", admin.user,
-        "-d", "postgres", "-c", f'CREATE DATABASE "{name}"',
-    ]
-    result = _run(cmd, password=admin.password)
+    result = _psql_admin(f'CREATE DATABASE "{name}"')
     if result.returncode != 0:
         raise PgToolError(f"فشل إنشاء قاعدة البيانات المؤقتة: {result.stderr.strip()}")
 
 
-def drop_database(name: str) -> None:
+def _psql_admin(sql: str, *, tuples_only: bool = False) -> subprocess.CompletedProcess:
     admin = _admin_connection_params()
-    cmd = [
-        psql_executable(), "--no-password", "-h", admin.host, "-p", admin.port, "-U", admin.user,
-        "-d", "postgres", "-c", f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)',
-    ]
-    _run(cmd, password=admin.password)  # تنظيف بأفضل جهد — لا يُوقِف التنفيذ عند فشله
+    cmd = [psql_executable(), "--no-password", "-h", admin.host, "-p", admin.port, "-U", admin.user, "-d", "postgres"]
+    if tuples_only:
+        cmd += ["-At"]
+    cmd += ["-c", sql]
+    return _run(cmd, password=admin.password)
+
+
+def _drop_once(name: str) -> None:
+    _psql_admin(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+
+
+def list_databases(prefix: str) -> list[str]:
+    """أسماء القواعد التي تبدأ بـ`prefix` (مطابقة حرفية — `_` و`%` في البادئة لا تُعامَل كأحرف بدل)."""
+    like = prefix.replace("\\", "\\\\").replace("_", "\\_").replace("%", "\\%") + "%"
+    result = _psql_admin(f"SELECT datname FROM pg_database WHERE datname LIKE '{like}' ORDER BY 1", tuples_only=True)
+    if result.returncode != 0:
+        raise PgToolError(f"تعذّر سرد قواعد البيانات: {result.stderr.strip()}")
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def database_exists(name: str) -> bool:
+    return name in list_databases(name)
+
+
+def drop_database(name: str, *, attempts: int = 3, delay: float = 1.0) -> None:
+    """يحذف القاعدة **ويتحقق** من غيابها (٢٠٢٦-١٠-٠٣): كان الحذف «بأفضل جهد» صامتاً — فشله لا يُكتشف فتبقى قاعدة مؤقتة
+    على السيرفر (وجدنا `wamda_restore_test_…` يتيمة). الآن: محاولات متكررة (اتصال متأخر الإغلاق)، ثم فحص `pg_database`،
+    وإن بقيت القاعدة يُرفع `PgToolError` باسمها."""
+    last = ""
+    for i in range(attempts):
+        _drop_once(name)
+        if not database_exists(name):
+            return
+        last = f"محاولة {i + 1}/{attempts}"
+        if i + 1 < attempts:
+            time.sleep(delay)
+    raise PgToolError(f"تعذّر حذف قاعدة البيانات المؤقتة \"{name}\" ({last}) — احذفها يدوياً: DROP DATABASE \"{name}\" WITH (FORCE);")
 
 
 def database_url_for(name: str) -> str:
