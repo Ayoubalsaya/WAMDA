@@ -16,7 +16,10 @@ from sqlalchemy.orm import Session as OrmSession
 from app.database import get_db
 from app.engine.clock import system_clock
 from app.models import User
+from app.models.enums import SessionSubjectType
 from app.schemas.auth import (
+    BackupCodesResponse,
+    BackupCodesStatus,
     ChangePasswordRequest,
     CurrentUserResponse,
     LoginRequest,
@@ -24,8 +27,9 @@ from app.schemas.auth import (
     RecoverCompleteRequest,
     RecoverStartRequest,
     RecoverStartResponse,
+    RegenerateBackupCodesRequest,
 )
-from app.security import auth_service, csrf, passwords, sessions
+from app.security import audit, auth_service, backup_codes, csrf, lockout, passwords, sessions
 from app.security.permissions import Action, has_permission
 from app.security.deps import SESSION_COOKIE_NAME, enforce_login_rate_limit, get_current_user, verify_csrf
 
@@ -76,6 +80,10 @@ def login(
     except auth_service.InvalidCredentialsError as exc:
         db.commit()
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+    except lockout.AccountLockedError as exc:
+        # ٢٠٢٦-١٠-٠٣: كان يصل ٥٠٠ خاماً (الاستثناء غير مُعالَج في الموجّه) — حساب مقفل = ٤٢٣ برسالة عربية
+        db.commit()
+        raise HTTPException(status.HTTP_423_LOCKED, "الحساب مقفل مؤقتاً بعد محاولات فاشلة — حاول لاحقاً") from exc
 
     if user.totp_secret is None:
         # لا سرّ مُثبَّت بعد — إمّا أول ظهور لهذا الاستدعاء (نعرض التحدي)
@@ -96,20 +104,58 @@ def login(
             db.commit()
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     else:
-        if not payload.totp_code:
+        if not payload.totp_code and not payload.backup_code:
             db.commit()
             return LoginResponse(status="totp_required")
         try:
-            result = auth_service.login_step2_verify(
-                db, user=user, totp_code=payload.totp_code, now=now, ip=ip, ua=ua
-            )
+            if payload.totp_code:
+                result = auth_service.login_step2_verify(
+                    db, user=user, totp_code=payload.totp_code, now=now, ip=ip, ua=ua
+                )
+            else:  # رمز احتياطي — بعد التحقق من كلمة المرور أعلاه، وبنفس القفل/حدّ المعدل
+                result = auth_service.login_step2_backup(db, user=user, code=payload.backup_code, now=now, ip=ip, ua=ua)
         except auth_service.InvalidTwoFactorCodeError as exc:
             db.commit()
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
 
     db.commit()
     _set_session_cookie(response, result.raw_token)
-    return LoginResponse(status="ok", must_change_password=result.must_change_password)
+    return LoginResponse(
+        status="ok", must_change_password=result.must_change_password,
+        backup_codes=result.backup_codes, backup_codes_remaining=result.backup_codes_remaining,
+    )
+
+
+@router.get("/backup-codes", response_model=BackupCodesStatus)
+def backup_codes_status(db: OrmSession = Depends(get_db), current_user: User = Depends(get_current_user)) -> BackupCodesStatus:
+    left = backup_codes.remaining(db, user_id=current_user.id)
+    return BackupCodesStatus(remaining=left, total=backup_codes.CODE_COUNT, low=left <= backup_codes.LOW_THRESHOLD)
+
+
+@router.post(
+    "/backup-codes/regenerate", response_model=BackupCodesResponse,
+    dependencies=[Depends(verify_csrf), Depends(enforce_login_rate_limit)],
+)
+def regenerate_backup_codes(
+    payload: RegenerateBackupCodesRequest, request: Request, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BackupCodesResponse:
+    """يُنشئ عشرة رموز جديدة **ويُبطل كل السابقة**. يتطلب كلمة المرور الحالية (جلسة مسروقة وحدها لا تكفي) وتخضع لحدّ المعدل نفسه؛
+    الكلمة الخاطئة تُحتسب في عدّاد قفل الحساب."""
+    now = system_clock()
+    if current_user.totp_secret is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "أعدّ المصادقة الثنائية أولاً — لا رموز احتياطية بلا جهاز مصادقة")
+    if not passwords.verify_password(payload.password, current_user.password_hash):
+        lockout.record_failed_attempt(db, current_user, now)
+        db.commit()
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "كلمة المرور غير صحيحة")
+    codes = backup_codes.generate(db, user_id=current_user.id, now=now)
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="BACKUP_CODES_GENERATED", entity="users",
+        entity_id=current_user.id, after={"count": len(codes), "reason": "regenerate"}, ip=_client_ip(request),
+    )
+    db.commit()
+    return BackupCodesResponse(codes=codes, remaining=len(codes))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_model=None, dependencies=[Depends(verify_csrf)])

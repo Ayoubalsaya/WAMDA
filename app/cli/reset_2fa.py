@@ -16,7 +16,7 @@ from sqlalchemy import select
 from app.database import SessionLocal
 from app.models import User
 from app.models.enums import SessionSubjectType
-from app.security import audit, sessions
+from app.security import audit, backup_codes, sessions
 
 
 def reset_totp(db, *, username: str) -> User:
@@ -29,9 +29,10 @@ def reset_totp(db, *, username: str) -> User:
     user.failed_attempts = 0
     user.locked_until = None
     revoked = sessions.revoke_all_for_subject(db, subject_type=SessionSubjectType.USER, subject_id=user.id)
+    codes_invalidated = backup_codes.invalidate_all(db, user_id=user.id)  # مرتبطة بالجهاز الممسوح
     audit.log_write(
         db, actor_type=SessionSubjectType.USER, actor_id=user.id, action="TOTP_RESET", entity="users", entity_id=user.id,
-        before={"had_totp": had_secret}, after={"had_totp": False, "sessions_revoked": revoked, "via": "cli"},
+        before={"had_totp": had_secret}, after={"had_totp": False, "sessions_revoked": revoked, "backup_codes_invalidated": codes_invalidated, "via": "cli"},
     )
     db.flush()
     return user

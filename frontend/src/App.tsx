@@ -91,7 +91,7 @@ export default function App() {
   }, [user, navigate])
 
   if (checking) return <div className="app-loading">...جارٍ التحقق من الجلسة</div>
-  if (!user) return <LoginScreen login={login} />
+  if (!user) return <LoginScreen login={login} refresh={refresh} />
   if (user.must_change_password) return <ChangePasswordScreen onDone={refresh} onLogout={logout} />
 
   return (

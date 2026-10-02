@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.models import Session as SessionModel
 from app.models import User
 from app.models.enums import SessionSubjectType
-from app.security import audit, lockout, passwords, sessions, totp
+from app.security import audit, backup_codes, lockout, passwords, sessions, totp
 
 _ADMIN_ACCOUNTANT_ROLES = ("ADMIN", "ACCOUNTANT")
 
@@ -44,6 +44,8 @@ class LoginResult:
     session: SessionModel
     raw_token: str
     must_change_password: bool
+    backup_codes: Optional[list[str]] = None   # عند أول إعداد 2FA فقط
+    backup_codes_remaining: Optional[int] = None  # عند الدخول برمز احتياطي
 
 
 def login_step1(db: Session, *, username: str, password: str, now: datetime) -> User:
@@ -107,7 +109,32 @@ def login_step2_setup(
         lockout.record_failed_attempt(db, user, now)
         raise InvalidTwoFactorCodeError("رمز التحقق غير صحيح")
     user.totp_secret = candidate_secret
-    return _finish_login(db, user=user, now=now, ip=ip, ua=ua)
+    result = _finish_login(db, user=user, now=now, ip=ip, ua=ua)
+    # الرموز الاحتياطية تُنشأ وتُعرض **إلزامياً** مع أول إعداد للمصادقة (وبعد كل إعادة ضبط 2FA)
+    result.backup_codes = backup_codes.generate(db, user_id=user.id, now=now)
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=user.id, action="BACKUP_CODES_GENERATED", entity="users",
+        entity_id=user.id, after={"count": len(result.backup_codes), "reason": "totp_setup"}, ip=ip,
+    )
+    return result
+
+
+def login_step2_backup(
+    db: Session, *, user: User, code: str, now: datetime, ip: Optional[str] = None, ua: Optional[str] = None,
+) -> LoginResult:
+    """دخول برمز احتياطي بدل رمز التطبيق. كلمة المرور تحقّقت في `login_step1` قبل هذه الدالة دائماً. الرمز الخاطئ/المستعمَل
+    يُحتسب محاولة فاشلة في **نفس** عدّاد القفل. الاستعمال يُدقَّق بالعدد المتبقّي فقط (لا الرمز)."""
+    if not backup_codes.consume(db, user_id=user.id, code=code, now=now):
+        lockout.record_failed_attempt(db, user, now)
+        raise InvalidTwoFactorCodeError("الرمز الاحتياطي غير صحيح أو سبق استعماله")
+    result = _finish_login(db, user=user, now=now, ip=ip, ua=ua)
+    left = backup_codes.remaining(db, user_id=user.id)
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=user.id, action="BACKUP_CODE_LOGIN", entity="users",
+        entity_id=user.id, after={"remaining": left}, ip=ip,
+    )
+    result.backup_codes_remaining = left
+    return result
 
 
 def _finish_login(

@@ -48,10 +48,8 @@ def reset_password(db, *, username: str, new_password: str) -> User:
 
 def _clear_backup_codes(db, user_id: int) -> None:
     """الرموز الاحتياطية مرتبطة بجهاز المصادقة الذي مُسح — تُبطَل معه (تُنشأ من جديد بعد إعداد الجهاز)."""
-    try:
-        from app.security import backup_codes
-    except ImportError:  # قبل وجود الميزة
-        return
+    from app.security import backup_codes
+
     backup_codes.invalidate_all(db, user_id=user_id)
 
 

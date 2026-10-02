@@ -211,6 +211,7 @@ PURGE_COVERED_FOREIGN_KEYS: set[tuple[str, str]] = {
     ("journal_entries", "posted_by"), ("journal_entries", "created_by"), ("opening_balances", "approved_by"),
     ("opening_reconciliation", "approved_by"), ("outage_windows", "opened_by"), ("outage_windows", "closed_by"),
     ("periods", "closed_by"),
+    ("user_backup_codes", "user_id"),  # تُحذف مع المستخدم التجريبي (٢٠٢٦-١٠-٠٣)
 }
 PURGE_FK_TARGET_TABLES = ("accounts", "clients", "journal_entries", "currency_lots", "partners", "swift_movements", "users")
 
@@ -293,6 +294,7 @@ def _purge(db: Session) -> dict[str, list[str]]:
     db.execute(text(f"""
         DELETE FROM sessions WHERE subject_type = 'USER' AND subject_id IN (SELECT id FROM users WHERE {_DEMO_USERNAMES})
     """))
+    db.execute(text(f"DELETE FROM user_backup_codes WHERE user_id IN (SELECT id FROM users WHERE {_DEMO_USERNAMES})"))
     blocked = _purge_or_deactivate_demo_users(db)
 
     # ٧) إعادة بناء account_balances بالكامل — إلزامي، لا اختياري: قيود

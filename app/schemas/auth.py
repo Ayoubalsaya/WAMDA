@@ -12,6 +12,7 @@ class LoginRequest(BaseModel):
     password: str
     totp_code: Optional[str] = None
     totp_secret_setup: Optional[str] = None  # يُعاد من رد "يتطلب تسجيل 2FA" السابق
+    backup_code: Optional[str] = None  # رمز احتياطي لمرة واحدة بدل totp_code (كلمة المرور مطلوبة دائماً)
 
 
 class LoginResponse(BaseModel):
@@ -19,6 +20,9 @@ class LoginResponse(BaseModel):
     totp_secret: Optional[str] = None
     provisioning_uri: Optional[str] = None
     must_change_password: Optional[bool] = None
+    # الرموز الاحتياطية — تُعاد **مرة واحدة** فقط عند إنشائها (أول إعداد لـ2FA)؛ الواجهة تعرضها إلزامياً قبل المتابعة
+    backup_codes: Optional[list[str]] = None
+    backup_codes_remaining: Optional[int] = None  # بعد الدخول برمز احتياطي
 
 
 class ChangePasswordRequest(BaseModel):
@@ -70,3 +74,18 @@ class UpdateUserRequest(BaseModel):
     غير مُمرَّر = لا تغيير له."""
     is_active: Optional[bool] = None
     role: Optional[str] = None  # "ADMIN" | "ACCOUNTANT"
+
+
+class BackupCodesStatus(BaseModel):
+    remaining: int
+    total: int
+    low: bool  # يبقى ٣ أو أقل (بما فيها ٠)
+
+
+class RegenerateBackupCodesRequest(BaseModel):
+    password: str  # إعادة الإنشاء تُبطل السابقة — تتطلب كلمة المرور الحالية
+
+
+class BackupCodesResponse(BaseModel):
+    codes: list[str]  # تُعرض هذه المرة فقط ولا يمكن استرجاعها لاحقاً
+    remaining: int

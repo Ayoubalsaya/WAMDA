@@ -51,6 +51,8 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /auth/me": STAFF,
     "POST /auth/logout": STAFF,
     "POST /auth/change-password": STAFF,
+    "GET /auth/backup-codes": STAFF,
+    "POST /auth/backup-codes/regenerate": STAFF,
     "GET /dashboard/summary": STAFF,
     "GET /position/liquidity": STAFF,
     "GET /accounts/boxes": STAFF,

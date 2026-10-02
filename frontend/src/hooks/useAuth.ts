@@ -22,12 +22,14 @@ export function useAuth() {
   }, [refresh])
 
   const login = useCallback(
-    async (username: string, password: string, totpCode?: string, totpSecretSetup?: string) => {
+    async (username: string, password: string, totpCode?: string, totpSecretSetup?: string, backupCode?: string) => {
       const body: Record<string, string> = { username, password }
       if (totpCode) body.totp_code = totpCode
       if (totpSecretSetup) body.totp_secret_setup = totpSecretSetup
+      if (backupCode) body.backup_code = backupCode
       const res = await api.post<LoginResponse>('/auth/login', body)
-      if (res.status === 'ok') await refresh()
+      // الرموز الاحتياطية تُعرض إلزامياً قبل دخول التطبيق: الجلسة قائمة لكن `user` لا يُحمَّل حتى يُقِرّ المستخدم (LoginScreen ← refresh)
+      if (res.status === 'ok' && !res.backup_codes) await refresh()
       return res
     },
     [refresh],

@@ -10,11 +10,13 @@ from sqlalchemy import (
     DateTime,
     Date,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     SmallInteger,
     Text,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -53,6 +55,26 @@ class User(Base):
 
     __table_args__ = (
         CheckConstraint(f"role IN {USER_ROLES}", name="ck_users_role"),
+    )
+
+
+class UserBackupCode(Base):
+    """رمز احتياطي لمرة واحدة بدل رمز تطبيق المصادقة (٢٠٢٦-١٠-٠٣). يُخزَّن **هاش فقط** (لا الرمز)؛ `used_at` عند الاستعمال،
+    و`invalidated_at` حين تُبطِله إعادة الإنشاء أو إعادة ضبط 2FA. الرصيد المتبقّي = غير مستعمَل وغير مُبطَل."""
+
+    __tablename__ = "user_backup_codes"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False)
+    code_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    invalidated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_user_backup_codes_user", "user_id"),
+        Index("uq_user_backup_codes_live_hash", "user_id", "code_hash", unique=True,
+              postgresql_where=text("used_at IS NULL AND invalidated_at IS NULL")),
     )
 
 

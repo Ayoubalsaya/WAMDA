@@ -8,6 +8,8 @@ from collections import defaultdict
 from decimal import Decimal
 from typing import Optional
 
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as OrmSession
@@ -19,6 +21,7 @@ from app.config import settings
 from app.models import (
     Account,
     AccountBalance,
+    AuditLog,
     Client,
     ClientCreditLimit,
     CurrencyLot,
@@ -28,6 +31,7 @@ from app.models import (
     Partner,
     Setting,
     SwiftMovement,
+    User,
 )
 from app.models.enums import AccountForm, AccountType, EntryStatus, OperationType, SwiftStatus
 from app.schemas.dashboard import (
@@ -48,7 +52,8 @@ from app.schemas.dashboard import (
     TopClientRow,
 )
 from app.schemas.reference import JournalEntryOut
-from app.security.deps import require_password_changed
+from app.security import backup_codes
+from app.security.deps import get_current_user, require_password_changed
 
 router = APIRouter(tags=["dashboard"], dependencies=[Depends(require_password_changed)])
 
@@ -76,7 +81,7 @@ def _group_currency_amounts(pairs: list[tuple[str, Decimal]]) -> list[CurrencyAm
 
 
 @router.get("/dashboard/summary", response_model=DashboardSummary)
-def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
+def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Depends(get_current_user)) -> DashboardSummary:
     balances = _balances_by_account(db)
     leaves = accounts_repo.leaf_accounts(db, include_client_accounts=True)
 
@@ -151,10 +156,38 @@ def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
     ]
 
     alerts = _compute_alerts(db, leaves=leaves, balances=balances)
+    alerts.extend(_backup_code_alerts(db, current_user))
 
     return DashboardSummary(
         kpis=kpis, today_profit=today_profit, top_clients=top_clients, recent_entries=recent_entries, alerts=alerts,
     )
+
+
+_BACKUP_LOGIN_ALERT_DAYS = 7
+
+
+def _backup_code_alerts(db: OrmSession, user: User) -> list[AlertRow]:
+    """تنبيهات الرموز الاحتياطية (٢٠٢٦-١٠-٠٣): (١) رصيدك ٣ أو أقل ← إنشاء رموز جديدة؛ (٢) كل دخول برمز احتياطي خلال آخر ٧ أيام
+    «دخول برمز احتياطي — متبقٍّ X» — المدير يرى كل المستخدمين (باسم المستخدم)، وغيره يرى دخوله هو فقط."""
+    alerts: list[AlertRow] = []
+    if user.totp_secret is not None:
+        left = backup_codes.remaining(db, user_id=user.id)
+        if left <= backup_codes.LOW_THRESHOLD:
+            alerts.append(AlertRow(
+                severity="critical" if left == 0 else "warning", code="backup_codes_low",
+                message_ar=f"رموزك الاحتياطية المتبقية: {left} — أنشئ رموزاً جديدة من الإعدادات ← الأمان",
+            ))
+    since = system_clock() - timedelta(days=_BACKUP_LOGIN_ALERT_DAYS)
+    query = select(AuditLog).where(AuditLog.action == "BACKUP_CODE_LOGIN", AuditLog.at >= since)
+    if user.role != "ADMIN":
+        query = query.where(AuditLog.entity_id == user.id)
+    rows = db.execute(query.order_by(AuditLog.id.desc()).limit(5)).scalars().all()
+    names = {u.id: u.full_name for u in db.execute(select(User).where(User.id.in_({r.entity_id for r in rows}))).scalars()} if rows else {}
+    for r in rows:
+        left = (r.after_json or {}).get("remaining", "—")
+        who = "" if r.entity_id == user.id else f" — {names.get(r.entity_id, r.entity_id)}"
+        alerts.append(AlertRow(severity="warning", code="backup_code_login", message_ar=f"دخول برمز احتياطي — متبقٍّ {left}{who}"))
+    return alerts
 
 
 def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int, Decimal]) -> list[AlertRow]:

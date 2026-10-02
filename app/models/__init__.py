@@ -27,6 +27,7 @@ from app.models.system import (
     Session,
     Setting,
     User,
+    UserBackupCode,
 )
 
 __all__ = [
@@ -62,4 +63,5 @@ __all__ = [
     "Session",
     "Setting",
     "User",
+    "UserBackupCode",
 ]

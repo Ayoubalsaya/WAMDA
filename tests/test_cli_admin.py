@@ -144,7 +144,7 @@ def test_reset_admin_password_clears_totp_and_forces_change(cleanup_users, no_ex
     finally:
         db.close()
 
-    reset_inputs = iter([username])
+    reset_inputs = iter([username, username])
     reset_pw_inputs = iter(["BrandNewPass!2", "BrandNewPass!2"])
     with patch("builtins.input", lambda _prompt="": next(reset_inputs)), \
          patch("getpass.getpass", lambda _prompt="": next(reset_pw_inputs)):

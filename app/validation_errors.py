@@ -52,7 +52,7 @@ FIELD_LABELS_AR: dict[str, str] = {
     "sort_order": "ترتيب العرض", "source_account_code": "الحساب المصدر", "source_note": "ملاحظة المصدر",
     "source_type": "مصدر الرصيد", "step1": "الخطوة ١", "step2": "الخطوة ٢", "swift_movement_id": "حركة السويفت",
     "symbol": "الرمز", "to_account_code": "إلى حساب", "to_currency": "إلى عملة", "to_location_code": "إلى موقع",
-    "token": "رمز الدعوة", "total_amount": "المبلغ", "totp_code": "رمز المصادقة",
+    "token": "رمز الدعوة", "total_amount": "المبلغ", "totp_code": "رمز المصادقة", "backup_code": "الرمز الاحتياطي",
     "totp_secret_setup": "سرّ المصادقة", "username": "اسم المستخدم", "value_date": "التاريخ", "year": "السنة",
     # معاملات الاستعلام/المسار/الترويسة
     "q": "نص البحث", "date": "التاريخ", "date_from": "من تاريخ", "date_to": "إلى تاريخ", "from": "من تاريخ",

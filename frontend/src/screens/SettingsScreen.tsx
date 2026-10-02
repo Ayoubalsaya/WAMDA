@@ -10,11 +10,13 @@ import { OpeningBalancesTab } from './settings/OpeningBalancesTab'
 import { PeriodsTab } from './settings/PeriodsTab'
 import './SettingsScreen.css'
 import { useFormErrors } from '../hooks/useFormErrors'
+import { SecurityTab } from './settings/SecurityTab'
 
-type SettingsTab = 'company' | 'users' | 'partners' | 'bank-accounts' | 'currencies' | 'locations' | 'opening-balances' | 'periods' | 'audit-log'
+type SettingsTab = 'security' | 'company' | 'users' | 'partners' | 'bank-accounts' | 'currencies' | 'locations' | 'opening-balances' | 'periods' | 'audit-log'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'company', label: 'ملف الشركة' },
+  { id: 'security', label: 'الأمان' },
   { id: 'users', label: 'المستخدمون' },
   { id: 'partners', label: 'الشركاء' },
   { id: 'bank-accounts', label: 'الحسابات البنكية' },
@@ -400,6 +402,7 @@ export function SettingsScreen({ currentUserRole }: { currentUserRole: 'ADMIN' |
       </div>
       <div className="card" style={{ overflowX: 'auto' }}>
         {tab === 'company' && <CompanyTab currentUserRole={currentUserRole} />}
+        {tab === 'security' && <SecurityTab />}
         {tab === 'users' && (currentUserRole === 'ADMIN' ? <UsersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'partners' && (currentUserRole === 'ADMIN' ? <PartnersTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}
         {tab === 'bank-accounts' && (currentUserRole === 'ADMIN' ? <BankAccountsTab /> : <p className="text-muted">هذا القسم بصلاحية المدير فقط</p>)}

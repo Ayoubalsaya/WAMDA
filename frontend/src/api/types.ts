@@ -12,6 +12,14 @@ export interface LoginResponse {
   must_change_password?: boolean
   totp_secret?: string
   provisioning_uri?: string
+  backup_codes?: string[]          // مرة واحدة فقط — عند أول إعداد للمصادقة
+  backup_codes_remaining?: number  // بعد الدخول برمز احتياطي
+}
+
+export interface BackupCodesStatus {
+  remaining: number
+  total: number
+  low: boolean  // يبقى ٣ أو أقل
 }
 
 export interface Currency {

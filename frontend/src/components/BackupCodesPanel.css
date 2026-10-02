@@ -1,0 +1,15 @@
+.backup-codes { display: flex; flex-direction: column; gap: var(--space-4); }
+.backup-codes-grid {
+  list-style: none; margin: 0; padding: var(--space-4); display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-2) var(--space-4);
+  border: 1px dashed var(--sky-300); border-radius: var(--radius-md); background: var(--sky-50);
+}
+.backup-codes-grid li { font-size: var(--fs-xl); font-weight: 700; letter-spacing: .08em; text-align: center; padding: var(--space-1) 0; }
+.backup-codes-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.backup-codes-ack { align-items: center; }
+
+/* الطباعة: الرموز وحدها (لا واجهة التطبيق) */
+@media print {
+  body.printing-backup-codes * { visibility: hidden; }
+  body.printing-backup-codes .backup-codes-print, body.printing-backup-codes .backup-codes-print * { visibility: visible; }
+  body.printing-backup-codes .backup-codes-print { position: absolute; inset: 0 auto auto 0; width: 100%; }
+}
