@@ -57,18 +57,11 @@ _EXCHANGE_SPREAD_OPS = {OperationType.EXCHANGE, OperationType.REMIT_OUT}
 _LIBYA_BOX_PARENT_CODE = "1100"
 
 
-# ٢٠٢٦-٠٩-٢٤: صرافة الخزينة (EXCHANGE بلا client_id) مصدر ربح مستقل عن
-# فرق صرافة العملاء — نفس نوع القيد وحساب الربح (4120.x) محاسبياً، لكن
-# مُدارة بطريقة مختلفة تماماً عملياً (رأس مال الشركة نفسه لا وسيط مع
-# عميل)، فيُفصَل في كل تقرير ربح بدل الدمج الصامت مع exchange_spread.
+# ٢٠٢٦-١٠-٠٢: صرافة الخزينة (EXCHANGE بلا client_id) بسعر واحد — لا ربح ولا خسارة
+# فيها (قرار مالك)، فلا عمود/حقل «ربح الخزينة» في أي تقرير (حُذف `treasury_exchange`).
+# قيودها بلا `profit_amount` فلا تدخل أي تجميع ربح أصلاً.
 def _is_client_facing_spread(e: JournalEntry) -> bool:
-    if e.operation_type not in _EXCHANGE_SPREAD_OPS:
-        return False
-    return not (e.operation_type == OperationType.EXCHANGE and e.client_id is None)
-
-
-def _is_treasury_exchange(e: JournalEntry) -> bool:
-    return e.operation_type == OperationType.EXCHANGE and e.client_id is None
+    return e.operation_type in _EXCHANGE_SPREAD_OPS
 
 
 def _balances_by_account(db: OrmSession) -> dict[int, Decimal]:
@@ -114,19 +107,14 @@ def dashboard_summary(db: OrmSession = Depends(get_db)) -> DashboardSummary:
     exchange_pairs = [
         (e.profit_currency, e.profit_amount) for e in today_entries if _is_client_facing_spread(e) and e.profit_currency
     ]
-    treasury_pairs = [
-        (e.profit_currency, e.profit_amount) for e in today_entries if _is_treasury_exchange(e) and e.profit_currency
-    ]
     transfer_totals = _group_currency_amounts(transfer_pairs)
     exchange_totals = _group_currency_amounts(exchange_pairs)
-    treasury_totals = _group_currency_amounts(treasury_pairs)
     net_pairs = (
         [(c.currency_code, c.amount) for c in transfer_totals]
         + [(c.currency_code, c.amount) for c in exchange_totals]
-        + [(c.currency_code, c.amount) for c in treasury_totals]
     )
     today_profit = ProfitBreakdown(
-        transfer_fee=transfer_totals, exchange_spread=exchange_totals, treasury_exchange=treasury_totals,
+        transfer_fee=transfer_totals, exchange_spread=exchange_totals,
         net_by_currency=_group_currency_amounts(net_pairs),
     )
 

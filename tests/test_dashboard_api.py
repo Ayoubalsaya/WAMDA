@@ -99,9 +99,9 @@ def test_dashboard_profit_split_transfer_fee_vs_exchange_spread(db, client, now,
     assert "USD" not in transfer_currencies  # الصرافة لا تدخل فرق التحويل إطلاقاً
 
 
-def test_dashboard_profit_split_treasury_exchange_separate_from_client_spread(db, client, now, monkeypatch):
-    """٢٠٢٦-١٠-٠٢: صرافة الخزينة بسعر واحد لا ربح لها — لا تدخل أي bucket ربح
-    (لا `treasury_exchange` ولا `exchange_spread`)، رغم أنها OperationType.EXCHANGE."""
+def test_dashboard_treasury_exchange_has_no_profit_bucket(db, client, now, monkeypatch):
+    """٢٠٢٦-١٠-٠٢: صرافة الخزينة بسعر واحد لا ربح لها — لا حقل `treasury_exchange` في ملخص
+    الأرباح أصلاً (حُذف بقرار مالك) ولا أثر لها على `exchange_spread`."""
     monkeypatch.setattr("app.routers.dashboard.system_clock", lambda: now)
     _login(db, client)
     admin = f.make_user(db, role="ADMIN")
@@ -124,8 +124,9 @@ def test_dashboard_profit_split_treasury_exchange_separate_from_client_spread(db
     after = resp.json()["today_profit"]
     # لا ربح لها: لا أثر على أي bucket (الحسابان مقارنة قبل/بعد لا قيم مطلقة،
     # فقاعدة التطوير المشتركة قد تحوي قيوداً أخرى لليوم)
-    assert after["treasury_exchange"] == before["treasury_exchange"]
+    assert "treasury_exchange" not in after
     assert after["exchange_spread"] == before["exchange_spread"]
+    assert after["net_by_currency"] == before["net_by_currency"]
 
 
 def test_dashboard_alert_negative_asset_balance(db, client, now):
@@ -389,3 +390,13 @@ def test_lot_detail_unknown_id_404(db, client):
     _login(db, client)
     resp = client.get("/lots/999999999")
     assert resp.status_code == 404
+
+
+def test_treasury_exchange_profit_field_removed_from_every_profit_schema():
+    """قرار مالك ٢٠٢٦-١٠-٠٢: لا «ربح خزينة» في أي تقرير — الحقل `treasury_exchange` محذوف من
+    مخطّطَي ملخص لوحة التحكم وربح الفترات (لا بيانات خزينة سابقة حقيقية تستوجب إبقاءه)."""
+    from app.main import app
+
+    schemas = app.openapi()["components"]["schemas"]
+    for name in ("ProfitBreakdown", "ProfitByPeriodRow"):
+        assert "treasury_exchange" not in schemas[name]["properties"], name

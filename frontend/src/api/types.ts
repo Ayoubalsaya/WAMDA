@@ -213,7 +213,6 @@ export interface DashboardKpis {
 export interface ProfitBreakdown {
   transfer_fee: CurrencyAmount[]
   exchange_spread: CurrencyAmount[]
-  treasury_exchange: CurrencyAmount[]
   net_by_currency: CurrencyAmount[]
 }
 
@@ -343,7 +342,6 @@ export interface ProfitByPeriodRow {
   period_label: string
   transfer_fee: CurrencyAmount[]
   exchange_spread: CurrencyAmount[]
-  treasury_exchange: CurrencyAmount[]
   net_by_currency: CurrencyAmount[]
 }
 
