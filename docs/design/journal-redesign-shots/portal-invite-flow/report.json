@@ -1,0 +1,14 @@
+{
+  "client_code": "QA-PINV-2C7DEDBA",
+  "status_before": "NOT_ENABLED (confirmed on screen)",
+  "invite_url_shape_ok": true,
+  "status_after_enable": "INVITE_PENDING (confirmed on screen)",
+  "copy_whatsapp_hidden_after_dismiss": true,
+  "invite_accept_ok": true,
+  "portal_login_status": 200,
+  "portal_home_loaded": true,
+  "invite_reuse_rejected": true,
+  "status_after_accept": "ACTIVE (confirmed on screen)",
+  "disabled_from_admin": true,
+  "client_session_ended_immediately": true
+}
