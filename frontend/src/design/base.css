@@ -206,7 +206,8 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: var(--fs-s
 
 /* ── أحجام الأيقونات المركزية (lucide يضع width/height/stroke-width كسمات؛ CSS يتفوّق عليها) ──────
    كل حجم/سمك من tokens.css حصراً — لا قيمة في TSX تُعتمد. ──────────────────────────────────── */
-svg.lucide { stroke-width: var(--icon-stroke); }
+svg.lucide { stroke-width: var(--icon-stroke); width: var(--icon-md); height: var(--icon-md); } /* شبكة أمان: أي أيقونة بلا قاعدة موضع تأخذ --icon-md، لا size={…} من TSX */
+.select-caret { width: var(--icon-sm); height: var(--icon-sm); }
 .seg-tabs-rail svg, .sidebar-center-btn svg { width: var(--icon-rail); height: var(--icon-rail); }
 .seg-tabs-dock .seg-tab svg, .operation-tab svg, .seg-tabs-pill .seg-tab svg, .btn svg, .btn-text svg { width: var(--icon-tab); height: var(--icon-tab); }
 .btn-sm svg { width: var(--icon-sm); height: var(--icon-sm); }
