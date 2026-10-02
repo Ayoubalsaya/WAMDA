@@ -298,14 +298,15 @@ def test_credit_limit_field_error_under_the_limit_field(journal_page, qa_identit
         pg.wait_for_selector(f"tr.clients-row:has-text('{qa_identity['client_code']}')", timeout=5000)
         pg.click(f"tr.clients-row:has-text('{qa_identity['client_code']}')")
         pg.wait_for_selector(".client-detail-header")
-        editor = pg.locator(".op-row", has=pg.locator("label.field-label", has_text="حد الائتمان بعملة")).first
-        editor.locator("input").fill("5")
+        editor = pg.locator("[data-testid=credit-limit-editor]")
+        editor.locator("label.credit-mode-option", has_text="حد بمبلغ").click()  # الحقل يظهر في وضع «حد بمبلغ»
+        editor.locator("input[inputmode='decimal']").fill("5")
         editor.get_by_role("button", name="حفظ الحد").click()
         pg.wait_for_timeout(500)
         text_ = editor.locator("[data-field-error]").inner_text()
         assert re.fullmatch(r"«حد الائتمان بعملة \w+»: يجب ألا يكون سالباً", text_), text_
         _assert_no_raw(pg, "credit limit structured")
-        editor.locator("input").fill("6")
+        editor.locator("input[inputmode='decimal']").fill("6")
         assert editor.locator("[data-field-error]").count() == 0
     finally:
         pg.unroute("**/credit-limits/**", structured)

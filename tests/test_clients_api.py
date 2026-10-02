@@ -59,7 +59,7 @@ def test_create_client_by_accountant_succeeds(db, client):
     )
     assert resp.status_code == 201, resp.text
     body = resp.json()
-    assert body["credit_allowed"] is False
+    assert body["credit_status"] == "STOPPED"  # عميل جديد: بلا ائتمان في كل العملات
     assert body["balances"] == []
 
 
@@ -87,7 +87,7 @@ def test_get_client_detail_includes_balances_and_limits(db, client, now):
     balances = {b["currency_code"]: b["balance"] for b in body["balances"]}
     assert balances["LYD"] == "400.000000"
     limits = {l["currency_code"]: l["limit_amount"] for l in body["credit_limits"]}
-    assert limits["USD"] == "1000.000000"
+    assert limits["USD"] == "1000.000000" and limits["LYD"] is None
 
 
 def test_get_client_unknown_404(db, client):
@@ -104,37 +104,68 @@ def test_update_client_basic_info(db, client):
     assert resp.json()["phone"] == "0910000000"
 
 
-def test_set_credit_allowed_requires_admin(db, client):
+def test_set_credit_mode_requires_admin(db, client):
     _login(db, client, role="ACCOUNTANT")
     c = f.make_client(db)
-    resp = client.patch(f"/clients/{c.id}/credit-allowed", json={"credit_allowed": True}, headers=_headers(client))
+    resp = client.put(f"/clients/{c.id}/credit-mode", json={"mode": "UNLIMITED"}, headers=_headers(client))
     assert resp.status_code == 403
 
 
-def test_set_credit_allowed_by_admin_persists(db, client):
+def test_credit_mode_unlimited_then_none_applies_to_every_currency_with_one_audit_row(db, client):
+    from sqlalchemy import select
+
+    from app.models import AuditLog
+
     _login(db, client, role="ADMIN")
     c = f.make_client(db)
-    resp = client.patch(f"/clients/{c.id}/credit-allowed", json={"credit_allowed": True}, headers=_headers(client))
-    assert resp.status_code == 204
-    db.refresh(c)
-    assert c.credit_allowed is True
+    f.set_credit_limit(db, c, "USD", Decimal("10000"))  # حد مخصص سيُستبدل
+    resp = client.put(f"/clients/{c.id}/credit-mode", json={"mode": "UNLIMITED"}, headers=_headers(client))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["credit_status"] == "OPEN" and body["outstanding_debts"] == []
+    assert body["credit_limits"] and all(l["mode"] == "UNLIMITED" and l["limit_amount"] is None for l in body["credit_limits"])
+    rows = db.execute(select(AuditLog).where(AuditLog.action == "CLIENT_CREDIT_MODE_CHANGED", AuditLog.entity_id == c.id)).scalars().all()
+    assert len(rows) == 1, "إجراء تدقيق واحد لكل العملات"
+    before = {x["currency_code"]: x for x in rows[0].before_json["currencies"]}
+    after = {x["currency_code"]: x for x in rows[0].after_json["currencies"]}
+    assert before["USD"] == {"currency_code": "USD", "mode": "LIMIT", "limit_amount": "10000.000000"}
+    assert set(before) == set(after) and all(x["mode"] == "UNLIMITED" for x in after.values())
+    assert rows[0].after_json["credit_status"] == "OPEN" and rows[0].before_json["credit_status"] == "PARTIAL"
+    stop = client.put(f"/clients/{c.id}/credit-mode", json={"mode": "NONE"}, headers=_headers(client)).json()
+    assert stop["credit_status"] == "STOPPED" and all(l["mode"] == "NONE" for l in stop["credit_limits"])
 
 
-def test_set_credit_limit_requires_admin_and_persists(db, client):
+def test_status_is_partial_for_a_custom_limit_and_for_a_currency_added_later(db, client):
+    from app.models import Currency
+
+    _login(db, client, role="ADMIN")
+    c = f.make_client(db)
+    client.put(f"/clients/{c.id}/credit-mode", json={"mode": "UNLIMITED"}, headers=_headers(client))
+    assert client.get(f"/clients/{c.id}").json()["credit_status"] == "OPEN"
+    client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "LIMIT", "limit_amount": "500"}, headers=_headers(client))
+    assert client.get(f"/clients/{c.id}").json()["credit_status"] == "PARTIAL"
+    client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "UNLIMITED"}, headers=_headers(client))
+    assert client.get(f"/clients/{c.id}").json()["credit_status"] == "OPEN"
+    db.add(Currency(code="ZZT", name_ar="عملة لاحقة", symbol="Z", decimals=2, is_active=True, sort_order=99))
+    db.flush()
+    assert client.get(f"/clients/{c.id}").json()["credit_status"] == "PARTIAL", "عملة جديدة لا تُفعَّل تلقائياً"
+
+
+def test_set_credit_limit_modes_and_validation(db, client):
     _login(db, client, role="ADMIN")
     c = f.make_client(db)
     resp = client.put(f"/clients/{c.id}/credit-limits/USD", json={"limit_amount": "2500.00"}, headers=_headers(client))
     assert resp.status_code == 204, resp.text
-    detail = client.get(f"/clients/{c.id}").json()
-    limits = {l["currency_code"]: l["limit_amount"] for l in detail["credit_limits"]}
-    assert limits["USD"] == "2500.000000"
+    limits = {l["currency_code"]: l for l in client.get(f"/clients/{c.id}").json()["credit_limits"]}
+    assert limits["USD"]["mode"] == "LIMIT" and limits["USD"]["limit_amount"] == "2500.000000"
+    assert limits["LYD"]["mode"] == "NONE" and limits["LYD"]["limit_amount"] is None  # غير مفعَّلة
 
-    # تحديث نفس العملة يُحدِّث القيمة (upsert) لا يُكرِّرها
     resp2 = client.put(f"/clients/{c.id}/credit-limits/USD", json={"limit_amount": "5000.00"}, headers=_headers(client))
-    assert resp2.status_code == 204
-    detail2 = client.get(f"/clients/{c.id}").json()
-    assert len(detail2["credit_limits"]) == 1
-    assert detail2["credit_limits"][0]["limit_amount"] == "5000.000000"
+    assert resp2.status_code == 204  # upsert
+    assert client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "LIMIT"}, headers=_headers(client)).status_code == 422
+    assert client.put(f"/clients/{c.id}/credit-limits/USD", json={"mode": "UNLIMITED"}, headers=_headers(client)).status_code == 204
+    limits = {l["currency_code"]: l for l in client.get(f"/clients/{c.id}").json()["credit_limits"]}
+    assert limits["USD"]["mode"] == "UNLIMITED" and limits["USD"]["limit_amount"] is None
 
 
 def test_list_clients_reflects_balance_and_last_activity(db, client, now):

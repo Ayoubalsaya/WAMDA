@@ -87,6 +87,7 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
 
     funds_pairs: list[tuple[str, Decimal]] = []
     liabilities_pairs: list[tuple[str, Decimal]] = []
+    debts_pairs: list[tuple[str, Decimal]] = []
     for a in leaves:
         if a.currency_code is None:
             continue
@@ -95,9 +96,12 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
             funds_pairs.append((a.currency_code, bal))
         elif a.type == AccountType.LIABILITY and a.client_id is not None:
             liabilities_pairs.append((a.currency_code, bal))
+            if bal < 0:
+                debts_pairs.append((a.currency_code, -bal))
     kpis = DashboardKpis(
         funds=_group_currency_amounts(funds_pairs),
         client_liabilities=_group_currency_amounts(liabilities_pairs),
+        client_debts=_group_currency_amounts(debts_pairs),
     )
 
     today = local_entry_date(system_clock(), settings.work_timezone)
@@ -246,11 +250,14 @@ def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int
         client_ids = {cid for cid, _ in client_currency_deficit}
         clients_by_id = {c.id: c for c in db.execute(select(Client).where(Client.id.in_(client_ids))).scalars().all()}
         limits = {
-            (row.client_id, row.currency_code): row.limit_amount
+            (row.client_id, row.currency_code): row
             for row in db.execute(select(ClientCreditLimit).where(ClientCreditLimit.client_id.in_(client_ids))).scalars().all()
         }
         for (cid, ccy), deficit in client_currency_deficit.items():
-            limit = limits.get((cid, ccy), Decimal("0"))
+            row = limits.get((cid, ccy))
+            if row is not None and row.mode == "UNLIMITED":
+                continue  # بلا سقف: لا تنبيه تجاوز — الرقابة في تقرير «العملاء المدينون» وإجمالي الديون
+            limit = row.limit_amount if row is not None and row.mode == "LIMIT" else Decimal("0")
             if deficit > limit:
                 client = clients_by_id.get(cid)
                 alerts.append(AlertRow(

@@ -243,3 +243,23 @@ def build_boxes_balances_context(db: OrmSession, *, doc_size: str, now: datetime
         "summary": [_amounts_summary_item("الإجمالي", body.totals, dec)],
     })
     return ctx
+
+
+def build_debtors_context(db: OrmSession, *, doc_size: str, now: datetime, work_timezone: str) -> dict:
+    from app.routers.reports import debtors
+
+    modes = {"NONE": "بلا ائتمان", "LIMIT": "حد بمبلغ", "UNLIMITED": "بلا سقف"}
+    rows = debtors(db)
+    ctx = base_context(db, now=now, work_timezone=work_timezone)
+    ctx.update({
+        "doc_size": doc_size, "doc_title": "العملاء المدينون", "doc_subtitle": "كل رصيد سالب، لكل عملة وموقع — الأكبر أولاً",
+        "qr_data_uri": None,
+        "columns": ["العميل", "الكود", "العملة", "الموقع", "الدين", "الائتمان", "آخر حركة"],
+        "rows": [
+            [r.client_name, r.client_code, r.currency_code, r.location_code or "—", str(r.debt), modes.get(r.credit_mode, r.credit_mode),
+             r.last_activity.isoformat() if r.last_activity else "—"]
+            for r in rows
+        ],
+        "summary": None,
+    })
+    return ctx

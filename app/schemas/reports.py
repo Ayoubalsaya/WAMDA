@@ -24,6 +24,18 @@ class DebtsByCurrencyRow(BaseModel):
     client_count: int
 
 
+class DebtorRow(BaseModel):
+    """عميل برصيد سالب في حساب (عملة × موقع) — لا يُدمج بين عملات أو مواقع."""
+    client_id: int
+    client_code: str
+    client_name: str
+    currency_code: str
+    location_code: Optional[str] = None
+    debt: Decimal  # موجب = ما يدين به العميل لنا
+    credit_mode: str  # NONE · LIMIT · UNLIMITED لهذه العملة
+    last_activity: Optional[date] = None
+
+
 class ProfitByPeriodRow(BaseModel):
     period_label: str  # "2026-W25" · "2026-06" · "2026"
     transfer_fee: list[CurrencyAmount]

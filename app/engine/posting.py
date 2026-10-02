@@ -286,21 +286,25 @@ def _enforce_balance_policy(
         # الوثيقة هو التفويض نفسه. حاجز الائتمان/الرصيد السالب مصمَّم
         # لمنع تمديد دَين جديد أثناء التشغيل الحي، فلا ينطبق هنا إطلاقاً
         # — بخلاف حسابات المقاصة، لا استثناء جزئي هنا بل إعفاء كامل لأن
-        # فرع credit_allowed=false أدناه مقصود بلا أي صيغة تجاوز (§٥ قاعدة ٦).
+        # فرع «بلا ائتمان» (NONE) أدناه مقصود بلا أي صيغة تجاوز (§٥ قاعدة ٦).
         return
 
     if account.client_id is not None:
         if prospective_balance >= 0:
             return
         client = db.get(Client, account.client_id)
-        if not client.credit_allowed:
-            # §٥ قاعدة ٦: عميل بلا ائتمان → رفض تام على مستوى هذا الموقع
-            # وحده (اختبار القبول ٣٠) — لا صيغة تجاوز إطلاقاً.
-            raise CreditLimitExceededError(
-                f"العميل {client.code} بلا ائتمان مسموح — لا يمكن أن يصبح رصيده سالباً في {account.code}"
-            )
         limit_row = db.get(ClientCreditLimit, (client.id, account.currency_code))
-        limit_amount = limit_row.limit_amount if limit_row else Decimal("0")
+        mode = limit_row.mode if limit_row is not None else "NONE"  # غياب الصف = بلا ائتمان (لا تفعيل تلقائي لعملة جديدة)
+        if mode == "UNLIMITED":
+            return  # ائتمان بلا سقف (٢٠٢٦-١٠-٠٣): لا رفض ولا تجاوز — الرقابة بالرؤية (تقرير العملاء المدينون)
+        if mode == "NONE":
+            if deltas.get(account.id, Decimal("0")) >= 0:
+                return  # إيقاف الائتمان لا يرفض تخفيض دين قائم (قبض/سداد)؛ يُرفض ما يزيد الدين فقط
+            # §٥ قاعدة ٦: عميل بلا ائتمان في هذه العملة → رفض تام — لا صيغة تجاوز إطلاقاً.
+            raise CreditLimitExceededError(
+                f"العميل {client.code} بلا ائتمان مسموح بعملة {account.currency_code} — لا يمكن أن يصبح رصيده سالباً في {account.code}"
+            )
+        limit_amount = limit_row.limit_amount
         total_deficit = _client_currency_total_deficit(
             db,
             client_id=client.id,

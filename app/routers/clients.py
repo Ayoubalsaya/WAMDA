@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
 from app.documents.formatting import format_rate
+from app.engine import credit
 from app.engine.clock import system_clock
 from app.models import (
     Account,
@@ -37,8 +38,9 @@ from app.schemas.clients import (
     ClientListRow,
     CreateClientRequest,
     CreditLimitOut,
-    SetCreditAllowedRequest,
+    CreditModeChangeOut,
     SetCreditLimitRequest,
+    SetCreditModeRequest,
     StatementResponse,
     StatementRow,
     UpdateClientRequest,
@@ -75,11 +77,12 @@ def _client_balances(db: OrmSession, client_id: int) -> list[ClientBalanceRow]:
     ]
 
 
+def _credit_out(settings: dict[str, "credit.CreditSetting"]) -> list[CreditLimitOut]:
+    return [CreditLimitOut(currency_code=c.currency_code, mode=c.mode, limit_amount=c.limit_amount) for c in settings.values()]
+
+
 def _client_credit_limits(db: OrmSession, client_id: int) -> list[CreditLimitOut]:
-    rows = db.execute(
-        select(ClientCreditLimit).where(ClientCreditLimit.client_id == client_id).order_by(ClientCreditLimit.currency_code)
-    ).scalars().all()
-    return [CreditLimitOut(currency_code=r.currency_code, limit_amount=r.limit_amount) for r in rows]
+    return _credit_out(credit.settings_for(db, client_id))
 
 
 @router.get("/clients", response_model=list[ClientListRow], dependencies=[Depends(require_role(Action.POST_ENTRY))])
@@ -102,12 +105,7 @@ def list_clients(
     ).all()
     last_activity = dict(last_activity_rows)
 
-    limits_rows = db.execute(
-        select(ClientCreditLimit).where(ClientCreditLimit.client_id.in_(client_ids))
-    ).scalars().all()
-    limits_by_client: dict[int, list[CreditLimitOut]] = {}
-    for r in limits_rows:
-        limits_by_client.setdefault(r.client_id, []).append(CreditLimitOut(currency_code=r.currency_code, limit_amount=r.limit_amount))
+    settings_by_client = credit.settings_for_many(db, client_ids)
 
     balance_rows = db.execute(
         select(Account.client_id, Account.currency_code, func.sum(AccountBalance.balance))
@@ -123,9 +121,9 @@ def list_clients(
 
     return [
         ClientListRow(
-            id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed,
+            id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_status=credit.status_of(settings_by_client[c.id]),
             is_active=c.is_active, balances=balances_by_client.get(c.id, []),
-            credit_limits=limits_by_client.get(c.id, []), last_activity=last_activity.get(c.id),
+            credit_limits=_credit_out(settings_by_client[c.id]), last_activity=last_activity.get(c.id),
         )
         for c in clients
     ]
@@ -136,7 +134,7 @@ def get_client(client_id: int, db: OrmSession = Depends(get_db)) -> ClientDetail
     client = _get_client_or_404(db, client_id)
     return ClientDetail(
         id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
-        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        id_number=client.id_number, credit_status=credit.client_status(db, client.id), is_active=client.is_active,
         created_at=client.created_at, balances=_client_balances(db, client_id),
         credit_limits=_client_credit_limits(db, client_id),
     )
@@ -154,7 +152,7 @@ def create_client(
         raise HTTPException(status.HTTP_409_CONFLICT, f"كود العميل {payload.code} مُستخدَم بالفعل")
     client = Client(
         code=payload.code, name_ar=payload.name_ar, name_en=payload.name_en, phone=payload.phone,
-        id_number=payload.id_number, search_name=payload.name_ar, credit_allowed=False, created_by=current_user.id,
+        id_number=payload.id_number, search_name=payload.name_ar, created_by=current_user.id,
     )
     db.add(client)
     db.flush()
@@ -165,7 +163,7 @@ def create_client(
     db.commit()
     return ClientDetail(
         id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
-        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        id_number=client.id_number, credit_status=credit.client_status(db, client.id), is_active=client.is_active,
         created_at=client.created_at, balances=[], credit_limits=[],
     )
 
@@ -188,29 +186,36 @@ def update_client(client_id: int, payload: UpdateClientRequest, db: OrmSession =
     db.commit()
     return ClientDetail(
         id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
-        id_number=client.id_number, credit_allowed=client.credit_allowed, is_active=client.is_active,
+        id_number=client.id_number, credit_status=credit.client_status(db, client.id), is_active=client.is_active,
         created_at=client.created_at, balances=_client_balances(db, client_id),
         credit_limits=_client_credit_limits(db, client_id),
     )
 
 
-@router.patch(
-    "/clients/{client_id}/credit-allowed", status_code=status.HTTP_204_NO_CONTENT, response_model=None,
-    dependencies=[Depends(verify_csrf)],
+@router.put(
+    "/clients/{client_id}/credit-mode", response_model=CreditModeChangeOut, dependencies=[Depends(verify_csrf)],
 )
-def set_credit_allowed(
-    client_id: int, payload: SetCreditAllowedRequest, db: OrmSession = Depends(get_db),
+def set_credit_mode(
+    client_id: int, payload: SetCreditModeRequest, db: OrmSession = Depends(get_db),
     current_user: User = Depends(require_role(Action.OVERRIDE_CREDIT_OR_BALANCE)),
-) -> None:
-    """§٧-١٣: منح/سحب الثقة الائتمانية قرار مدير فقط — نفس بند تجاوز الائتمان."""
+) -> CreditModeChangeOut:
+    """زر عدسة العميل (٢٠٢٦-١٠-٠٣): ضغطة واحدة لكل العملات الفعّالة — UNLIMITED (بلا سقف، يستبدل أي حد مخصص)
+    أو NONE (إيقاف). إجراء تدقيق **واحد** يذكر كل العملات (قبل ← بعد). الإيقاف مع دين قائم لا يُرفض: تحذير فقط
+    (`outstanding_debts`) والمحرك يرفض ما يزيد الدين لاحقاً."""
     client = _get_client_or_404(db, client_id)
-    before = client.credit_allowed
-    client.credit_allowed = payload.credit_allowed
+    before = credit.settings_for(db, client_id)
+    for code in before:
+        credit.set_mode(db, client_id=client_id, currency_code=code, mode=payload.mode)
+    after = credit.settings_for(db, client_id)
     audit.log_write(
-        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREDIT_ALLOWED_CHANGED",
-        entity="clients", entity_id=client.id, before={"credit_allowed": before}, after={"credit_allowed": payload.credit_allowed},
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREDIT_MODE_CHANGED",
+        entity="clients", entity_id=client.id,
+        before={"credit_status": credit.status_of(before), "currencies": [credit.describe(x) for x in before.values()]},
+        after={"credit_status": credit.status_of(after), "currencies": [credit.describe(x) for x in after.values()]},
     )
     db.commit()
+    debts = [r for r in _client_balances(db, client_id) if r.balance < 0] if payload.mode == credit.NONE else []
+    return CreditModeChangeOut(credit_status=credit.status_of(after), outstanding_debts=debts, credit_limits=_credit_out(after))
 
 
 @router.put(
@@ -224,18 +229,16 @@ def set_credit_limit(
     client = _get_client_or_404(db, client_id)
     if db.get(Currency, currency_code) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {currency_code}")
+    if payload.mode == credit.LIMIT and payload.limit_amount is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "حدّد مبلغ الحد (أو اختر «بلا ائتمان» / «بلا سقف»)")
     row = db.get(ClientCreditLimit, (client_id, currency_code))
-    before = row.limit_amount if row else None
-    if row is None:
-        row = ClientCreditLimit(client_id=client_id, currency_code=currency_code, limit_amount=payload.limit_amount)
-        db.add(row)
-    else:
-        row.limit_amount = payload.limit_amount
+    before = credit.describe(credit.CreditSetting(currency_code, row.mode, row.limit_amount)) if row else credit.describe(
+        credit.CreditSetting(currency_code, credit.NONE, None))
+    credit.set_mode(db, client_id=client_id, currency_code=currency_code, mode=payload.mode, limit_amount=payload.limit_amount)
     audit.log_write(
         db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_CREDIT_LIMIT_SET",
-        entity="clients", entity_id=client.id,
-        before={"currency_code": currency_code, "limit_amount": str(before) if before is not None else None},
-        after={"currency_code": currency_code, "limit_amount": str(payload.limit_amount)},
+        entity="clients", entity_id=client.id, before=before,
+        after=credit.describe(credit.CreditSetting(currency_code, payload.mode, payload.limit_amount if payload.mode == credit.LIMIT else None)),
     )
     db.commit()
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type {
   ActivityRow, BalanceOverrideRow, ClientProfitabilityRow, CorrespondentActivityRow, Currency, CurrencyAmount,
-  DebtsByCurrencyRow, EmergencyEntryRow, FoundingReconciliationResponse, IncomeStatementResponse,
+  DebtorRow, DebtsByCurrencyRow, EmergencyEntryRow, FoundingReconciliationResponse, IncomeStatementResponse,
   LossMakingEntryRow, ProfitByPeriodRow, SwiftHistoryRow, TrialBalanceResponse,
 } from '../api/types'
 import { CurrencyBadge } from '../components/CurrencyBadge'
@@ -12,12 +12,13 @@ import { formatAmount } from '../lib/formatAmount'
 import './ReportsScreen.css'
 
 type ReportId =
-  | 'debts' | 'profit-period' | 'trial-balance' | 'income-statement' | 'client-profitability'
+  | 'debts' | 'debtors' | 'profit-period' | 'trial-balance' | 'income-statement' | 'client-profitability'
   | 'lot-profitability' | 'activity-currency' | 'activity-month' | 'correspondent-activity'
   | 'swift-history' | 'loss-making' | 'balance-overrides' | 'emergency-entries' | 'founding-reconciliation'
 
 const REPORTS: { id: ReportId; label: string }[] = [
   { id: 'debts', label: 'الديون لكل عملة' },
+  { id: 'debtors', label: 'العملاء المدينون' },
   { id: 'profit-period', label: 'الأرباح حسب الفترة' },
   { id: 'trial-balance', label: 'ميزان المراجعة' },
   { id: 'income-statement', label: 'قائمة الدخل' },
@@ -63,6 +64,33 @@ function DebtsByCurrencyTab({ currencies }: { currencies: Currency[] }) {
           </tr>
         ))}
         {rows.length === 0 && <tr><td colSpan={3} className="text-muted">لا مديونيات حالياً</td></tr>}
+      </tbody>
+    </table>
+  )
+}
+
+const CREDIT_MODE_LABEL: Record<string, string> = { NONE: 'بلا ائتمان', LIMIT: 'حد بمبلغ', UNLIMITED: 'بلا سقف' }
+
+// «العملاء المدينون» (٢٠٢٦-١٠-٠٣): كل رصيد سالب لكل عملة وموقع، الأكبر أولاً داخل كل عملة، مع آخر حركة — الرقابة بالرؤية لا بالسقف
+function DebtorsTab({ currencies }: { currencies: Currency[] }) {
+  const [rows, setRows] = useState<DebtorRow[] | null>(null)
+  useEffect(() => { void api.get<DebtorRow[]>('/reports/debtors').then(setRows) }, [])
+  if (!rows) return <p className="text-muted">...جارٍ التحميل</p>
+  return (
+    <table className="data-table" data-testid="debtors-table">
+      <thead><tr><th>العميل</th><th>العملة</th><th>الموقع</th><th>الدين</th><th>الائتمان</th><th>آخر حركة</th></tr></thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={`${r.client_id}-${r.currency_code}-${r.location_code ?? ''}`}>
+            <td><div style={{ fontWeight: 600 }}>{r.client_name}</div><div className="num text-muted" style={{ fontSize: 'var(--fs-xs)' }}>{r.client_code}</div></td>
+            <td><CurrencyBadge code={r.currency_code} /></td>
+            <td>{r.location_code ?? '—'}</td>
+            <td className="num money-negative" style={{ fontWeight: 700 }}>{formatAmount(r.debt, r.currency_code, currencies)}</td>
+            <td>{CREDIT_MODE_LABEL[r.credit_mode] ?? r.credit_mode}</td>
+            <td className="num">{r.last_activity ?? '—'}</td>
+          </tr>
+        ))}
+        {rows.length === 0 && <tr><td colSpan={6} className="text-muted">لا عملاء مدينون حالياً</td></tr>}
       </tbody>
     </table>
   )
@@ -403,6 +431,7 @@ const EXCEL_EXPORT_KEYS: Partial<Record<ReportId, string>> = {
   'trial-balance': 'trial-balance',
   'founding-reconciliation': 'founding-reconciliation',
   'lot-profitability': 'lot-profitability',
+  'debtors': 'debtors',
 }
 
 export function ReportsScreen() {
@@ -442,6 +471,7 @@ export function ReportsScreen() {
         </div>
         <div className="card reports-content" style={{ overflowX: 'auto' }}>
           {report === 'debts' && <DebtsByCurrencyTab currencies={currencies} />}
+          {report === 'debtors' && <DebtorsTab currencies={currencies} />}
           {report === 'profit-period' && <ProfitByPeriodTab currencies={currencies} />}
           {report === 'trial-balance' && <TrialBalanceTab currencies={currencies} />}
           {report === 'income-statement' && <IncomeStatementTab currencies={currencies} />}

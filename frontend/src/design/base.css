@@ -216,3 +216,10 @@ svg.lucide { flex: none; stroke-width: var(--icon-stroke); width: var(--icon-md)
 .activity-icon svg, .activity-item svg, .date-control svg, .alerts-list svg, .notif-dropdown svg { width: var(--icon-list); height: var(--icon-list); }
 .app-topbar svg { width: var(--icon-bar); height: var(--icon-bar); }
 .client-search-box svg, .empty-client-icon svg { width: var(--icon-list); height: var(--icon-list); }
+
+/* ائتمان العميل (٢٠٢٦-١٠-٠٣) */
+.credit-controls-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+.credit-mode-radios { display: inline-flex; gap: var(--space-2); flex-wrap: wrap; }
+.credit-mode-option { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: var(--fs-sm); background: #fff; }
+.credit-mode-option.is-active { border-color: var(--sky-500); background: var(--sky-50); color: var(--sky-800); font-weight: 600; }
+.credit-mode-option input { accent-color: var(--sky-500); }

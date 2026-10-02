@@ -38,15 +38,28 @@ def make_client(
     db: Session, *, credit_allowed: bool = False, name: str = "عميل اختبار"
 ) -> Client:
     code = f"T-{uid()}"
-    client = Client(code=code, name_ar=name, search_name=name, credit_allowed=credit_allowed)
+    client = Client(code=code, name_ar=name, search_name=name)
     db.add(client)
     db.flush()
+    if credit_allowed:
+        # السلوك القديم «مسموح بلا حد» = حد صفر في كل عملة فعّالة (مسار تجاوز المدير بسبب) — الائتمان صار لكل عملة (٢٠٢٦-١٠-٠٣)
+        from app.engine import credit
+
+        for code_ in credit.active_currency_codes(db):
+            credit.set_mode(db, client_id=client.id, currency_code=code_, mode=credit.LIMIT, limit_amount=Decimal("0"))
     return client
 
 
 def set_credit_limit(db: Session, client: Client, currency_code: str, amount: Decimal) -> None:
-    db.add(ClientCreditLimit(client_id=client.id, currency_code=currency_code, limit_amount=amount))
-    db.flush()
+    from app.engine import credit
+
+    credit.set_mode(db, client_id=client.id, currency_code=currency_code, mode=credit.LIMIT, limit_amount=amount)
+
+
+def set_credit_mode(db: Session, client: Client, currency_code: str, mode: str, amount: Decimal | None = None) -> None:
+    from app.engine import credit
+
+    credit.set_mode(db, client_id=client.id, currency_code=currency_code, mode=mode, limit_amount=amount)
 
 
 def make_correspondent_account(

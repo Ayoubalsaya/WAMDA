@@ -48,8 +48,8 @@ class Client(Base):
     phone: Mapped[Optional[str]] = mapped_column(Text)
     id_number: Mapped[Optional[str]] = mapped_column(Text)
     search_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    credit_allowed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    # ⚠ clients.credit_limit حُذف — انظر ClientCreditLimit أدناه (حد لكل عملة).
+    # ⚠ clients.credit_allowed حُذف (٢٠٢٦-١٠-٠٣، قرار مالك: ائتمان بلا سقف) — الائتمان لكل عملة في ClientCreditLimit.mode؛
+    # حالة العميل (مفتوح/متوقف/جزئي) تُحسب منها (app/engine/credit.py). ⚠ clients.credit_limit حُذف قبلها.
     portal_password_hash: Mapped[Optional[str]] = mapped_column(Text)
     # ⚠ portal_must_change حُذف (٢٠٢٦-١٠-٠٢، قرار مالك — إدارة بوابة العميل):
     # لم يعد هناك مسار يُنشئ كلمة مرور نيابة عن العميل — العميل يختارها
@@ -93,16 +93,21 @@ class ClientPortalInvite(Base):
 
 
 class ClientCreditLimit(Base):
-    """حد ائتمان لكل عميل × عملة (لا تحويل بين العملات في أي فحص — §2-3)."""
+    """ائتمان لكل عميل × عملة (لا تحويل بين العملات في أي فحص — §2-3). الوضع صريح (٢٠٢٦-١٠-٠٣): NONE بلا ائتمان ·
+    LIMIT حد بمبلغ (`limit_amount` مجمَّع عبر مواقع العميل) · UNLIMITED بلا سقف — **لا** يعني NULL شيئاً.
+    غياب الصف = NONE (عملة تُضاف لاحقاً لا تُفعَّل تلقائياً)."""
 
     __tablename__ = "client_credit_limits"
 
     client_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("clients.id"), primary_key=True)
     currency_code: Mapped[str] = mapped_column(Text, ForeignKey("currencies.code"), primary_key=True)
-    limit_amount: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
+    mode: Mapped[str] = mapped_column(Text, nullable=False, default="LIMIT", server_default="LIMIT")
+    limit_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6), nullable=True)
 
     __table_args__ = (
-        CheckConstraint("limit_amount >= 0", name="ck_client_credit_limits_nonneg"),
+        CheckConstraint("limit_amount IS NULL OR limit_amount >= 0", name="ck_client_credit_limits_nonneg"),
+        CheckConstraint("mode IN ('NONE', 'LIMIT', 'UNLIMITED')", name="ck_client_credit_limits_mode"),
+        CheckConstraint("(mode = 'LIMIT') = (limit_amount IS NOT NULL)", name="ck_client_credit_limits_limit_iff_limit_mode"),
     )
 
 

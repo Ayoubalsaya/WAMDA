@@ -129,7 +129,8 @@ export default function App() {
         >
           {active === 'journal' ? (
             <JournalScreen
-              currentUserRole={user.role} canCreateClient={user.permissions.includes('CREATE_CLIENT')} requestedOpType={requestedOpType}
+              currentUserRole={user.role} canCreateClient={user.permissions.includes('CREATE_CLIENT')}
+              canEditCredit={user.permissions.includes('OVERRIDE_CREDIT_OR_BALANCE')} requestedOpType={requestedOpType}
               onRequestedOpTypeConsumed={() => setRequestedOpType(null)}
             />
           ) : active === 'clients' ? (

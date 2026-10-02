@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import Decimal from 'decimal.js'
 import { ArrowRight, PenLine } from 'lucide-react'
 import { api } from '../../api/client'
-import type { ClientDetail, StatementResponse } from '../../api/types'
+import type { ClientDetail, CreditLimitOut, CreditMode, StatementResponse } from '../../api/types'
+import { CreditControls, CreditStatusBadge } from '../../components/CreditControls'
 import { BalanceCardCopyButton } from '../../components/BalanceCardCopyButton'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
@@ -75,11 +76,6 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
     setEditing(false)
   }
 
-  async function setCreditAllowed(value: boolean) {
-    await api.patch(`/clients/${clientId}/credit-allowed`, { credit_allowed: value })
-    await reloadDetail()
-  }
-
   if (!detail) return <p className="text-muted">...جارٍ التحميل</p>
 
   const ccy = currencies.find((c) => c.code === activeCcy)
@@ -123,15 +119,12 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
           </div>
         )}
 
-        {currentUserRole === 'ADMIN' && (
-          <div className="client-credit-admin">
-            <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input type="checkbox" checked={detail.credit_allowed} onChange={(e) => void setCreditAllowed(e.target.checked)} />
-              يسمح بائتمان (رصيد سالب) لهذا العميل
-            </label>
-          </div>
-        )}
-        {!detail.credit_allowed && <span className="badge badge-status-reversed">بلا ائتمان مسموح</span>}
+        <div className="client-credit-admin" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <CreditStatusBadge status={detail.credit_status} />
+          {currentUserRole === 'ADMIN' && (
+            <CreditControls clientId={clientId} status={detail.credit_status} onChanged={() => void reloadDetail()} />
+          )}
+        </div>
       </div>
 
       {currentUserRole === 'ADMIN' && (
@@ -155,7 +148,7 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
         </div>
         {currentUserRole === 'ADMIN' && (
           <CreditLimitEditor
-            clientId={clientId} currency={activeCcy} current={limitForCcy?.limit_amount} decimals={decimals}
+            clientId={clientId} currency={activeCcy} setting={limitForCcy} decimals={decimals}
             onSaved={reloadDetail}
           />
         )}
@@ -252,25 +245,35 @@ export function ClientDetailView({ clientId, currentUserRole, onBack }: ClientDe
   )
 }
 
+// لكل عملة على حدة، ثلاث حالات: بلا ائتمان · حد بمبلغ · بلا سقف (٢٠٢٦-١٠-٠٣). الحفظ يستبدل وضع هذه العملة فقط.
+const MODE_LABEL: Record<CreditMode, string> = { NONE: 'بلا ائتمان', LIMIT: 'حد بمبلغ', UNLIMITED: 'بلا سقف' }
+
 function CreditLimitEditor({
-  clientId, currency, current, decimals, onSaved,
-}: { clientId: number; currency: string; current?: string; decimals: number; onSaved: () => Promise<void> }) {
+  clientId, currency, setting, decimals, onSaved,
+}: { clientId: number; currency: string; setting?: CreditLimitOut; decimals: number; onSaved: () => Promise<void> }) {
+  const current = setting?.limit_amount ?? undefined
+  const [mode, setMode] = useState<CreditMode>(setting?.mode ?? 'NONE')
   const [value, setValue] = useState(current ? new Decimal(current).toFixed(decimals) : '')
   const [busy, setBusy] = useState(false)
   const { ref: formRef, error, setError, report, portals } = useFormErrors((key, server) => (key === 'limit_amount' ? `حد الائتمان بعملة ${currency}` : (server ?? 'الحقل')))
 
-  useEffect(() => setValue(current ? new Decimal(current).toFixed(decimals) : ''), [current, decimals])
+  useEffect(() => {
+    setMode(setting?.mode ?? 'NONE')
+    setValue(current ? new Decimal(current).toFixed(decimals) : '')
+  }, [setting?.mode, current, decimals, currency])
 
   async function save() {
-    const limitError = decimalInputError(value)
-    if (limitError) {
-      setError(`«حد الائتمان»: ${limitError}`)
-      return
+    if (mode === 'LIMIT') {
+      const limitError = decimalInputError(value)
+      if (limitError) {
+        setError(`«حد الائتمان»: ${limitError}`)
+        return
+      }
     }
     setBusy(true)
     setError(null)
     try {
-      await api.put(`/clients/${clientId}/credit-limits/${currency}`, { limit_amount: value || '0' })
+      await api.put(`/clients/${clientId}/credit-limits/${currency}`, mode === 'LIMIT' ? { mode, limit_amount: value || '0' } : { mode })
       await onSaved()
     } catch (err) {
       report(err, 'تعذّر حفظ حد الائتمان')
@@ -280,13 +283,26 @@ function CreditLimitEditor({
   }
 
   return (
-    <div ref={formRef} className="op-row" style={{ marginTop: 12, alignItems: 'flex-end' }}>
-      <div className="field" style={{ maxWidth: 200 }}>
-        <label className="field-label">حد الائتمان بعملة {currency}</label>
-        {/* الفارغ يُحفَظ صفراً (لا ائتمان) — placeholder ٠ كي يطابق المعروضُ المُرسَلَ */}
-        <DecimalInput className="num" placeholder="0" value={value} onChange={(v) => { setValue(v); setError(null) }} />
-        <DecimalError value={value} />
+    <div ref={formRef} className="op-row" style={{ marginTop: 12, alignItems: 'flex-end', flexWrap: 'wrap' }} data-testid="credit-limit-editor">
+      <div className="field">
+        <span className="field-label">الائتمان بعملة {currency}</span>
+        <div className="credit-mode-radios" role="radiogroup" aria-label={`الائتمان بعملة ${currency}`}>
+          {(['NONE', 'LIMIT', 'UNLIMITED'] as CreditMode[]).map((m) => (
+            <label key={m} className={`credit-mode-option${mode === m ? ' is-active' : ''}`}>
+              <input type="radio" name={`credit-mode-${currency}`} checked={mode === m} onChange={() => { setMode(m); setError(null) }} />
+              {MODE_LABEL[m]}
+            </label>
+          ))}
+        </div>
       </div>
+      {mode === 'LIMIT' && (
+        <div className="field" style={{ maxWidth: 200 }}>
+          <label className="field-label">حد الائتمان بعملة {currency}</label>
+          {/* الفارغ يُحفَظ صفراً — placeholder ٠ كي يطابق المعروضُ المُرسَلَ */}
+          <DecimalInput className="num" placeholder="0" value={value} onChange={(v) => { setValue(v); setError(null) }} />
+          <DecimalError value={value} />
+        </div>
+      )}
       <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => void save()}>حفظ الحد</button>
       {error && <span style={{ color: 'var(--money-out-text)', fontSize: 'var(--fs-xs)' }}>{error}</span>}
       {portals}

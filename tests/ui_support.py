@@ -92,7 +92,7 @@ def qa_identity():
         user.totp_secret = QA_SECRET
         db.add(user)
         code = f"QA-NUM-{f.uid()[:6].upper()}"
-        client = Client(code=code, name_ar=f"عميل رقمي {code}", search_name=f"عميل رقمي {code}", credit_allowed=False)
+        client = Client(code=code, name_ar=f"عميل رقمي {code}", search_name=f"عميل رقمي {code}")
         db.add(client)
         partner = Partner(code=f"QA-P-{f.uid()[:6].upper()}", name_ar="شريك اختبار الواجهة", country="تركيا")
         db.add(partner)

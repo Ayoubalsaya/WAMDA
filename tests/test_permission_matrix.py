@@ -131,7 +131,8 @@ ROUTE_AUTH: dict[str, str] = {
     "POST /operations/{entry_id}/comments": POST_ENTRY,
     "GET /operations/{entry_id}/history": POST_ENTRY,
     # مدير فقط
-    "PATCH /clients/{client_id}/credit-allowed": ADMIN,
+    "PUT /clients/{client_id}/credit-mode": ADMIN,
+    "GET /reports/debtors": STAFF,
     "PUT /clients/{client_id}/credit-limits/{currency_code}": ADMIN,
     # §٧-٦ إدارة بوابة العميل (٢٠٢٦-١٠-٠٢) — تستبدل PUT /portal-credentials المحذوف
     "GET /clients/{client_id}/portal": ADMIN,

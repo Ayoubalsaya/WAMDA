@@ -4097,3 +4097,15 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 صار ينهي **كل جلسات المدير** (الكلمة القديمة قد تكون مسرَّبة)، ويُسجَّل `ADMIN_PASSWORD_RESET` في `audit_log` (`via: cli`، `sessions_revoked`، بلا الكلمة ولا هاشها)،
 ويطلب **كتابة اسم المستخدم للتأكيد** قبل أي تغيير؛ المنطق في `reset_password` (قابل للاختبار) ويرفض غير المدير والكلمة القصيرة. ٤ اختبارات
 (`test_cli_reset_admin_password.py`): الجلسة القديمة تُرفض · التدقيق بلا سرّ · تأكيد خاطئ = لا تغيير ولا تدقيق · تأكيد صحيح يُنفِّذ.
+
+## ائتمان بلا سقف ✅ (٢٠٢٦-١٠-٠٣، قرار مالك)
+
+- **التمثيل:** `client_credit_limits.mode` ∈ NONE/LIMIT/UNLIMITED لكل (عميل، عملة)؛ `limit_amount` فارغ إلا مع LIMIT (قيد في القاعدة)؛ غياب الصف = NONE
+  (عملة تُضاف لاحقاً لا تُفعَّل ⇒ «جزئي»). حُذف `clients.credit_allowed`؛ الحالة (OPEN/STOPPED/PARTIAL) **محسوبة** في `app/engine/credit.py`.
+  الحد لكل عملة (مجمَّع عبر مواقع العميل)، لا لكل عملة × موقع.
+- **المحرك:** UNLIMITED لا يرفض؛ NONE يرفض ما يزيد الدين فقط (تخفيض دين قائم مسموح)؛ LIMIT كما كان بمسار تجاوز المدير بسبب.
+- **API:** `PUT /clients/{id}/credit-mode` (ضغطة واحدة لكل العملات، تدقيق واحد `CLIENT_CREDIT_MODE_CHANGED` قبل←بعد لكل العملات) ·
+  `PUT /clients/{id}/credit-limits/{ccy}` بـ`mode` · `GET /reports/debtors` (+ `/documents/reports/debtors.xlsx`) · `kpis.client_debts` في اللوحة.
+- **الواجهة:** عدسة العميل (شارة + «السماح بائتمان»/«إيقاف الائتمان» + تأكيد يذكر الحد المخصص والدين القائم، لمن يملك `OVERRIDE_CREDIT_OR_BALANCE`)،
+  شاشة العميل (ثلاث حالات لكل عملة)، تقرير «العملاء المدينون»، بطاقة «ديون العملاء لنا». اختبارات: `test_credit_modes.py` + `test_ui_credit.py`.
+

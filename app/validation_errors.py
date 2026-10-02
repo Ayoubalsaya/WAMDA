@@ -33,7 +33,7 @@ FIELD_LABELS_AR: dict[str, str] = {
     "collection_account_code": "حساب تحصيل العمولة", "collection_location_code": "موقع التحصيل",
     "commission_currency": "عملة العمولة", "confidence": "درجة الثقة", "contact_phone": "هاتف التواصل",
     "cost_commission_amount": "تكلفة العمولة", "cost_correspondent_account_code": "حساب تكلفة العمولة (المراسل)",
-    "cost_rate": "سعر التكلفة", "country": "الدولة", "credit_allowed": "السماح بالائتمان",
+    "cost_rate": "سعر التكلفة", "country": "الدولة", "credit_status": "حالة الائتمان", "mode": "وضع الائتمان",
     "currency_code": "العملة", "current_password": "كلمة المرور الحالية", "decimals": "عدد المنازل العشرية",
     "description": "البيان", "destination_account_code": "الحساب الوجهة", "entry_date": "تاريخ العملية",
     "entry_id": "القيد", "execution_account_code": "الحساب المنفِّذ", "expense_account_code": "بند المصروف",

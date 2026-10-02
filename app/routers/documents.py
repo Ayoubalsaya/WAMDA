@@ -39,6 +39,7 @@ _REPORT_BUILDERS = {
     "liquidity-position": reports_doc.build_liquidity_position_context,
     "correspondent-balances": reports_doc.build_correspondent_balances_context,
     "boxes-balances": reports_doc.build_boxes_balances_context,
+    "debtors": reports_doc.build_debtors_context,
 }
 
 # §٨ — التقارير التي تنص الوثيقة على صيغة Excel لها (جدول §٨ حرفياً:
@@ -46,7 +47,7 @@ _REPORT_BUILDERS = {
 # · كشف أرصدة الصناديق "PDF·Excel").
 _EXCEL_REPORT_KEYS = frozenset({
     "trial-balance", "founding-reconciliation", "monthly-profit",
-    "lot-profitability", "liquidity-position", "boxes-balances",
+    "lot-profitability", "liquidity-position", "boxes-balances", "debtors",
 })
 
 

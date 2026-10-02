@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
@@ -20,6 +20,7 @@ from app.models import (
     AccountBalance,
     AuditLog,
     Client,
+    ClientCreditLimit,
     JournalEntry,
     JournalLine,
     OpeningBalance,
@@ -35,6 +36,7 @@ from app.routers.dashboard import (
     _is_client_facing_spread,
 )
 from app.schemas.reports import (
+    DebtorRow,
     ActivityRow,
     BalanceOverrideRow,
     ClientProfitabilityRow,
@@ -72,6 +74,39 @@ def debts_by_currency(db: OrmSession = Depends(get_db)) -> list[DebtsByCurrencyR
         DebtsByCurrencyRow(currency_code=ccy, total_owed=amount, client_count=len(clients_per_currency[ccy]))
         for ccy, amount in sorted(per_currency.items())
     ]
+
+
+@router.get("/debtors", response_model=list[DebtorRow])
+def debtors(db: OrmSession = Depends(get_db)) -> list[DebtorRow]:
+    """«العملاء المدينون» (٢٠٢٦-١٠-٠٣): كل عميل برصيد سالب، لكل عملة وموقع، الأكبر أولاً داخل كل عملة، مع تاريخ آخر حركة."""
+    from app.models import Currency, Location
+
+    balances = {row.account_id: row.balance for row in db.execute(select(AccountBalance)).scalars()}
+    leaves = [a for a in accounts_repo.leaf_accounts(db, include_client_accounts=True)
+              if a.type == AccountType.LIABILITY and a.client_id is not None and a.currency_code is not None]
+    negative = [(a, -balances[a.id]) for a in leaves if balances.get(a.id, Decimal("0")) < 0]
+    if not negative:
+        return []
+    client_ids = sorted({a.client_id for a, _ in negative})
+    clients = {c.id: c for c in db.execute(select(Client).where(Client.id.in_(client_ids))).scalars()}
+    locations = {loc.id: loc.code for loc in db.execute(select(Location)).scalars()}
+    last = dict(db.execute(
+        select(JournalEntry.client_id, func.max(JournalEntry.entry_date))
+        .where(JournalEntry.client_id.in_(client_ids), JournalEntry.status == EntryStatus.POSTED).group_by(JournalEntry.client_id)
+    ).all())
+    modes = {(r.client_id, r.currency_code): r.mode for r in db.execute(
+        select(ClientCreditLimit).where(ClientCreditLimit.client_id.in_(client_ids))).scalars()}
+    order = {c.code: i for i, c in enumerate(db.execute(select(Currency).order_by(Currency.sort_order, Currency.code)).scalars())}
+    rows = [
+        DebtorRow(
+            client_id=a.client_id, client_code=clients[a.client_id].code, client_name=clients[a.client_id].name_ar,
+            currency_code=a.currency_code, location_code=locations.get(a.location_id) if a.location_id else None,
+            debt=debt, credit_mode=modes.get((a.client_id, a.currency_code), "NONE"), last_activity=last.get(a.client_id),
+        )
+        for a, debt in negative
+    ]
+    rows.sort(key=lambda r: (order.get(r.currency_code, 999), -r.debt, r.client_code))
+    return rows
 
 
 @router.get("/profit-by-period", response_model=list[ProfitByPeriodRow])

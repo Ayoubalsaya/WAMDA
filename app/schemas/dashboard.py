@@ -32,6 +32,7 @@ class DashboardKpis(BaseModel):
 
     funds: list[CurrencyAmount]  # صناديق + مراسلون + بنوك (كل الأصول)، لكل عملة
     client_liabilities: list[CurrencyAmount]
+    client_debts: list[CurrencyAmount]  # إجمالي ما يدين به العملاء لنا (أرصدتهم السالبة) لكل عملة — رؤية بلا سقف (٢٠٢٦-١٠-٠٣)
 
 
 class ProfitBreakdown(BaseModel):

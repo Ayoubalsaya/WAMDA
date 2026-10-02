@@ -45,7 +45,7 @@ class ClientSearchResultOut(BaseModel):
     code: str
     name_ar: str
     phone: Optional[str] = None
-    credit_allowed: bool
+    credit_status: str  # OPEN · STOPPED · PARTIAL
 
 
 class SimilarClientOut(ClientSearchResultOut):

@@ -14,8 +14,10 @@ from pydantic import BaseModel, Field
 
 
 class CreditLimitOut(BaseModel):
+    """وضع ائتمان عملة: NONE · LIMIT (+ limit_amount) · UNLIMITED — يُرجَع لكل عملة فعّالة (غياب الصف = NONE)."""
     currency_code: str
-    limit_amount: Decimal
+    mode: str
+    limit_amount: Optional[Decimal] = None
 
 
 class ClientBalanceRow(BaseModel):
@@ -30,7 +32,7 @@ class ClientListRow(BaseModel):
     code: str
     name_ar: str
     phone: Optional[str] = None
-    credit_allowed: bool
+    credit_status: str  # OPEN · STOPPED · PARTIAL (محسوبة)
     is_active: bool
     balances: list[ClientBalanceRow]
     credit_limits: list[CreditLimitOut]
@@ -44,7 +46,7 @@ class ClientDetail(BaseModel):
     name_en: Optional[str] = None
     phone: Optional[str] = None
     id_number: Optional[str] = None
-    credit_allowed: bool
+    credit_status: str
     is_active: bool
     created_at: datetime
     balances: list[ClientBalanceRow]
@@ -66,12 +68,21 @@ class UpdateClientRequest(BaseModel):
     id_number: Optional[str] = None
 
 
-class SetCreditAllowedRequest(BaseModel):
-    credit_allowed: bool
+class SetCreditModeRequest(BaseModel):
+    """زر العدسة: ضغطة واحدة لكل العملات — UNLIMITED (السماح بائتمان بلا سقف) أو NONE (إيقاف الائتمان)."""
+    mode: str = Field(pattern="^(UNLIMITED|NONE)$")
+
+
+class CreditModeChangeOut(BaseModel):
+    credit_status: str
+    outstanding_debts: list[ClientBalanceRow] = []  # عند الإيقاف: ديون قائمة (تحذير لا رفض)
+    credit_limits: list[CreditLimitOut]
 
 
 class SetCreditLimitRequest(BaseModel):
-    limit_amount: Decimal = Field(ge=0)
+    """شاشة العميل: لكل عملة على حدة — بلا ائتمان · حد بمبلغ · بلا سقف."""
+    mode: str = Field(default="LIMIT", pattern="^(NONE|LIMIT|UNLIMITED)$")
+    limit_amount: Optional[Decimal] = Field(default=None, ge=0)
 
 
 class StatementRow(BaseModel):

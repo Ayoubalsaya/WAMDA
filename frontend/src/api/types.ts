@@ -56,7 +56,7 @@ export interface ClientSearchResult {
   code: string
   name_ar: string
   phone: string | null
-  credit_allowed: boolean
+  credit_status: CreditStatus
 }
 
 // عميل مشابه لاسم/هاتف قيد الإنشاء (منع التكرار): reason = «اسم مطابق» · «اسم مشابه» · «نفس الهاتف»
@@ -147,9 +147,31 @@ export interface ExchangeChainResponse {
   step2: EntryResponse
 }
 
+// ائتمان بلا سقف (٢٠٢٦-١٠-٠٣): وضع صريح لكل عملة، وحالة العميل محسوبة منها
+export type CreditMode = 'NONE' | 'LIMIT' | 'UNLIMITED'
+export type CreditStatus = 'OPEN' | 'STOPPED' | 'PARTIAL'
+
 export interface CreditLimitOut {
   currency_code: string
-  limit_amount: string
+  mode: CreditMode
+  limit_amount: string | null
+}
+
+export interface CreditModeChange {
+  credit_status: CreditStatus
+  outstanding_debts: ClientBalance[]
+  credit_limits: CreditLimitOut[]
+}
+
+export interface DebtorRow {
+  client_id: number
+  client_code: string
+  client_name: string
+  currency_code: string
+  location_code: string | null
+  debt: string
+  credit_mode: CreditMode
+  last_activity: string | null
 }
 
 export interface ClientListRow {
@@ -157,7 +179,7 @@ export interface ClientListRow {
   code: string
   name_ar: string
   phone: string | null
-  credit_allowed: boolean
+  credit_status: CreditStatus
   is_active: boolean
   balances: ClientBalance[]
   credit_limits: CreditLimitOut[]
@@ -171,7 +193,7 @@ export interface ClientDetail {
   name_en: string | null
   phone: string | null
   id_number: string | null
-  credit_allowed: boolean
+  credit_status: CreditStatus
   is_active: boolean
   created_at: string
   balances: ClientBalance[]
@@ -222,6 +244,7 @@ export interface CurrencyAmount {
 export interface DashboardKpis {
   funds: CurrencyAmount[]
   client_liabilities: CurrencyAmount[]
+  client_debts: CurrencyAmount[]
 }
 
 export interface ProfitBreakdown {

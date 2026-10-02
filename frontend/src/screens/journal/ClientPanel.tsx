@@ -5,6 +5,8 @@ import { Plus, Search, User, X } from 'lucide-react'
 import { api } from '../../api/client'
 import type { ClientBalance, ClientSearchResult } from '../../api/types'
 import { CurrencyBadge } from '../../components/CurrencyBadge'
+import { CreditControls, CreditStatusBadge } from '../../components/CreditControls'
+import type { CreditStatus } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { CreateClientModal } from '../clients/CreateClientModal'
 import './journal-design.css'
@@ -15,9 +17,11 @@ interface ClientPanelProps {
   refreshToken?: number
   // يظهر زر «+ إضافة … كعميل جديد» فقط لمن يملك CREATE_CLIENT (الخادم يفرضه أيضاً)
   canCreateClient?: boolean
+  // زر الائتمان لمن يملك OVERRIDE_CREDIT_OR_BALANCE فقط (الخادم يفرضه أيضاً)
+  canEditCredit?: boolean
 }
 
-export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient = false }: ClientPanelProps) {
+export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient = false, canEditCredit = false }: ClientPanelProps) {
   const { currencies } = useReferenceData()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClientSearchResult[]>([])
@@ -25,6 +29,9 @@ export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient 
   // آخر نص اكتمل بحثه (لا يظهر الزر قبل أن يُعرَف أن لا نتائج) + النافذة
   const [settledQuery, setSettledQuery] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  // حالة الائتمان بعد التغيير من العدسة — محلية كي لا يُستبدل كائن العميل المختار فيُمسّ نموذج العملية المفتوح
+  const [statusOverride, setStatusOverride] = useState<{ id: number; status: CreditStatus } | null>(null)
+  const creditStatus: CreditStatus | null = selected ? (statusOverride?.id === selected.id ? statusOverride.status : selected.credit_status) : null
 
   function formatBalance(b: ClientBalance): string {
     const decimals = currencies.find((c) => c.code === b.currency_code)?.decimals ?? 2
@@ -131,10 +138,13 @@ export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient 
             <div className="client-profile-copy">
               <strong>{selected.name_ar}</strong>
               <small className="num">{selected.code}</small>
-              {!selected.credit_allowed && (
+              {creditStatus && (
                 <div className="client-tags">
-                  <span className="badge badge-status-reversed">بلا ائتمان مسموح</span>
+                  <CreditStatusBadge status={creditStatus} />
                 </div>
+              )}
+              {canEditCredit && creditStatus && (
+                <CreditControls clientId={selected.id} status={creditStatus} onChanged={(s) => setStatusOverride({ id: selected.id, status: s })} />
               )}
             </div>
           </div>
@@ -171,7 +181,7 @@ export function ClientPanel({ selected, onSelect, refreshToken, canCreateClient 
           onClose={() => setCreateOpen(false)}
           onCreated={(c) => {
             // العميل الجديد يُختار تلقائياً؛ حالة نموذج العملية (المبلغ، العملة، الملاحظة…) في OperationForm لا تُمسّ
-            onSelect({ id: c.id, code: c.code, name_ar: c.name_ar, phone: c.phone, credit_allowed: c.credit_allowed })
+            onSelect({ id: c.id, code: c.code, name_ar: c.name_ar, phone: c.phone, credit_status: c.credit_status })
             setCreateOpen(false)
             setQuery('')
           }}

@@ -20,7 +20,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
-from app.engine import account_filters
+from app.engine import account_filters, credit
 from app.engine.clock import system_clock, local_entry_date
 from app.config import settings
 from app.models import (
@@ -129,8 +129,9 @@ def search_clients(
         .order_by(Client.name_ar)
         .limit(limit)
     ).scalars().all()
+    statuses = credit.statuses_for(db, [c.id for c in rows])
     return [
-        ClientSearchResultOut(id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed)
+        ClientSearchResultOut(id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_status=statuses[c.id])
         for c in rows
     ]
 
@@ -162,6 +163,7 @@ def similar_clients(
         return []
     candidates = db.execute(select(Client).where(Client.is_active.is_(True), or_(*conds)).limit(500)).scalars().all()
 
+    statuses = credit.statuses_for(db, [c.id for c in candidates])
     found: list[tuple[int, float, SimilarClientOut]] = []
     for c in candidates:
         cand = c.search_name
@@ -176,7 +178,7 @@ def similar_clients(
                 reason, rank = "اسم مشابه", 2
         if reason is not None:
             found.append((rank, -score, SimilarClientOut(
-                id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_allowed=c.credit_allowed, reason=reason)))
+                id=c.id, code=c.code, name_ar=c.name_ar, phone=c.phone, credit_status=statuses[c.id], reason=reason)))
     return [row for _, _, row in sorted(found, key=lambda t: (t[0], t[1]))[:5]]
 
 

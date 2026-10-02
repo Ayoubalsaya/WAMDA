@@ -59,6 +59,13 @@ export function DashboardScreen() {
             <div style={{ marginTop: 4 }}><CurrencyBadge code={f.currency_code} /></div>
           </div>
         ))}
+        {data.kpis.client_debts.map((d) => (
+          <div className="card kpi-card" key={`debt-${d.currency_code}`} data-testid="kpi-client-debts">
+            <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>ديون العملاء لنا</div>
+            <div className="num kpi-value money-negative">{formatAmount(d.amount, d.currency_code, currencies)}</div>
+            <div style={{ marginTop: 4 }}><CurrencyBadge code={d.currency_code} /></div>
+          </div>
+        ))}
         {data.kpis.client_liabilities.map((l) => (
           <div className="card kpi-card" key={`liab-${l.currency_code}`}>
             <div className="text-muted" style={{ fontSize: 'var(--fs-xs)' }}>التزامات العملاء</div>

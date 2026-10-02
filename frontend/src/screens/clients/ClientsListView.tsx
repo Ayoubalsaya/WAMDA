@@ -83,10 +83,13 @@ export function ClientsListView({ onSelect, onCreate }: ClientsListViewProps) {
                           <div className={`num ${new Decimal(balance.balance).lt(0) ? 'money-negative' : ''}`}>
                             {formatAmount(balance.balance, currencyByCode(c.code))}
                           </div>
-                          {limit && (
+                          {limit && limit.mode === 'LIMIT' && limit.limit_amount !== null && (
                             <div className="num text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>
                               حد {formatAmount(limit.limit_amount, currencyByCode(c.code))}
                             </div>
+                          )}
+                          {limit && limit.mode === 'UNLIMITED' && (
+                            <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>بلا سقف</div>
                           )}
                         </>
                       ) : <span className="text-muted">—</span>}
