@@ -304,7 +304,9 @@ def _run_reversal(fn: Callable[[], object]):
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except SwiftOutAlreadyProgressedError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    except CreditLimitExceededError as exc:
+    except (CreditLimitExceededError, InsufficientBalanceError) as exc:
+        # ٢٠٢٦-١٠-٠٢: وكذلك رصيد حساب الشركة (صندوق/بنك) السالب — على قاعدة نظيفة يكون الصندوق
+        # صفراً فيصير عكس قبض مُنفَق سالباً (كان 500 خاماً لأن قاعدة التطوير القديمة تخفي ذلك).
         # ٢٠٢٦-٠٩-٢٥ (اكتُشف أثناء تحقق حي لصرافة الخزينة): عكس قيد بترتيب
         # غير LIFO قد يدفع رصيداً سالباً فيفشل بهذا الخطأ تماماً كأي قيد
         # جديد — كان يُترك بلا معالجة هنا فيصل 500 خاماً بدل 409 واضح.

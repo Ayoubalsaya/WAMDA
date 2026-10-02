@@ -28,10 +28,40 @@ if hasattr(sys.stdout, "reconfigure"):
     # طرفية ويندوز الافتراضية cp1252 لا تعرض العربية — الإخراج UTF-8 دائماً
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
-from sqlalchemy import create_engine, event, select
-from sqlalchemy.orm import sessionmaker
+import os
+import re
+from pathlib import Path
 
-from app.config import settings
+from dotenv import dotenv_values
+
+
+def _use_isolated_test_database() -> str:
+    """قاعدة اختبار **مستقلة** (`wamda_test`) لا قاعدة التطوير المشتركة (٢٠٢٦-١٠-٠٢).
+
+    اختبارات التزامن تلتزم بيانات حقيقية، واختبارات الواجهة تعمل على قاعدة
+    حقيقية، وأي بيانات يدوية للمالك (دفعة رمبي من سويفت فتحها يدوياً مثلاً)
+    كانت تتسرّب إلى اختبارات تفترض قاعدة فارغة: `LOT-2026-0108` فُتحت يدوياً
+    فاستهلك منها اختبار التزامن مرتين (٢×٦٨) ثم حذف تنظيفُه صفوف الاستهلاك
+    دون إعادة الكمية. يجب أن يجري هذا **قبل** أي استيراد لـ`app.config`.
+
+    `TEST_DATABASE_URL` يتجاوز الافتراضي (اسم قاعدة `.env` مع لاحقة `_test`)."""
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        base = os.environ.get("DATABASE_URL") or dotenv_values(Path(__file__).resolve().parent.parent / ".env").get("DATABASE_URL")
+        assert base, "DATABASE_URL غير مُعرَّف — لا يمكن اشتقاق قاعدة الاختبار"
+        url = re.sub(r"/([^/?]+)(\?.*)?$", lambda m: f"/{re.sub(r'(_db|_test)$', '', m.group(1))}_test{m.group(2) or ''}", base)
+    dbname = re.search(r"/([^/?]+)(\?.*)?$", url).group(1)
+    assert dbname.endswith("_test"), f"رفض: اختبارات pytest لا تعمل إلا على قاعدة تنتهي بـ_test (وجدت {dbname})"
+    os.environ["DATABASE_URL"] = url
+    return url
+
+
+TEST_DATABASE_URL = _use_isolated_test_database()
+
+from sqlalchemy import create_engine, event, select  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+
+from app.config import settings  # noqa: E402
 
 WORK_TZ = settings.work_timezone
 
@@ -47,7 +77,28 @@ def engine():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _ensure_seeded(engine):
+def _ensure_schema(engine):
+    """يبني/يرقّي مخطط قاعدة الاختبار إلى آخر ترحيل (idempotent) — لا يدوياً أبداً."""
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import text
+
+    # أنشئ القاعدة إن غابت (الدور مُنح CREATEDB) — اتصال AUTOCOMMIT بقاعدة الصيانة postgres
+    dbname = settings.database_url.rsplit("/", 1)[1].split("?")[0]
+    admin = create_engine(re.sub(r"/[^/?]+(\?.*)?$", "/postgres", settings.database_url), isolation_level="AUTOCOMMIT")
+    with admin.connect() as conn:
+        if not conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :n"), {"n": dbname}).first():
+            conn.execute(text(f'CREATE DATABASE "{dbname}"'))
+    admin.dispose()
+
+    root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "alembic"))
+    command.upgrade(cfg, "head")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_seeded(engine, _ensure_schema):
     """يتأكد أن بيانات التهيئة (§٣-١/٣-٢) موجودة قبل أي اختبار — بمعاملة
     فعلية منفصلة مُلتزَمة (commit)، مرة واحدة لكامل جلسة الاختبارات. لا
     يُعيد بناء المخطط ولا يمسّ بيانات موجودة — يزرع فقط إن كان فارغاً.

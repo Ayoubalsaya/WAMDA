@@ -80,15 +80,19 @@ def test_resolving_suspense_difference_moves_out_of_3900(db, now):
     # فرق ناتج عن أفعال هذا الاختبار تحديداً، لا قيمة مطلقة.
     suspense = accounts_repo.get_currency_subaccount(db, "3900", "LYD")
     capital = accounts_repo.get_currency_subaccount(db, "3100", "LYD")
-    suspense_balance_start = db.get(AccountBalance, suspense.id).balance
-    capital_balance_start = db.get(AccountBalance, capital.id).balance
+    def _bal(acct):  # قاعدة نظيفة: لا صف AccountBalance قبل أول حركة
+        row = db.get(AccountBalance, acct.id)
+        return row.balance if row else Decimal("0")
+
+    suspense_balance_start = _bal(suspense)
+    capital_balance_start = _bal(capital)
 
     opening_balance.execute(
         db, account_code=client_account.code, currency_code="LYD", amount=Decimal("1000.000"), is_debit=True,
         as_of_date=date(2026, 1, 1), source_type=OpeningSourceType.RECONSTRUCTED, confidence=ConfidenceLevel.LOW,
         approved_by=admin.id, created_by=admin.id, now=now, idempotency_key=f.uid(),
     )
-    suspense_balance_before = db.get(AccountBalance, suspense.id).balance
+    suspense_balance_before = _bal(suspense)
     assert suspense_balance_before == suspense_balance_start + Decimal("1000.000")
 
     # قيد تسوية: يُحدَّد مصدر الفرق فعلياً برأس المال — من 3900 إلى 3100.
@@ -104,8 +108,8 @@ def test_resolving_suspense_difference_moves_out_of_3900(db, now):
     draft.add(account_id=capital.id, currency_code="LYD", credit=Decimal("1000.000"))
     posting.post_entry(db, draft, posted_by=admin.id, now=now)
 
-    assert db.get(AccountBalance, suspense.id).balance == suspense_balance_start
-    assert db.get(AccountBalance, capital.id).balance == capital_balance_start + Decimal("1000.000")
+    assert _bal(suspense) == suspense_balance_start
+    assert _bal(capital) == capital_balance_start + Decimal("1000.000")
 
 
 @pytest.mark.acceptance(37)
