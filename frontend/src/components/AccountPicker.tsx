@@ -173,7 +173,7 @@ export function AccountPicker({ value, onChange, label, spec, emptyMessage, type
         </div>
       )}
 
-      {disabled && emptyMessage && <span className="rate-hint">{emptyMessage}</span>}
+      {/* رسالة الفراغ تظهر مرة واحدة فقط — داخل الحقل نفسه (placeholder الزر أعلاه)؛ كانت تتكرر هنا تحته أيضاً */}
     </div>
   )
 }
