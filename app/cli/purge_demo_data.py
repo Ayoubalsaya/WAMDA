@@ -154,6 +154,8 @@ _USER_REFERENCE_CHECKS: list[tuple[str, str, str]] = [
     ("outage_windows", "closed_by", "id"),
     ("edit_requests", "requested_by", "id"),
     ("edit_requests", "decided_by", "id"),
+    ("entry_comments", "created_by", "id"),            # أُضيف ٢٠٢٦-١٠-٠٢ (جدول ١٤ب لم يُراجَع هنا)
+    ("client_portal_invites", "created_by", "id"),     # أُضيف ٢٠٢٦-١٠-٠٢ (جدول دعوات البوابة)
 ]
 
 
@@ -182,6 +184,37 @@ def _purge_or_deactivate_demo_users(db: Session) -> dict[str, list[str]]:
     return blocked
 
 
+# كل جدول يحمل مفتاحاً أجنبياً إلى أحد هذه الجداول يجب أن يُعالَج صراحةً في `_purge` (حذف/تفريغ)
+# أو في `_USER_REFERENCE_CHECKS` (مستخدمون)، وإلا فشل الحذف بقيد FK متأخراً — حادثة حقيقية:
+# `client_portal_invites` أُضيف ٢٠٢٦-١٠-٠٢ ولم تُحدَّث الأداة. `tests/test_cli_purge_demo_data.py`
+# يقارن هذه القائمة بمخطط القاعدة الفعلي ويفشل إن أُضيف جدول جديد بلا مراجعة هنا.
+PURGE_COVERED_FOREIGN_KEYS: set[tuple[str, str]] = {
+    # → accounts
+    ("account_balances", "account_id"), ("account_number_assignments", "parent_id"), ("account_number_counters", "parent_id"),
+    ("accounts", "parent_id"), ("currency_lots", "account_id"), ("journal_lines", "account_id"),
+    ("opening_balances", "contra_account_id"), ("opening_balances", "account_id"), ("opening_reconciliation", "account_id"),
+    # → clients
+    ("accounts", "client_id"), ("client_credit_limits", "client_id"), ("client_portal_invites", "client_id"),
+    ("journal_entries", "client_id"),
+    # → journal_entries / currency_lots
+    ("lot_consumptions", "lot_id"), ("currency_lots", "source_entry_id"), ("edit_requests", "entry_id"),
+    ("entry_comments", "entry_id"), ("idempotency_keys", "entry_id"), ("journal_entries", "reversed_by_entry_id"),
+    ("journal_entries", "reverses_entry_id"), ("journal_entries", "replaces_entry_id"), ("journal_lines", "entry_id"),
+    ("lot_consumptions", "entry_id"), ("opening_reconciliation", "resolving_entry_id"),
+    ("partner_statement_lines", "matched_entry_id"), ("swift_movements", "return_entry_id"),
+    ("swift_movements", "in_entry_id"), ("swift_movements", "out_entry_id"),
+    # → partners
+    ("accounts", "partner_id"), ("journal_entries", "partner_id"), ("partner_statements", "partner_id"),
+    # → users (تُعالَج عبر _USER_REFERENCE_CHECKS: حذف المستخدم أو تعطيله)
+    ("client_portal_invites", "created_by"), ("clients", "created_by"), ("edit_requests", "decided_by"),
+    ("edit_requests", "requested_by"), ("entry_comments", "created_by"), ("founding_period", "closed_by"),
+    ("journal_entries", "posted_by"), ("journal_entries", "created_by"), ("opening_balances", "approved_by"),
+    ("opening_reconciliation", "approved_by"), ("outage_windows", "opened_by"), ("outage_windows", "closed_by"),
+    ("periods", "closed_by"),
+}
+PURGE_FK_TARGET_TABLES = ("accounts", "clients", "journal_entries", "currency_lots", "partners", "swift_movements", "users")
+
+
 def _purge(db: Session) -> dict[str, list[str]]:
     entries = _demo_entry_ids_cte()
     accounts = _demo_account_ids_cte()
@@ -195,12 +228,26 @@ def _purge(db: Session) -> dict[str, list[str]]:
 
     # ٢) الجداول التابعة للقيود
     db.execute(text(f"DELETE FROM entry_comments WHERE entry_id IN {entries}"))
+    db.execute(text(f"DELETE FROM edit_requests WHERE entry_id IN {entries}"))
+    db.execute(text(f"UPDATE partner_statement_lines SET matched_entry_id = NULL WHERE matched_entry_id IN {entries}"))
+    # **إعادة كمية الدفعة قبل حذف استهلاكها** (٢٠٢٦-١٠-٠٢): بيع تجريبي (عميل `QA-`/`T-`…) قد يكون
+    # استهلك من دفعة رمبي «حقيقية» لا تُحذَف (مصدرها سويفت وصول حقيقي). حذف صفوف الاستهلاك بلا
+    # إعادة `remaining_qty` كان يُخرج الكمية من المخزون للأبد: `LOT-2026-0108` نقصت ١٣٦ بلا أي
+    # سجل استهلاك يفسّر ذلك، وفشل `recompute.verify` بعدها. الدفعات التي ستُحذف نفسها لا تحتاج إعادة.
+    db.execute(text(f"""
+        UPDATE currency_lots l SET remaining_qty = l.remaining_qty + c.qty
+        FROM (SELECT lot_id, SUM(qty) AS qty FROM lot_consumptions WHERE entry_id IN {entries} GROUP BY lot_id) c
+        WHERE l.id = c.lot_id AND l.source_entry_id NOT IN {entries}
+    """))
+    db.execute(text("UPDATE currency_lots SET status = 'OPEN', closed_at = NULL WHERE status = 'CLOSED' AND remaining_qty > 0"))
     db.execute(text(f"DELETE FROM lot_consumptions WHERE entry_id IN {entries}"))
     db.execute(text(f"DELETE FROM idempotency_keys WHERE entry_id IN {entries}"))
     db.execute(text(f"""
         DELETE FROM lot_consumptions WHERE lot_id IN (SELECT id FROM currency_lots WHERE source_entry_id IN {entries})
     """))
     db.execute(text(f"DELETE FROM currency_lots WHERE source_entry_id IN {entries}"))
+    db.execute(text(f"DELETE FROM lot_consumptions WHERE lot_id IN (SELECT id FROM currency_lots WHERE account_id IN {accounts})"))
+    db.execute(text(f"DELETE FROM currency_lots WHERE account_id IN {accounts}"))
     db.execute(text(f"""
         DELETE FROM swift_movements
         WHERE out_entry_id IN {entries} OR in_entry_id IN {entries} OR return_entry_id IN {entries}
@@ -209,6 +256,7 @@ def _purge(db: Session) -> dict[str, list[str]]:
         UPDATE opening_reconciliation SET resolving_entry_id = NULL WHERE resolving_entry_id IN {entries}
     """))
     db.execute(text(f"DELETE FROM opening_balances WHERE account_id IN {accounts} OR contra_account_id IN {accounts}"))
+    db.execute(text(f"DELETE FROM opening_reconciliation WHERE account_id IN {accounts}"))
 
     # ٣) أسطر القيد — تعطيل مؤقت لمشغّل عدم التعديل بعد الترحيل، نطاق هذه
     # المعاملة فقط، لبيانات العرض/الاختبار حصراً (انظر docstring أعلى الملف)
@@ -222,10 +270,22 @@ def _purge(db: Session) -> dict[str, list[str]]:
     # ٤) أرصدة/بيانات الحسابات التجريبية، ثم الحسابات نفسها
     db.execute(text(f"DELETE FROM account_balances WHERE account_id IN {accounts}"))
     db.execute(text(f"DELETE FROM client_credit_limits WHERE client_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})"))
+    # دعوات بوابة العميل (جدول أُضيف ٢٠٢٦-١٠-٠٢) — بلا هذا يفشل حذف أي عميل `QA-`/`T-` بقيد FK
+    db.execute(text(f"DELETE FROM client_portal_invites WHERE client_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})"))
+    # جلسات بوابة العميل (sessions.subject_id بلا FK صلب — تعدد أشكال، كجلسات المستخدمين)
+    db.execute(text(f"""
+        DELETE FROM sessions WHERE subject_type = 'CLIENT' AND subject_id IN (SELECT id FROM clients WHERE {_DEMO_CLIENT_CODES})
+    """))
     db.execute(text(f"DELETE FROM accounts WHERE id IN {accounts}"))
 
     # ٥) العملاء والشركاء أنفسهم
     db.execute(text(f"DELETE FROM clients WHERE {_DEMO_CLIENT_CODES}"))
+    # كشوف مراسلين لشريك تجريبي (جدولا المطابقة، المرحلة ١٣) قبل حذف الشريك
+    db.execute(text(f"""
+        DELETE FROM partner_statement_lines WHERE statement_id IN
+            (SELECT id FROM partner_statements WHERE partner_id IN (SELECT id FROM partners WHERE {_DEMO_PARTNER_CODES}))
+    """))
+    db.execute(text(f"DELETE FROM partner_statements WHERE partner_id IN (SELECT id FROM partners WHERE {_DEMO_PARTNER_CODES})"))
     db.execute(text(f"DELETE FROM partners WHERE {_DEMO_PARTNER_CODES}"))
 
     # ٦) جلسات ثم المستخدمون التجريبيون (sessions.subject_id بلا FK صلب — تعدد أشكال)
