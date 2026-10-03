@@ -249,6 +249,7 @@ def build_debtors_context(db: OrmSession, *, doc_size: str, now: datetime, work_
     from app.routers.reports import debtors
 
     modes = {"NONE": "بلا ائتمان", "LIMIT": "حد بمبلغ", "UNLIMITED": "بلا سقف"}
+    dec = currency_decimals_map(db)
     rows = debtors(db)
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
@@ -256,7 +257,7 @@ def build_debtors_context(db: OrmSession, *, doc_size: str, now: datetime, work_
         "qr_data_uri": None,
         "columns": ["العميل", "الكود", "العملة", "الموقع", "الدين", "الائتمان", "آخر حركة"],
         "rows": [
-            [r.client_name, r.client_code, r.currency_code, r.location_code or "—", str(r.debt), modes.get(r.credit_mode, r.credit_mode),
+            [r.client_name, r.client_code, r.currency_code, r.location_code or "—", format_amount(r.debt, r.currency_code, dec), modes.get(r.credit_mode, r.credit_mode),
              r.last_activity.isoformat() if r.last_activity else "—"]
             for r in rows
         ],

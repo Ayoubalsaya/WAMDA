@@ -1,8 +1,11 @@
 import { Fragment, useState } from 'react'
 import { api } from '../../api/client'
 import type { AuditLogRow } from '../../api/types'
+import { useReferenceData } from '../../hooks/useReferenceData'
+import { displayAudit } from '../../lib/auditDisplay'
 
 export function AuditLogTab() {
+  const { currencies } = useReferenceData()
   const [rows, setRows] = useState<AuditLogRow[] | null>(null)
   const [entity, setEntity] = useState('')
   const [action, setAction] = useState('')
@@ -54,13 +57,13 @@ export function AuditLogTab() {
                       {r.before_json && (
                         <div style={{ marginBottom: 6 }}>
                           <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>قبل</div>
-                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.before_json, null, 2)}</pre>
+                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(displayAudit(r.before_json, currencies), null, 2)}</pre>
                         </div>
                       )}
                       {r.after_json && (
                         <div>
                           <div className="text-muted" style={{ fontSize: 'var(--fs-2xs)' }}>بعد</div>
-                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(r.after_json, null, 2)}</pre>
+                          <pre className="num" style={{ fontSize: 'var(--fs-2xs)', whiteSpace: 'pre-wrap' }}>{JSON.stringify(displayAudit(r.after_json, currencies), null, 2)}</pre>
                         </div>
                       )}
                     </td>

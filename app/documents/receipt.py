@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.documents.common import base_context
-from app.documents.formatting import format_rate
+from app.documents.formatting import currency_decimals_map, format_amount, format_rate
 from app.models import Account, Client, JournalEntry, JournalLine, Location
 from app.models.enums import EntryStatus
 
@@ -69,6 +69,7 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
         ))
     ).scalars().all()
 
+    dec = currency_decimals_map(db)
     balances = []
     for line in client_lines:
         account = db.get(Account, line.account_id)
@@ -77,10 +78,10 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
         balances.append({
             "currency_code": account.currency_code,
             "location_name": location.name_ar if location else "",
-            "before": before,
-            "after": after,
-            "debit": line.debit,
-            "credit": line.credit,
+            "before": format_amount(before, account.currency_code, dec),
+            "after": format_amount(after, account.currency_code, dec),
+            "debit": format_amount(line.debit, account.currency_code, dec) if line.debit else "—",
+            "credit": format_amount(line.credit, account.currency_code, dec) if line.credit else "—",
         })
 
     ctx = base_context(db, now=now, work_timezone=work_timezone)

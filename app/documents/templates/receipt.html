@@ -29,8 +29,8 @@
     <tr>
       <td>{{ b.currency_code }}</td>
       <td>{{ b.location_name }}</td>
-      <td class="num">{{ "%.3f"|format(b.debit) if b.debit else "—" }}</td>
-      <td class="num">{{ "%.3f"|format(b.credit) if b.credit else "—" }}</td>
+      <td class="num">{{ b.debit }}</td>
+      <td class="num">{{ b.credit }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -40,8 +40,8 @@
   {% for b in balances %}
   <div class="balances-box">
     <div class="lbl">رصيد {{ b.currency_code }} · {{ b.location_name }}</div>
-    <div class="row"><span>قبل العملية</span><span class="num">{{ "%.3f"|format(b.before) }}</span></div>
-    <div class="row"><span>بعد العملية</span><span class="num">{{ "%.3f"|format(b.after) }}</span></div>
+    <div class="row"><span>قبل العملية</span><span class="num">{{ b.before }}</span></div>
+    <div class="row"><span>بعد العملية</span><span class="num">{{ b.after }}</span></div>
   </div>
   {% endfor %}
 </div>

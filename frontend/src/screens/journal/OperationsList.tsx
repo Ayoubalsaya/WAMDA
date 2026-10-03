@@ -7,6 +7,9 @@ import { api } from '../../api/client'
 import type { JournalEntryOut } from '../../api/types'
 import { CommentsPanel, EditedBadge, EntryActionsBar } from '../../components/EntryActions'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
+import { useReferenceData } from '../../hooks/useReferenceData'
+import { formatAmount } from '../../lib/formatAmount'
+import { lineAmount } from '../../lib/lineAmount'
 import './journal-design.css'
 
 const OP_LABELS: Record<string, string> = {
@@ -48,6 +51,7 @@ interface OperationsListProps {
 }
 
 export function OperationsList({ currentUserRole, refreshToken }: OperationsListProps) {
+  const { currencies } = useReferenceData()
   const [mode, setMode] = useState<ViewMode>('day')
   const [selectedDate, setSelectedDate] = useState(() => todayInTripoli())
   const [rangeFrom, setRangeFrom] = useState(() => addDays(todayInTripoli(), -6))
@@ -131,7 +135,7 @@ export function OperationsList({ currentUserRole, refreshToken }: OperationsList
               <span className="num profits">
                 {profitTotals.map(([ccy, total]) => (
                   <span key={ccy} className={total.isNegative() ? 'money-negative' : 'money-positive'}>
-                    {total.toFixed(3)} {ccy}
+                    {formatAmount(total.toString(), ccy, currencies)} {ccy}
                   </span>
                 ))}
               </span>
@@ -176,19 +180,24 @@ export function OperationsList({ currentUserRole, refreshToken }: OperationsList
                         <span>{entry.note}</span>
                       </div>
                     )}
-                    {entry.lines.map((line, i) => (
-                      <div key={i} className="detail-line">
-                        <span>{line.account_name_ar}</span>
-                        <span className={`num ${line.debit !== '0' && line.debit !== '0.00' && line.debit !== '0.000' ? 'money-negative' : 'money-positive'}`}>
-                          {line.debit !== '0' && line.debit !== '0.00' && line.debit !== '0.000' ? line.debit : line.credit}
-                        </span>
-                      </div>
-                    ))}
+                    {entry.lines.map((line, i) => {
+                      const a = lineAmount(line, currencies)
+                      return (
+                        <div key={i} className="detail-line" data-testid="entry-line" data-side={a.side}>
+                          <span>{line.account_name_ar}</span>
+                          <span className="line-amount">
+                            <span className={`line-dir is-${a.side}`}>{a.label}</span>
+                            <span className="num" data-testid="line-amount" dir="ltr">{a.text}</span>
+                            <span className="text-muted num">{line.currency_code}</span>
+                          </span>
+                        </div>
+                      )
+                    })}
                     {entry.profit_amount && (
                       <div className="detail-line">
                         <span>ربح العملية</span>
                         <span className={`num ${Number(entry.profit_amount) >= 0 ? 'money-positive' : 'money-negative'}`}>
-                          {entry.profit_amount} {entry.profit_currency}
+                          {formatAmount(entry.profit_amount, entry.profit_currency ?? '', currencies)} {entry.profit_currency}
                         </span>
                       </div>
                     )}

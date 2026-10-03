@@ -106,8 +106,8 @@ def test_receipt_shows_balance_before_and_after(db, client, now):
 
     ctx = build_receipt_context(db, entry_id=entry2.id, doc_size="a4", now=now, work_timezone=WORK_TZ)
     balance = next(b for b in ctx["balances"] if b["currency_code"] == "LYD")
-    assert balance["before"] == Decimal("1000.000")
-    assert balance["after"] == Decimal("1500.000")
+    assert Decimal(balance["before"]) == Decimal("1000.000") and balance["before"] == "1000.000"
+    assert Decimal(balance["after"]) == Decimal("1500.000") and balance["after"] == "1500.000"
 
 
 def test_receipt_never_contains_cost_rate(db, client, now):
@@ -208,3 +208,20 @@ def test_receipt_422_for_entry_without_client(db, client, now):
     )
     resp = client.get(f"/documents/receipt/{entry.id}.pdf")
     assert resp.status_code == 422
+
+
+def test_receipt_amounts_follow_each_currency_decimals_not_a_fixed_three(db, client, now):
+    """بلاغ ٢٠٢٦-١٠-٠٤: القالب كان يطبع %.3f لكل العملات؛ الدولار خانتان والدينار ثلاث."""
+    from app.documents.receipt import build_receipt_context
+
+    user = _login(db, client)
+    for ccy, box, decimals in (("USD", "1104", 2), ("LYD", "1101", 3)):
+        c = f.make_client(db, name=f"عميل خانات {ccy} {f.uid()}")
+        entry = f.fund_client(
+            db, client=c, currency_code=ccy, location_code="TRIPOLI", amount=Decimal("15000"),
+            receiving_account_code=box, user=user, now=now,
+        )
+        ctx = build_receipt_context(db, entry_id=entry.id, doc_size="a4", now=now, work_timezone=WORK_TZ)
+        b = ctx["balances"][0]
+        expected = f"{Decimal('15000'):.{decimals}f}"
+        assert (b["credit"], b["after"], b["debit"]) == (expected, expected, "—"), (ccy, b)
