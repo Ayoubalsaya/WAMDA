@@ -220,15 +220,12 @@ class LocalMoveRequest(BackdateFields):
 
 class RemitOutRequest(BackdateFields):
     client_id: int
-    from_location_code: str
-    partner_account_code: str
-    currency_code: str  # عملة المبلغ المُرسَل للمستفيد — لا سجل مستفيدين بعد الآن
+    from_location_code: str  # موقع حساب العميل المخصوم منه
+    sending_account_code: str  # حساب الشركة المُرسِل: بنك/مراسل/صندوق **بالعملة نفسها** (٢٠٢٦-١٠-٠٤: لا سعر ولا دولار وسيط)
+    currency_code: str
     amount: Decimal = Field(gt=0)
-    cost_rate: Decimal = Field(gt=0)
-    client_rate: Decimal = Field(gt=0)
     description: Optional[str] = None
-    note: Optional[str] = None
-    negative_margin_reason: Optional[str] = None
+    note: Optional[str] = None  # اسم التاجر ورقم حسابه (لا سجل مستفيدين)
     allow_negative: bool = False
     override_reason: Optional[str] = None
 

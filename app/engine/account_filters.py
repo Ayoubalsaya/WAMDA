@@ -135,10 +135,12 @@ _SPECS: dict[tuple[str, str], _FieldSpec] = {
         location_mode="fixed",
         fixed_location="CHINA",  # بنوك الصين فقط — العملة (USD بلا سعر تحويل، أو CNY بسعر) تُحدَّد بالباراميتر
     ),
-    ("REMIT_OUT", "partner"): _FieldSpec(
+    # الإرسال الخارجي (٢٠٢٦-١٠-٠٤): حساب الشركة المُرسِل = بنك أو مراسل أو صندوق **بعملة العملية نفسها** (يوان ← حسابات اليوان فقط)،
+    # أي موقع — الموقع الوحيد المهم هو موقع حساب العميل المخصوم منه، وهو حقل منفصل.
+    ("REMIT_OUT", "sending"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
-        forms=frozenset({AccountForm.CORRESPONDENT}),
-        location_mode="param",  # موقع المراسل = from_location_code المختار (نفس موقع خصم العميل)
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
+        location_mode="none",
     ),
 }
 

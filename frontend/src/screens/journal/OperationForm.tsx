@@ -7,7 +7,7 @@ import type {
   ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
-import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundCollectedFromClient, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
+import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
@@ -312,8 +312,10 @@ export function OperationForm({
   const swiftInReceivingSpec: AccountPickerSpec | null =
     tab === 'SWIFT_IN' ? { mode: 'operation', operationType: 'SWIFT_IN', field: 'receiving', currencyCode: swiftInCurrency } : null
 
-  const remitOutPartnerSpec: AccountPickerSpec | null =
-    tab === 'REMIT_OUT' ? { mode: 'operation', operationType: 'REMIT_OUT', field: 'partner', currencyCode: PIVOT_CODE, locationCode: fields.from_location_code || undefined } : null
+  // الإرسال الخارجي (٢٠٢٦-١٠-٠٤): حساب الشركة المُرسِل بعملة العملية نفسها (بنك/مراسل/صندوق) — يوان ← حسابات اليوان فقط، بلا دولار وسيط
+  const remitOutSendingSpec: AccountPickerSpec | null =
+    tab === 'REMIT_OUT' ? { mode: 'operation', operationType: 'REMIT_OUT', field: 'sending', currencyCode: fields.currency_code ?? '' } : null
+  const remitClientLocations = useMemo(() => locationsForCurrency(fields.currency_code ?? ''), [fields.currency_code, locationsForCurrency])
 
   const expensePayingSpec: AccountPickerSpec | null =
     tab === 'EXPENSE' ? { mode: 'operation', operationType: 'EXPENSE', field: 'paying', currencyCode: fields.currency_code ?? '' } : null
@@ -346,19 +348,6 @@ export function OperationForm({
     if (!toCcy) return null
     return { toAmount: roundGivenToClient(convertPreview(amount, clientRate, currencyCode), toCcy.decimals) }
   }, [tab, exchangeScope, currencyCode, toCurrency, amount, clientRate, currencies])
-
-  // §٤ رقم ٩: موجب = ربح (العميل دفع أكثر من التكلفة) — عكس إشارة الصرافة تماماً
-  const remitPreview = useMemo(() => {
-    if (tab !== 'REMIT_OUT' || !fields.currency_code || !fields.amount) return null
-    const usd = currencies.find((c) => c.code === PIVOT_CODE)
-    if (!usd) return null
-    const clientRaw = convertPreview(fields.amount, fields.client_rate ?? '', fields.currency_code)
-    const costRaw = convertPreview(fields.amount, fields.cost_rate ?? '', fields.currency_code)
-    const clientAmt = roundCollectedFromClient(clientRaw, usd.decimals)
-    const costAmt = roundInternal(costRaw, usd.decimals)
-    return { clientAmt, costAmt, diff: clientAmt.minus(costAmt) }
-  }, [tab, fields.currency_code, fields.amount, fields.client_rate, fields.cost_rate, currencies])
-
 
   // الاسم الظاهر في الشاشة لحقل الطلب `key` (نفس نص التسمية فوق الحقل، بلا الأقواس
   // الأخيرة) — يُوضَع تحته الخطأ العربي القادم من الخادم. ما لم يُذكر هنا يأخذ
@@ -395,6 +384,7 @@ export function OperationForm({
       case 'cost_commission_amount': return { name: 'تكلفة العمولة' }
       case 'cost_correspondent_account_code': return { name: 'حساب تكلفة العمولة (المراسل)' }
       case 'partner_account_code': return { name: t === 'SWIFT_OUT' ? 'حساب المراسل (تركيا)' : 'حساب المراسل' }
+      case 'sending_account_code': return { name: 'حساب الإرسال' }
       case 'expense_account_code': return { name: 'بند المصروف' }
       case 'description': return { name: t === 'EXPENSE' ? 'البيان' : (serverLabel ?? 'البيان') }
       case 'external_ref': return { name: 'مرجع خارجي' }
@@ -455,9 +445,8 @@ export function OperationForm({
     } else if (tab === 'REMIT_OUT') {
       return { url: '/operations/remit-out', payload: {
         client_id: client!.id, from_location_code: fields.from_location_code,
-        partner_account_code: fields.partner_account_code, currency_code: fields.currency_code,
-        amount: fields.amount, cost_rate: fields.cost_rate, client_rate: fields.client_rate,
-        negative_margin_reason: fields.negative_margin_reason || undefined, note: fields.note || undefined,
+        sending_account_code: fields.sending_account_code, currency_code: fields.currency_code,
+        amount: fields.amount, note: fields.note || undefined,
       } }
     } else if (tab === 'EXPENSE') {
       return { url: '/operations/expense', payload: {
@@ -869,56 +858,26 @@ export function OperationForm({
             <>
               <div className="form-row">
                 <div className="field">
-                  <label className="field-label">الموقع المخصوم من العميل</label>
-                  <LocationSelect value={fields.from_location_code ?? ''} onChange={(v) => setField('from_location_code', v)} locations={remitLocations} />
+                  <label className="field-label">عملة الإرسال</label>
+                  <CurrencySelect
+                    value={fields.currency_code ?? ''} currencies={currencies}
+                    onChange={(v) => { setField('currency_code', v); setField('from_location_code', ''); setField('sending_account_code', '') }}
+                  />
                 </div>
-                <AccountPicker
-                  value={fields.partner_account_code ?? ''} onChange={(v) => setField('partner_account_code', v)}
-                  spec={remitOutPartnerSpec} label="حساب المراسل"
-                  emptyMessage={!fields.from_location_code ? 'اختر الموقع المخصوم أولاً' : 'لا حسابات مراسلين بالدولار في هذا الموقع'}
-                />
+                <div className="field">
+                  <label className="field-label">الموقع المخصوم من العميل</label>
+                  <LocationSelect value={fields.from_location_code ?? ''} onChange={(v) => setField('from_location_code', v)} locations={remitClientLocations} disabled={!fields.currency_code} />
+                </div>
               </div>
               <div className="form-row">
-                <div className="field">
-                  <label className="field-label">عملة المبلغ المُرسَل</label>
-                  <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
-                </div>
+                <AccountPicker
+                  value={fields.sending_account_code ?? ''} onChange={(v) => setField('sending_account_code', v)}
+                  spec={remitOutSendingSpec} label="حساب الإرسال"
+                  emptyMessage={!fields.currency_code ? 'اختر عملة الإرسال أولاً' : `لا حسابات شركة (بنك أو مراسل أو صندوق) بعملة ${fields.currency_code}`}
+                />
                 <AmountStage id="remit-amount" label={`المبلغ (${fields.currency_code || '—'})`} value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} />
               </div>
-              <div className="form-row">
-                <div className="field field-rate">
-                  <label className="field-label">سعر العميل</label>
-                  <DecimalInput className="num" value={fields.client_rate ?? ''} onChange={(v) => setField('client_rate', v)} />
-                  <DecimalError value={fields.client_rate ?? ''} />
-                </div>
-                <div className="field field-rate">
-                  <label className="field-label">سعر التكلفة</label>
-                  <DecimalInput className="num" value={fields.cost_rate ?? ''} onChange={(v) => setField('cost_rate', v)} />
-                  <DecimalError value={fields.cost_rate ?? ''} />
-                  <span className="rate-hint">سعر التكلفة داخلي — لا يظهر للعميل أبداً</span>
-                </div>
-              </div>
-              {remitPreview && (
-                <div className={`rate-direction ${remitPreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>
-                  {rateDirectionHint(remitPreview.diff).text}
-                </div>
-              )}
-              {remitPreview && (
-                <div className="result-card">
-                  <div className="result-row"><span>يُحصَّل من العميل</span><span className="num">{remitPreview.clientAmt.toString()} USD</span></div>
-                  <div className="result-row result-dashed"><span>التكلفة (داخلي)</span><span className="num text-muted">{remitPreview.costAmt.toString()} USD</span></div>
-                  <div className="result-row result-final">
-                    <span>{profitOrLossLabel(remitPreview.diff)} العملية</span>
-                    <span className={`num ${remitPreview.diff.gte(0) ? 'money-positive' : 'money-negative'}`}>{remitPreview.diff.toString()} USD</span>
-                  </div>
-                </div>
-              )}
-              {remitPreview && remitPreview.diff.lt(0) && (
-                <div className="field">
-                  <label className="field-label">سبب الهامش السالب (إلزامي)</label>
-                  <input value={fields.negative_margin_reason ?? ''} onChange={(e) => setField('negative_margin_reason', e.target.value)} />
-                </div>
-              )}
+              <div className="rate-hint">الإرسال بالعملة نفسها — تحويل العملة يتم قبله بعملية صرافة منفصلة.</div>
             </>
           )}
 

@@ -168,11 +168,9 @@ def _create_remit_out(db: OrmSession, op: RemitOutRequest, user: User, now: date
     client = _get_client(db, op.client_id)
     entry = _run(lambda: remit_out_op.execute(
         db, client=client, from_location_code=op.from_location_code,
-        partner_account_code=op.partner_account_code, currency_code=op.currency_code,
-        amount=op.amount, cost_rate=op.cost_rate,
-        client_rate=op.client_rate, work_timezone=settings.work_timezone, created_by=user.id,
+        sending_account_code=op.sending_account_code, currency_code=op.currency_code,
+        amount=op.amount, work_timezone=settings.work_timezone, created_by=user.id,
         now=now, idempotency_key=idem, description=op.description,
-        negative_margin_reason=op.negative_margin_reason,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     entry.note = op.note

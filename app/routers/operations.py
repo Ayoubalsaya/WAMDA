@@ -24,6 +24,7 @@ from app.engine.accounts_repo import (
 from app.engine.clock import system_clock
 from app.engine.fx import InvalidCurrencyPairError
 from app.engine.idempotency import IdempotencyConflict
+from app.engine.operations.remit_out import InvalidSendingAccountError
 from app.engine.operations import (
     adjustment as adjustment_op,
     cash_transfer as cash_transfer_op,
@@ -76,6 +77,7 @@ _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
     (NegativeMarginReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (OverrideReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidClientLocationError, status.HTTP_422_UNPROCESSABLE_ENTITY),
+    (InvalidSendingAccountError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     # ٢٠٢٦-٠٩-٢٧: شبكة أمان — كان REMIT_OUT بالدولار (currency_code==pivot)
     # يُسقِط هذا الاستثناء غير المُعالَج فيصل ٥٠٠ خام (أُصلح جذرياً في
     # remit_out.py نفسه، انظر _to_usd هناك). هذا السطر يمنع أي طريق آخر لم
@@ -384,11 +386,9 @@ def create_remit_out(
     now = system_clock()
     entry = _run(lambda: remit_out_op.execute(
         db, client=client, from_location_code=payload.from_location_code,
-        partner_account_code=payload.partner_account_code, currency_code=payload.currency_code,
-        amount=payload.amount, cost_rate=payload.cost_rate,
-        client_rate=payload.client_rate, work_timezone=settings.work_timezone, created_by=current_user.id,
+        sending_account_code=payload.sending_account_code, currency_code=payload.currency_code,
+        amount=payload.amount, work_timezone=settings.work_timezone, created_by=current_user.id,
         now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
-        negative_margin_reason=payload.negative_margin_reason,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
     entry.note = payload.note

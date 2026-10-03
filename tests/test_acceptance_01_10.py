@@ -117,31 +117,35 @@ def test_cash_transfer_commission_profit(db, now):
 
 
 @pytest.mark.acceptance(4)
-def test_exchange_rate_spread_via_remit_out(db, now):
-    """فرق سعر الصرف عبر REMIT_OUT — مثال §١-٣-ب: ربح 147.06$، تركيا −10000، العميل −10147.06."""
+def test_remit_out_is_a_two_line_same_currency_entry_without_profit(db, now):
+    """§١-٣-ب (فرق سعر عبر REMIT_OUT) **أُلغي بقرار مالك ٢٠٢٦-١٠-٠٤**: الإرسال ليس صرافة — يوان من عميل عبر حساب يوان،
+    سطران متوازنان بالعملة نفسها (مدين حساب العميل · دائن حساب الشركة)، بلا ربح ولا سعر ولا دولار وسيط؛ فرق السعر يبقى في EXCHANGE وحده."""
     from app.engine.operations import remit_out
+    from app.models import AccountBalance, JournalLine
+    from sqlalchemy import select
 
     client = f.make_client(db)
     user = f.make_user(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    yuan = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
     f.fund_client(
-        db, client=client, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
+        db, client=client, currency_code="CNY", location_code="CHINA", amount=Decimal("80000.00"),
+        receiving_account_code=yuan.code, user=user, now=now,
     )
     entry = remit_out.execute(
-        db, client=client, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        currency_code="CNY", amount=Decimal("69000.00"), cost_rate=Decimal("6.90"),
-        client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now,
+        db, client=client, from_location_code="CHINA", sending_account_code=yuan.code,
+        currency_code="CNY", amount=Decimal("69000.00"), work_timezone=WORK_TZ, created_by=user.id, now=now,
         idempotency_key=f.uid(),
     )
-    assert entry.profit_amount == Decimal("147.060000")
-    assert entry.profit_currency == "USD"
-
-    from app.models import AccountBalance
-
-    assert db.get(AccountBalance, partner_acct.id).balance == Decimal("40000.00")  # 50000-10000
-    client_turkey = accounts_repo.get_or_create_client_account(db, client=client, currency_code="USD", location_code="TURKEY")
-    assert db.get(AccountBalance, client_turkey.id).balance == Decimal("39852.94")  # 50000-10147.06
+    assert entry.profit_amount is None and entry.profit_currency is None
+    assert entry.cost_rate is None and entry.client_rate is None
+    lines = db.execute(select(JournalLine).where(JournalLine.entry_id == entry.id).order_by(JournalLine.line_no)).scalars().all()
+    client_cny = accounts_repo.get_or_create_client_account(db, client=client, currency_code="CNY", location_code="CHINA")
+    assert [(l.account_id, l.currency_code, l.debit, l.credit) for l in lines] == [
+        (client_cny.id, "CNY", Decimal("69000.00"), Decimal("0")),
+        (yuan.id, "CNY", Decimal("0"), Decimal("69000.00")),
+    ]
+    assert db.get(AccountBalance, yuan.id).balance == Decimal("11000.00")  # 80000-69000
+    assert db.get(AccountBalance, client_cny.id).balance == Decimal("11000.00")
 
 
 @pytest.mark.acceptance(5)

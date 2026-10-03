@@ -456,72 +456,82 @@ def test_local_move_between_company_accounts(db, client, now):
     assert resp.status_code == 201, resp.text
 
 
-def test_remit_out_direct_currency_amount_no_beneficiary(db, client, now):
-    """سجل المستفيدين أُلغي بالكامل (قرار مالك ٢٠٢٦-٠٩-٢٢) — العملة/المبلغ
-    يُدخَلان مباشرة، لا ربط بمستفيد ولا رقم حساب مسجَّل مسبقاً."""
+def _yuan_setup(db, now, *, fund="50000.00"):
+    user = f.make_user(db)
+    c = f.make_client(db)
+    yuan = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
+    if fund:
+        f.fund_client(db, client=c, currency_code="CNY", location_code="CHINA", amount=Decimal(fund),
+                      receiving_account_code=yuan.code, user=user, now=now)
+    return c, yuan
+
+
+def test_remit_out_same_currency_two_balanced_lines_no_profit_no_rate(db, client, now):
+    """قرار مالك ٢٠٢٦-١٠-٠٤: الإرسال الخارجي عملة واحدة، سطران، بلا ربح/سعر/دولار وسيط."""
+    from sqlalchemy import select
+
+    from app.models import JournalLine
+
+    _login(db, client)
+    c, yuan = _yuan_setup(db, now, fund="80000.00")
+    resp = client.post(
+        "/operations/remit-out",
+        json={"client_id": c.id, "from_location_code": "CHINA", "sending_account_code": yuan.code,
+              "currency_code": "CNY", "amount": "69000.00", "note": "تاجر شنغهاي — حساب 998877"},
+        headers=_headers(client),
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["profit_amount"] is None and body.get("client_rate") is None and body.get("cost_rate") is None
+    lines = db.execute(select(JournalLine).where(JournalLine.entry_id == body["id"]).order_by(JournalLine.line_no)).scalars().all()
+    assert len(lines) == 2 and {l.currency_code for l in lines} == {"CNY"}
+    assert sum(l.debit for l in lines) == sum(l.credit for l in lines) == Decimal("69000.00")
+    assert lines[0].debit == Decimal("69000.00") and lines[1].account_id == yuan.id and lines[1].credit == Decimal("69000.00")
+
+
+def test_remit_out_usd_same_currency_succeeds(db, client, now):
     _login(db, client)
     user = f.make_user(db)
     c = f.make_client(db)
     partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    f.fund_client(
-        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
-    )
+    f.fund_client(db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
+                  receiving_account_code=partner_acct.code, user=user, now=now)
     resp = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
-              "client_rate": "6.80"},
+        json={"client_id": c.id, "from_location_code": "TURKEY", "sending_account_code": partner_acct.code,
+              "currency_code": "USD", "amount": "500.00"},
         headers=_headers(client),
     )
     assert resp.status_code == 201, resp.text
-    assert resp.json()["profit_amount"] == "147.060000"
+    assert resp.json()["profit_amount"] is None
 
 
-def test_remit_out_direct_usd_no_conversion_succeeds(db, client, now):
-    """انحدار (بلاغ مالك ٢٠٢٦-٠٩-٢٧): عميل يُسلِّم دولاراً ليُرسَل دولاراً
-    (currency_code == pivot) — كان يعيد HTTP 500 خام (InvalidCurrencyPairError
-    غير مُعالَج، fx.convert يرفض "عملتان متطابقتان" وهو رفض صحيح في
-    EXCHANGE لكنه خطأ هنا). لا هامش (كلا السعرين ١) → ربح صفر."""
+def test_remit_out_rejects_a_sending_account_in_another_currency(db, client, now):
+    """يوان ← حسابات اليوان فقط: حساب دولار لإرسال يوان مرفوض بـ٤٢٢ عربي ولا يُنشأ قيد."""
     _login(db, client)
-    user = f.make_user(db)
-    c = f.make_client(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    f.fund_client(
-        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
-    )
+    c, _yuan = _yuan_setup(db, now)
+    usd = f.make_correspondent_account(db, currency_code="USD", location_code="CHINA", parent_code="1320")
     resp = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "USD", "amount": "500.00", "cost_rate": "1", "client_rate": "1"},
+        json={"client_id": c.id, "from_location_code": "CHINA", "sending_account_code": usd.code,
+              "currency_code": "CNY", "amount": "100.00"},
         headers=_headers(client),
     )
-    assert resp.status_code == 201, resp.text
-    assert resp.json()["profit_amount"] == "0.000000"
+    assert resp.status_code == 422 and "الإرسال بالعملة نفسها فقط" in resp.json()["detail"], resp.text
 
 
-def test_remit_out_direct_usd_with_markup_computes_profit(db, client, now):
-    """نفس سيناريو الدولار المباشر أعلاه، لكن بهامش حقيقي (سعرا العميل/
-    التكلفة مختلفان) — يتحقق أن الضرب المباشر (لا fx.convert) يُنتج نفس
-    صيغة الربح المستخدمة في كل عملية أخرى بالنظام."""
+def test_remit_out_rejects_a_client_account_as_sending_account(db, client, now):
     _login(db, client)
-    user = f.make_user(db)
-    c = f.make_client(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    f.fund_client(
-        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("50000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
-    )
+    c, _yuan = _yuan_setup(db, now)
+    other = f.make_client(db)
+    other_acc = accounts_repo.get_or_create_client_account(db, client=other, currency_code="CNY", location_code="CHINA")
     resp = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "USD", "amount": "500.00", "cost_rate": "1.00", "client_rate": "1.02"},
+        json={"client_id": c.id, "from_location_code": "CHINA", "sending_account_code": other_acc.code,
+              "currency_code": "CNY", "amount": "100.00"},
         headers=_headers(client),
     )
-    assert resp.status_code == 201, resp.text
-    # client_amt = 500*1.02 = 510.00 · cost_amt = 500*1.00 = 500.00 · ربح = 10.00
-    assert resp.json()["profit_amount"] == "10.000000"
+    assert resp.status_code == 422, resp.text
 
 
 def test_swift_out_then_swift_in(db, client, now):
@@ -677,34 +687,31 @@ def test_swift_out_allow_negative_requires_admin_not_just_accountant(db, client)
     assert resp.status_code == 403
 
 
-def test_remit_out_negative_balance_rejected_without_override(db, client):
+def test_remit_out_negative_balance_rejected_without_override(db, client, now):
     _login(db, client)
-    c = f.make_client(db)
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    c, yuan = _yuan_setup(db, now, fund=None)
     resp = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
-              "client_rate": "6.80"},
+        json={"client_id": c.id, "from_location_code": "CHINA", "sending_account_code": yuan.code,
+              "currency_code": "CNY", "amount": "69000.00"},
         headers=_headers(client),
     )
     assert resp.status_code == 409
 
 
-def test_remit_out_allow_negative_admin_succeeds(db, client):
+def test_remit_out_allow_negative_admin_succeeds(db, client, now):
     _login(db, client, role="ADMIN")
-    c = f.make_client(db, credit_allowed=True)  # نختبر تجاوز رصيد المراسل لا حد ائتمان العميل
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    c = f.make_client(db, credit_allowed=True)  # نختبر تجاوز رصيد حساب الإرسال لا حد ائتمان العميل
+    yuan = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
     resp = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "CNY", "amount": "69000.00", "cost_rate": "6.90",
-              "client_rate": "6.80", "allow_negative": True,
-              "override_reason": "تحقّق آلي — إرسال قبل تغطية حساب المراسل"},
+        json={"client_id": c.id, "from_location_code": "CHINA", "sending_account_code": yuan.code,
+              "currency_code": "CNY", "amount": "69000.00", "allow_negative": True,
+              "override_reason": "تحقّق آلي — إرسال قبل تغطية حساب الإرسال"},
         headers=_headers(client),
     )
     assert resp.status_code == 201, resp.text
-    assert db.get(AccountBalance, partner_acct.id).balance < Decimal("0")
+    assert db.get(AccountBalance, yuan.id).balance < Decimal("0")
 
 
 def test_swift_return(db, client, now):
@@ -953,8 +960,8 @@ def test_cost_rate_absent_from_every_response_body_reachable_today(db, client, n
 
     remit = client.post(
         "/operations/remit-out",
-        json={"client_id": c.id, "from_location_code": "TURKEY", "partner_account_code": partner_acct.code,
-              "currency_code": "CNY", "amount": "100.00", "cost_rate": "7.2", "client_rate": "7.1"},
+        json={"client_id": c.id, "from_location_code": "TURKEY", "sending_account_code": partner_acct.code,
+              "currency_code": "USD", "amount": "100.00"},
         headers=_headers(client),
     )
     assert remit.status_code == 201, remit.text

@@ -122,28 +122,27 @@ def test_account_statement_shows_cost_rate(db, client, now):
     assert "5.144" in text, "سعر التكلفة غائب عن كشف الحساب الأساسي الداخلي"
 
 
-def test_correspondent_statement_shows_cost_rate(db, client, now):
-    """كشف مراسل — REMIT_OUT هو ما يمسّ حساب المراسل فعلياً بسعرين
-    (على خلاف EXCHANGE الذي يمسّ حسابات العميل فقط)، والسعر المستخدم في
-    هذه الحركة يجب أن يظهر في كشف حساب ذلك المراسل."""
+def test_remit_out_receipt_and_statements_carry_no_exchange_rate(db, client, now):
+    """الإرسال الخارجي بلا سعر (قرار مالك ٢٠٢٦-١٠-٠٤): لا client_rate في الإيصال، وكشف حساب الشركة المُرسِل يعرض المبلغ بلا أي سعر."""
     user = _login(db, client)
+    from app.documents.receipt import build_receipt_context
     from app.engine.operations import remit_out as remit_out_op
 
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
-    c = f.make_client(db, name="عميل مراسل سعر فريد")
+    yuan = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
+    c = f.make_client(db, name="عميل إرسال بلا سعر فريد")
     f.fund_client(
-        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
-        receiving_account_code=partner_acct.code, user=user, now=now,
+        db, client=c, currency_code="CNY", location_code="CHINA", amount=Decimal("5000.00"),
+        receiving_account_code=yuan.code, user=user, now=now,
     )
-    remit_out_op.execute(
-        db, client=c, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        currency_code="CNY", amount=Decimal("500.00"), cost_rate=Decimal("7.088"), client_rate=Decimal("7.133"),
-        work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(), negative_margin_reason="اختبار",
+    entry = remit_out_op.execute(
+        db, client=c, from_location_code="CHINA", sending_account_code=yuan.code,
+        currency_code="CNY", amount=Decimal("500.00"), work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(),
     )
-    resp = client.get(f"/documents/statement/account/{partner_acct.code}.pdf")
+    ctx = build_receipt_context(db, entry_id=entry.id, doc_size="a4", now=now, work_timezone=WORK_TZ)
+    assert ctx["client_rate"] is None
+    resp = client.get(f"/documents/statement/account/{yuan.code}.pdf")
     assert resp.status_code == 200
-    text = _pdf_text(resp.content)
-    assert "7.088" in text
+    assert "500.00" in _pdf_text(resp.content)
 
 
 def test_chain_summary_shows_both_rates_separately_per_step(db, client, now):

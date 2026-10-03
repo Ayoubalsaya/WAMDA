@@ -158,17 +158,16 @@ def test_receipt_remit_out_shows_note_not_destination(db, client, now):
     (`entry.note`) هي ما يُعرَض للوجهة الآن، لا لقطة مستفيد منفصلة."""
     user = _login(db, client)
     c = f.make_client(db, name="عميل إرسال فريد")
-    partner_acct = f.make_correspondent_account(db, currency_code="USD", location_code="TURKEY", parent_code="1320")
+    partner_acct = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
     f.fund_client(
-        db, client=c, currency_code="USD", location_code="TURKEY", amount=Decimal("5000.00"),
+        db, client=c, currency_code="CNY", location_code="CHINA", amount=Decimal("5000.00"),
         receiving_account_code=partner_acct.code, user=user, now=now,
     )
     from app.engine.operations import remit_out as remit_out_op
 
     entry = remit_out_op.execute(
-        db, client=c, from_location_code="TURKEY", partner_account_code=partner_acct.code,
-        currency_code="CNY", amount=Decimal("690.00"), cost_rate=Decimal("6.90"),
-        client_rate=Decimal("6.80"), work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(),
+        db, client=c, from_location_code="CHINA", sending_account_code=partner_acct.code,
+        currency_code="CNY", amount=Decimal("690.00"), work_timezone=WORK_TZ, created_by=user.id, now=now, idempotency_key=f.uid(),
     )
     entry.note = "يُسلَّم للمستفيد في بنك الصين الصناعي — حساب 998877"
     db.flush()

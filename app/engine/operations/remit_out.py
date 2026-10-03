@@ -1,13 +1,10 @@
-"""REMIT_OUT — إرسال خارجي (لمستلم نهائي) عبر شركة مراسلة. §٤ رقم ٩ · مثال §١-٣-ب.
+"""REMIT_OUT — إرسال خارجي: نقل مبلغ من رصيد العميل إلى تاجر/مورد خارجي **بالعملة نفسها**. لا ربح للشركة.
 
-لا رمبي يُقيَّد في دفاترنا هنا؛ الشركة المراسلة تصرف وترسل من عندها،
-فالعملية بأكملها تبقى بعملة الدولار فقط (لا حاجة لمقاصة 1900، ولا دفعة
-رمبي — تلك حصراً لمسار بنك الصين المباشر، §٢-٨).
+قرار مالك ٢٠٢٦-١٠-٠٤: الإرسال ليس صرافة — التحويل بين العملات يتم قبله بعملية EXCHANGE منفصلة. القيد سطران متوازنان فقط
+بعملة واحدة: مدين حساب العميل (عملة × موقع) · دائن حساب الشركة المُرسِل (بنك/مراسل/صندوق **بالعملة نفسها**).
+لا سعر عميل، لا سعر تكلفة، لا صندوق ربح، ولا دولار وسيطاً (كان القديم: ٣ أسطر بالدولار + ٤١٢٠، انظر PROGRESS).
 
-سجل المستفيدين أُلغي (قرار مالك ٢٠٢٦-٠٩-٢٢) — ٩٥٪ من العملاء يعطون
-رقم حساب فقط بلا معلومة أخرى، وحقل الملاحظة الحر يكفي لتدوين الوجهة.
-لا ربط بمستفيد، لا لقطة وجهة منفصلة — العملة/المبلغ يُدخَلان مباشرة
-بدل اشتقاقهما من سجل مستفيد.
+سجل المستفيدين أُلغي (٢٠٢٦-٠٩-٢٢): اسم التاجر ورقم الحساب يُدوَّنان في الملاحظة.
 """
 
 from __future__ import annotations
@@ -18,11 +15,15 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.engine import accounts_repo, clock, fx, posting, profit
-from app.engine.profit import NegativeMarginReasonRequiredError
-from app.engine.rounding import RoundingKind, round_amount
+from app.engine import accounts_repo, clock, posting
 from app.models import Client
-from app.models.enums import OperationType
+from app.models.enums import AccountForm, AccountType, OperationType
+
+_SENDING_FORMS = frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT})
+
+
+class InvalidSendingAccountError(Exception):
+    """حساب الإرسال ليس حساب شركة (بنك/مراسل/صندوق) بعملة العملية نفسها."""
 
 
 def execute(
@@ -30,11 +31,9 @@ def execute(
     *,
     client: Client,
     from_location_code: str,
-    partner_account_code: str,
-    currency_code: str,  # عملة المبلغ المُرسَل للمستفيد
+    sending_account_code: str,
+    currency_code: str,
     amount: Decimal,
-    cost_rate: Decimal,
-    client_rate: Decimal,
     work_timezone: str,
     created_by: int,
     now: datetime,
@@ -42,7 +41,6 @@ def execute(
     backdate_reason: Optional[str] = None,
     idempotency_key: str,
     description: Optional[str] = None,
-    negative_margin_reason: Optional[str] = None,
     allow_negative: bool = False,
     override_reason: Optional[str] = None,
 ):
@@ -51,39 +49,16 @@ def execute(
     entry_date = entry_date or _today
 
     def _create():
-        pivot = accounts_repo.get_pivot_currency(db)
-
-        def _to_usd(rate: Decimal) -> Decimal:
-            # ٢٠٢٦-٠٩-٢٧ (بلاغ مالك — إرسال دولار مباشر كان يعيد HTTP 500):
-            # currency_code == pivot.code سيناريو حقيقي شائع (عميل يُسلِّم
-            # دولاراً ليُرسَل دولاراً لمستلم في تركيا/الصين) — لا fx.convert
-            # هنا لأن assert_pivot_pair يرفض عمداً "عملتان متطابقتان"، وهذا
-            # رفض صحيح في EXCHANGE/CASH_TRANSFER (يمنع خطأ استخدام حقيقياً
-            # هناك) لكنه هنا حالة عمل صحيحة تماماً: لا حاجة لعبور "الدولار
-            # كنقطة تحويل" لأن الدولار هو العملة أصلاً. الضرب المباشر هنا
-            # يطابق حرفياً فرع from_currency==pivot_code داخل fx.convert
-            # نفسه — rate=1 يعني بلا هامش، أي رقم آخر هامش مقصود، بنفس
-            # صيغة الهامش المستخدمة في كل عملية أخرى بالنظام.
-            if currency_code == pivot.code:
-                return amount * rate
-            return fx.convert(amount, rate, from_currency=currency_code, to_currency=pivot.code, pivot_code=pivot.code)
-
-        # المبلغ يُحصَّل من العميل — ROUND_UP (§٢-٥)
-        client_amt_usd = round_amount(
-            _to_usd(client_rate), pivot.decimals, RoundingKind.COLLECTED_FROM_CLIENT,
-        )
-        cost_amt_usd = round_amount(
-            _to_usd(cost_rate), pivot.decimals, RoundingKind.INTERNAL,
-        )
-        diff = client_amt_usd - cost_amt_usd  # موجب = ربح (العميل دفع أكثر من التكلفة)
-        if diff < 0 and not negative_margin_reason:
-            raise NegativeMarginReasonRequiredError("هامش سالب — سبب مكتوب إلزامي قبل الترحيل")
-
+        sending_account = accounts_repo.get_account_by_code(db, sending_account_code)
+        if sending_account.client_id is not None or sending_account.type != AccountType.ASSET or sending_account.form not in _SENDING_FORMS:
+            raise InvalidSendingAccountError(f"الحساب {sending_account_code} ليس حساب شركة (بنك أو مراسل أو صندوق) للإرسال منه")
+        if sending_account.currency_code != currency_code:
+            raise InvalidSendingAccountError(
+                f"حساب الإرسال {sending_account_code} بعملة {sending_account.currency_code} لا {currency_code} — الإرسال بالعملة نفسها فقط"
+            )
         client_account = accounts_repo.get_or_create_client_account(
-            db, client=client, currency_code=pivot.code, location_code=from_location_code
+            db, client=client, currency_code=currency_code, location_code=from_location_code
         )
-        partner_account = accounts_repo.get_account_by_code(db, partner_account_code)
-
         draft = posting.create_draft_entry(
             db,
             operation_type=OperationType.REMIT_OUT,
@@ -92,20 +67,10 @@ def execute(
             backdate_reason=backdate_reason,
             created_by=created_by,
             client_id=client.id,
-            from_currency=pivot.code,
-            cost_rate=cost_rate,
-            client_rate=client_rate,
             description=description or "إرسال خارجي",
-            negative_margin_reason=negative_margin_reason,
         )
-        draft.add(account_id=client_account.id, currency_code=pivot.code, debit=client_amt_usd)
-        draft.add(account_id=partner_account.id, currency_code=pivot.code, credit=cost_amt_usd)
-        pl_account, pl_amounts = profit.account_and_side(db, diff=diff, currency_code=pivot.code)
-        if pl_account is not None:
-            draft.add(account_id=pl_account.id, currency_code=pivot.code, **pl_amounts)
-
-        draft.entry.profit_amount = diff
-        draft.entry.profit_currency = pivot.code
+        draft.add(account_id=client_account.id, currency_code=currency_code, debit=amount)
+        draft.add(account_id=sending_account.id, currency_code=currency_code, credit=amount)
         return posting.post_entry(
             db, draft, posted_by=created_by, now=now,
             allow_negative=allow_negative, override_reason=override_reason,
@@ -118,9 +83,9 @@ def execute(
             "op": "REMIT_OUT",
             "client_id": client.id,
             "currency_code": currency_code,
+            "location_code": from_location_code,
             "amount": amount,
-            "cost_rate": cost_rate,
-            "client_rate": client_rate,
+            "sending_account_code": sending_account_code,
         },
         create_fn=_create,
     )
