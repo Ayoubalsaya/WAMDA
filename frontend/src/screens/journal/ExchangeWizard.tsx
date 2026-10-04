@@ -198,7 +198,11 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
             <div className="form-row">
               <div className="field">
                 <label className="field-label">من عملة</label>
-                <select value={fromCurrency} onChange={(e) => { setFromCurrency(e.target.value); setFromLocation(''); setStep1SourceAccount('') }}>
+                <select value={fromCurrency} onChange={(e) => {
+                  const v = e.target.value
+                  setFromCurrency(v); setFromLocation(''); setStep1SourceAccount('')
+                  if (v === toCurrency) { setToCurrency(currencies.find((c) => c.code !== PIVOT_CODE && c.code !== v)?.code ?? ''); setStep2ToLocation(''); setStep2DestAccount('') }
+                }}>
                   {currencies.filter((c) => c.code !== PIVOT_CODE).map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
                 </select>
               </div>
@@ -290,7 +294,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field">
                 <label className="field-label">إلى عملة</label>
                 <select value={toCurrency} onChange={(e) => { setToCurrency(e.target.value); setStep2ToLocation(''); setStep2DestAccount('') }}>
-                  {currencies.filter((c) => c.code !== PIVOT_CODE).map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
+                  {currencies.filter((c) => c.code !== PIVOT_CODE && c.code !== fromCurrency).map((c) => <option key={c.code} value={c.code}>{c.name_ar}</option>)}
                 </select>
               </div>
               {scope === 'CLIENT' && (

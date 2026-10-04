@@ -22,7 +22,7 @@ from app.engine.accounts_repo import (
     get_or_create_client_account,
 )
 from app.engine.clock import system_clock
-from app.engine.fx import InvalidCurrencyPairError
+from app.engine.fx import ImplausibleRateError, InvalidCurrencyPairError, SAME_CURRENCY_MESSAGE
 from app.engine.idempotency import IdempotencyConflict
 from app.engine.operations.remit_out import InvalidSendingAccountError
 from app.engine.operations import (
@@ -83,6 +83,7 @@ _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
     # remit_out.py نفسه، انظر _to_usd هناك). هذا السطر يمنع أي طريق آخر لم
     # نكتشفه بعد من نفس المصير — ٤٢٢ برسالة عربية واضحة بدل ٥٠٠ صامت.
     (InvalidCurrencyPairError, status.HTTP_422_UNPROCESSABLE_ENTITY),
+    (ImplausibleRateError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (AccountNotFoundError, status.HTTP_404_NOT_FOUND),
     (CreditLimitExceededError, status.HTTP_409_CONFLICT),
     (InsufficientBalanceError, status.HTTP_409_CONFLICT),
@@ -248,6 +249,9 @@ def create_exchange_chain(
     # (قطبية الخزينة معكوسة، انظر توثيق exchange.execute_via_rates).
     client = _get_client(db, payload.client_id) if payload.client_id is not None else None
     is_treasury = client is None
+    if payload.step1.from_currency == payload.step1.to_currency or payload.step1.from_currency == payload.step2.to_currency:
+        # الخطوة ١ بعملة واحدة، أو سلسلة تبدأ وتنتهي بالعملة نفسها (دينار ← دولار ← دينار): ليست صرافة
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, SAME_CURRENCY_MESSAGE)
     now = system_clock()
     resolved_entry_date = payload.entry_date or _clock.local_entry_date(now, settings.work_timezone)
     step1_holder: dict = {}

@@ -95,6 +95,10 @@ def execute_via_rates(
             to_ccy_row.decimals,
             RoundingKind.GIVEN_TO_CLIENT,
         )
+        fx.assert_plausible_amount(
+            fx.convert(amount, client_rate, from_currency=from_currency, to_currency=to_currency, pivot_code=pivot.code),
+            to_amount_client, to_currency,
+        )
         if is_treasury:
             to_amount_cost = to_amount_client
             diff = Decimal("0")

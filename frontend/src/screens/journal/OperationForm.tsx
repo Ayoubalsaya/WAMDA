@@ -83,6 +83,16 @@ const NUMERIC_FIELD_LABELS: Record<string, string> = {
 const REQUIRES_CLIENT = new Set<OpTab>(['RECEIPT', 'PAYMENT', 'EXCHANGE', 'CASH_TRANSFER', 'REMIT_OUT', 'SWIFT_RETURN'])
 const ADMIN_ONLY_TABS = new Set<OpTab>(['OPENING', 'ADJUSTMENT'])
 
+// الصرافة بين عملتين مختلفتين، إحداهما الدولار (٢٠٢٦-١٠-٠٤): من الدولار ⇒ إلى أول عملة غير دولار؛ من غيره ⇒ إلى الدولار.
+function validExchangeTarget(from: string, to: string, currencies: Currency[]): string {
+  if (!from) return to
+  if (from === PIVOT_CODE) {
+    if (to && to !== PIVOT_CODE) return to
+    return currencies.find((c) => c.code !== PIVOT_CODE)?.code ?? ''
+  }
+  return PIVOT_CODE
+}
+
 function CurrencySelect({ value, onChange, currencies }: { value: string; onChange: (v: string) => void; currencies: Currency[] }) {
   return (
     <SelectWrap>
@@ -225,6 +235,13 @@ export function OperationForm({
   }
 
   useEffect(() => { resetForm() }, [tab])
+
+  // تبويب الصرافة يفتح بعملتين مختلفتين (لا دولار ← دولار): أول عملة غير دولار ← الدولار
+  useEffect(() => {
+    if (tab !== 'EXCHANGE' || currencyCode || toCurrency || currencies.length === 0) return
+    const first = currencies.find((c) => c.code !== PIVOT_CODE)
+    if (first) { setCurrencyCode(first.code); setToCurrency(PIVOT_CODE) }
+  }, [tab, currencyCode, toCurrency, currencies])
 
   useEffect(() => {
     if (requestedTab && ALL_TABS.some((t) => t.id === requestedTab)) {
@@ -717,7 +734,17 @@ export function OperationForm({
             <div className="form-row">
               <div className="field">
                 <label className="field-label">العملة</label>
-                <CurrencySelect value={currencyCode} onChange={(v) => { setCurrencyCode(v); setLocationCode('') }} currencies={currencies} />
+                <CurrencySelect
+                  value={currencyCode}
+                  onChange={(v) => {
+                    setCurrencyCode(v); setLocationCode('')
+                    if (tab === 'EXCHANGE') {
+                      const next = validExchangeTarget(v, toCurrency, currencies)
+                      if (next !== toCurrency) { setToCurrency(next); setToLocation('') }
+                    }
+                  }}
+                  currencies={currencies}
+                />
               </div>
               {!(tab === 'EXCHANGE' && exchangeScope === 'TREASURY') && (
                 <div className="field">
@@ -742,7 +769,7 @@ export function OperationForm({
                 <CurrencySelect
                   value={toCurrency}
                   onChange={(v) => { setToCurrency(v); setToLocation('') }}
-                  currencies={currencies.filter((c) => c.code === PIVOT_CODE || currencyCode === PIVOT_CODE)}
+                  currencies={currencies.filter((c) => c.code !== currencyCode && (c.code === PIVOT_CODE || currencyCode === PIVOT_CODE))}
                 />
               </div>
               {exchangeScope !== 'TREASURY' && (
