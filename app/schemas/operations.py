@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.enums import ConfidenceLevel, OpeningSourceType
 
@@ -244,6 +244,15 @@ class LocalMoveRequest(BackdateFields, CommissionFields):
     note: Optional[str] = None
     allow_negative: bool = False
     override_reason: Optional[str] = None
+    # الحقل القديم أُلغي (٢٠٢٦-١٠-٠٥): يُقبَل اسماً فقط ليُرفض برسالة صريحة بدل أن يُتجاهَل بصمت
+    fee_amount: Optional[Decimal] = None
+
+    @field_validator("fee_amount")
+    @classmethod
+    def _fee_removed(cls, v):
+        if v is not None:
+            raise ValueError("حقل الرسوم أُلغي — استخدم قسم العمولة")
+        return v
 
     @model_validator(mode="after")
     def _commission_ok(self):

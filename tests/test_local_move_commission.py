@@ -124,16 +124,16 @@ def test_without_commission_the_entry_is_two_plain_lines(db, client, now):
     assert e.commission_amount is None and e.commission_currency is None and e.commission_direction is None
 
 
-def test_the_old_fee_field_is_gone_and_posts_nothing_to_5200(db, client, now):
-    """`fee_amount` لم يعد حقلاً: إرساله يُتجاهَل ولا يُقيَّد شيء في 5200 — العمولة وحدها بديله."""
+def test_the_old_fee_field_is_rejected_loudly_and_posts_nothing(db, client, now):
+    """`fee_amount` أُلغي: إرساله يُرفض بـ٤٢٢ ورسالة عربية صريحة (لا تجاهل صامت) ولا يُرحَّل شيء — حتى بقيمة صفر."""
     user = _login(db, client)
     mansour, wathiqoon = _offices(db, now, user)
-    fee_before = _bal(db, "5201")
-    r = _post(client, _move(mansour, wathiqoon, fee_amount="7.00"))
-    assert r.status_code == 201, r.text
-    lines = _line_set(db, r.json()["id"])
-    assert len(lines) == 2 and not any(l[0].startswith("52") for l in lines)
-    assert _bal(db, "5201") == fee_before
+    n = db.execute(text("SELECT count(*) FROM journal_entries WHERE status = 'POSTED'")).scalar_one()
+    for value in ("7.00", "0"):
+        r = _post(client, _move(mansour, wathiqoon, fee_amount=value))
+        assert r.status_code == 422, r.text
+        assert "حقل الرسوم أُلغي — استخدم قسم العمولة" in r.text, r.text
+    assert db.execute(text("SELECT count(*) FROM journal_entries WHERE status = 'POSTED'")).scalar_one() == n
 
 
 def test_commission_validation_is_arabic_and_posts_nothing(db, client, now):
