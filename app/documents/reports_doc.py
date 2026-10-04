@@ -193,12 +193,14 @@ def build_chain_summary_context(db: OrmSession, *, chain_ref: str, doc_size: str
         "doc_size": doc_size, "doc_title": "ملخص سلسلة", "doc_subtitle": chain_ref, "qr_data_uri": None,
         # السعران منفصلان دائماً — لا سعر مركّب لسلسلة (§٢-٩: كل خطوة ربح
         # قائم بذاته)؛ مستند داخلي (لا يصل عميلاً) فعرض سعر التكلفة آمن هنا.
-        "columns": ["الخطوة", "رقم القيد", "التاريخ", "النوع", "الحالة", "سعر العميل", "سعر التكلفة", "الربح"],
+        "columns": ["الخطوة", "رقم القيد", "التاريخ", "النوع", "الحالة", "سعر العميل", "سعر التكلفة", "الربح", "العمولة"],
         "rows": [
             [f"{e.chain_seq}/{e.chain_total}" if e.chain_seq else "—", e.entry_no, e.entry_date.isoformat(),
              _OP_LABELS_AR.get(e.operation_type.value, e.operation_type.value), e.status.value,
              format_rate(e.client_rate), format_rate(e.cost_rate),
-             (format_amount(e.profit_amount, e.profit_currency, dec) + " " + e.profit_currency) if e.profit_amount else "—"]
+             (format_amount(e.profit_amount, e.profit_currency, dec) + " " + e.profit_currency) if e.profit_amount else "—",
+             ((("نقبضها " if e.commission_direction == "IN" else "ندفعها ") + format_amount(e.commission_amount, e.commission_currency, dec) + " " + e.commission_currency)
+              if e.commission_amount is not None else "—")]
             for e in entries
         ],
         "summary": None,

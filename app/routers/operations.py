@@ -281,6 +281,9 @@ def create_exchange_chain(
             idempotency_key=f"{idempotency_key}-1", description=payload.description,
             negative_margin_reason=payload.step1.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
+            commission_direction=payload.step1.commission_direction, commission_currency=payload.step1.commission_currency,
+            commission_amount=payload.step1.commission_amount, commission_account_code=payload.step1.commission_account_code,
+            commission_location_code=payload.step1.commission_location_code,
         )
         step1_holder["entry"] = entry
         return entry
@@ -322,6 +325,9 @@ def create_exchange_chain(
             idempotency_key=f"{idempotency_key}-2", description=payload.description,
             negative_margin_reason=payload.step2.negative_margin_reason,
             chain_ref=chain_ref, chain_seq=chain_seq, chain_total=chain_total,
+            commission_direction=payload.step2.commission_direction, commission_currency=payload.step2.commission_currency,
+            commission_amount=payload.step2.commission_amount, commission_account_code=payload.step2.commission_account_code,
+            commission_location_code=payload.step2.commission_location_code,
         )
 
     result = _run(lambda: chain.execute_two_step_chain(

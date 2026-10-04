@@ -68,7 +68,23 @@ _TREASURY_NO_COST_MESSAGE = (
 )
 
 
-class ExchangeRatesRequest(BackdateFields):
+class CommissionFields(BaseModel):
+    """عمولة اختيارية (٢٠٢٦-١٠-٠٤) — مستقلة عن عملتي الصرف: كلها معاً أو لا شيء. نفسها في الصرافة المفردة ولكل خطوة من المعالج."""
+    commission_direction: Optional[str] = Field(default=None, pattern="^(IN|OUT)$")  # IN نقبضها · OUT ندفعها
+    commission_currency: Optional[str] = None
+    commission_amount: Optional[Decimal] = Field(default=None, gt=0)
+    commission_account_code: Optional[str] = None  # حساب شركة بعملة العمولة
+    commission_location_code: Optional[str] = None  # نطاق العميل: حساب العميل نفسه بهذا الموقع بدل حساب شركة
+
+    def _check_commission(self) -> None:
+        parts = (self.commission_direction, self.commission_currency, self.commission_amount)
+        if any(p is not None for p in parts) and not all(p is not None for p in parts):
+            raise ValueError("العمولة تتطلب الاتجاه والعملة والمبلغ معاً")
+        if self.commission_account_code and self.commission_location_code:
+            raise ValueError("حساب العمولة: حساب شركة أو حساب العميل — لا كليهما")
+
+
+class ExchangeRatesRequest(BackdateFields, CommissionFields):
     """نطاقان حصرياً — أحدهما، لا كلاهما ولا أيّ منهما (٢٠٢٦-٠٩-٢٤):
     **عميل** (`client_id`+موقعا من/إلى، سعران: `cost_rate` و`client_rate`) أو
     **خزينة** (`source_account_code`+`destination_account_code`، لا حساب عميل
@@ -90,20 +106,10 @@ class ExchangeRatesRequest(BackdateFields):
     description: Optional[str] = None
     note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
-    # عمولة اختيارية (٢٠٢٦-١٠-٠٤) — مستقلة عن عملتي الصرف: كلها معاً أو لا شيء
-    commission_direction: Optional[str] = Field(default=None, pattern="^(IN|OUT)$")  # IN نقبضها · OUT ندفعها
-    commission_currency: Optional[str] = None
-    commission_amount: Optional[Decimal] = Field(default=None, gt=0)
-    commission_account_code: Optional[str] = None  # حساب شركة بعملة العمولة
-    commission_location_code: Optional[str] = None  # نطاق العميل: حساب العميل نفسه بهذا الموقع بدل حساب شركة
 
     @model_validator(mode="after")
     def _one_scope(self):
-        parts = (self.commission_direction, self.commission_currency, self.commission_amount)
-        if any(p is not None for p in parts) and not all(p is not None for p in parts):
-            raise ValueError("العمولة تتطلب الاتجاه والعملة والمبلغ معاً")
-        if self.commission_account_code and self.commission_location_code:
-            raise ValueError("حساب العمولة: حساب شركة أو حساب العميل — لا كليهما")
+        self._check_commission()
         is_client = self.client_id is not None
         is_treasury = self.source_account_code is not None or self.destination_account_code is not None
         if is_client == is_treasury:
@@ -132,7 +138,7 @@ class ExchangeLotRequest(BackdateFields):
     note: Optional[str] = None
 
 
-class ExchangeChainStep1(BaseModel):
+class ExchangeChainStep1(CommissionFields):
     """موقعا من/إلى لصرافة عميل، أو حسابا مصدر/وجهة لصرافة خزينة — يحسمه
     `ExchangeChainRequest.client_id` (موجود=عميل، غائب=خزينة)."""
     from_currency: str
@@ -146,8 +152,13 @@ class ExchangeChainStep1(BaseModel):
     source_account_code: Optional[str] = None
     destination_account_code: Optional[str] = None
 
+    @model_validator(mode="after")
+    def _commission_ok(self):
+        self._check_commission()
+        return self
 
-class ExchangeChainStep2(BaseModel):
+
+class ExchangeChainStep2(CommissionFields):
     """لا `source_account_code`/موقع "من" هنا — الخطوة ٢ تنطلق دائماً من
     حيث انتهت الخطوة ١ (وجهتها، بالمبلغ الفعلي المُرحَّل هناك)."""
     to_currency: str
@@ -156,6 +167,11 @@ class ExchangeChainStep2(BaseModel):
     negative_margin_reason: Optional[str] = None
     to_location_code: Optional[str] = None
     destination_account_code: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _commission_ok(self):
+        self._check_commission()
+        return self
 
 
 class ExchangeChainRequest(BackdateFields):

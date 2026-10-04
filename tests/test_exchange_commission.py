@@ -296,3 +296,67 @@ def test_commission_enters_the_net_per_currency_and_stays_a_visible_item(db, cli
     assert g(net1, "LYD") - g(net0, "LYD") == Decimal("20.000")
     assert g(period1, ("net_by_currency", "LYD")) - g(period0, ("net_by_currency", "LYD")) == Decimal("20.000")
     assert g(period1, ("exchange_commission", "LYD")) - g(period0, ("exchange_commission", "LYD")) == Decimal("20.000")
+
+
+def _chain_body(c, step1_extra=None, step2_extra=None):
+    return {
+        "client_id": c.id, "note": "سلسلة بعمولة",
+        "step1": {"from_currency": "LYD", "to_currency": "USD", "amount": "1000", "client_rate": "5.0", "cost_rate": "4.95",
+                  "from_location_code": "TRIPOLI", "to_location_code": "TRIPOLI", **(step1_extra or {})},
+        "step2": {"to_currency": "CNY", "client_rate": "6.9", "cost_rate": "6.95", "to_location_code": "CHINA", **(step2_extra or {})},
+    }
+
+
+def test_wizard_commission_per_step_client_scope(db, client, now):
+    """عمولة اختيارية لكل خطوة بالمنطق نفسه: الخطوة ١ نقبضها بالدينار، الخطوة ٢ ندفعها بالدولار — كل قيد بأعمدته وأسطره."""
+    from app.config import settings
+    from app.documents import reports_doc
+
+    user = _login(db, client)
+    c = f.make_client(db)
+    f.fund_client(db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"), receiving_account_code="1101", user=user, now=now)
+    f.fund_client(db, client=f.make_client(db), currency_code="USD", location_code="TRIPOLI", amount=Decimal("500.00"), receiving_account_code="1104", user=user, now=now)
+    r = client.post("/operations/exchange-chain", json=_chain_body(
+        c,
+        {"commission_direction": "IN", "commission_currency": "LYD", "commission_amount": "15", "commission_account_code": "1101"},
+        {"commission_direction": "OUT", "commission_currency": "USD", "commission_amount": "4", "commission_account_code": "1104"}), headers=_h(client))
+    assert r.status_code == 201, r.text
+    s1, s2 = r.json()["step1"]["id"], r.json()["step2"]["id"]
+    e1, e2 = db.get(JournalEntry, s1), db.get(JournalEntry, s2)
+    assert (e1.commission_direction, e1.commission_currency, e1.commission_amount) == ("IN", "LYD", Decimal("15.000000"))
+    assert (e2.commission_direction, e2.commission_currency, e2.commission_amount) == ("OUT", "USD", Decimal("4.000000"))
+    l1, l2 = _line_set(db, s1), _line_set(db, s2)
+    assert ("1101", "LYD", Decimal("15.000"), Decimal("0")) in l1 and ("4111", "LYD", Decimal("0"), Decimal("15.000")) in l1
+    assert ("5412", "USD", Decimal("4.00"), Decimal("0")) in l2 and ("1104", "USD", Decimal("0"), Decimal("4.00")) in l2
+    assert recompute.verify(db).commission_problems == []
+    # ملخص السلسلة يعرض العمولة
+    ctx = reports_doc.build_chain_summary_context(db, chain_ref=e1.chain_ref, doc_size="a4", now=now, work_timezone=settings.work_timezone)
+    assert ctx["columns"][-1] == "العمولة"
+    assert [row[-1] for row in ctx["rows"]] == ["نقبضها 15.000 LYD", "ندفعها 4.00 USD"]
+    assert client.get(f"/documents/chain-summary/{e1.chain_ref}.pdf").status_code == 200
+    # إلغاء السلسلة يعكس أسطر العمولة معها
+    rev_before = _bal(db, "4111")
+    cancel = client.post(f"/operations/{s1}/cancel", json={"reason": "اختبار"}, headers={"X-CSRF-Token": client.cookies.get("wamda_csrf")})
+    assert cancel.status_code == 200 and cancel.json()["chain_cascade"] is True, cancel.text
+    assert _bal(db, "4111") == rev_before - Decimal("15.000")
+    assert recompute.verify(db).commission_problems == []
+
+
+def test_wizard_commission_per_step_treasury_scope_and_validation(db, client, now):
+    user = _login(db, client)
+    f.fund_client(db, client=f.make_client(db), currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"), receiving_account_code="1101", user=user, now=now)
+    cny = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
+    body = {"step1": {"from_currency": "LYD", "to_currency": "USD", "amount": "1000", "client_rate": "5.0", "source_account_code": "1101",
+                      "destination_account_code": "1104", "commission_direction": "OUT", "commission_currency": "LYD", "commission_amount": "8", "commission_account_code": "1101"},
+            "step2": {"to_currency": "CNY", "client_rate": "6.9", "destination_account_code": cny.code,
+                      "commission_direction": "IN", "commission_currency": "USD", "commission_amount": "3", "commission_account_code": "1104"}}
+    r = client.post("/operations/exchange-chain", json=body, headers=_h(client))
+    assert r.status_code == 201, r.text
+    e1, e2 = db.get(JournalEntry, r.json()["step1"]["id"]), db.get(JournalEntry, r.json()["step2"]["id"])
+    assert e1.commission_direction == "OUT" and e2.commission_direction == "IN" and e1.profit_amount is None
+    assert recompute.verify(db).commission_problems == []
+    # تحقق: خطوة بعمولة ناقصة، وعمولة خزينة بلا حساب شركة
+    bad = {**body, "step2": {**body["step2"], "commission_account_code": None}}
+    assert client.post("/operations/exchange-chain", json=bad, headers=_h(client)).status_code == 422
+    partial = {**body, "step1": {**body["step1"], "commission_currency": None}}
+    assert client.post("/operations/exchange-chain", json=partial, headers=_h(client)).status_code == 422

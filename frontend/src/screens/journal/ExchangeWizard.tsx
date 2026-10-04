@@ -5,6 +5,7 @@ import type { ClientSearchResult, ExchangeChainResponse } from '../../api/types'
 import { useReferenceData } from '../../hooks/useReferenceData'
 import { PIVOT_CODE, convertPreview, profitOrLossLabel, rateDirectionHint, roundGivenToClient, roundInternal } from '../../lib/fxPreview'
 import { AccountPicker, type AccountPickerSpec } from '../../components/AccountPicker'
+import { CommissionSection, commissionToPayload, emptyCommission, type CommissionState } from '../../components/CommissionSection'
 import { DecimalError, DecimalInput } from '../../components/DecimalInput'
 import { FieldErrorPortals, type PlacedError } from '../../components/FieldErrorPortals'
 import { placeFieldErrors, type FieldLabel } from '../../lib/apiErrors'
@@ -54,11 +55,14 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
   const [step2Cost, setStep2Cost] = useState('')
   const [step2Client, setStep2Client] = useState('')
   const [step2Reason, setStep2Reason] = useState('')
+  // عمولة اختيارية لكل خطوة (٢٠٢٦-١٠-٠٤) بالمنطق نفسه (اتجاه · عملة · مبلغ · حساب)
+  const [comm1, setComm1] = useState<CommissionState>(emptyCommission())
+  const [comm2, setComm2] = useState<CommissionState>(emptyCommission())
   const [note, setNote] = useState('')
 
   const formKey = JSON.stringify([
     scope, step, fromCurrency, toCurrency, amount, step1Cost, step1Client, step1Reason, step2Cost, step2Client, step2Reason,
-    fromLocation, step1ToLocation, step2ToLocation, step1SourceAccount, step1DestAccount, step2DestAccount, client?.id ?? null,
+    fromLocation, step1ToLocation, step2ToLocation, step1SourceAccount, step1DestAccount, step2DestAccount, client?.id ?? null, comm1, comm2,
   ])
   const error = errorState && errorState.atKey === formKey ? errorState.message : null
   const fieldErrors = fieldErrorsState && fieldErrorsState.atKey === formKey ? fieldErrorsState.errors : []
@@ -147,12 +151,14 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
           ...(scope === 'TREASURY'
             ? { source_account_code: step1SourceAccount, destination_account_code: step1DestAccount }
             : { cost_rate: step1Cost, negative_margin_reason: step1Reason || undefined, from_location_code: fromLocation, to_location_code: step1ToLocation }),
+          ...commissionToPayload(comm1, scope),
         },
         step2: {
           to_currency: toCurrency, client_rate: step2Client,
           ...(scope === 'TREASURY'
             ? { destination_account_code: step2DestAccount }
             : { cost_rate: step2Cost, negative_margin_reason: step2Reason || undefined, to_location_code: step2ToLocation }),
+          ...commissionToPayload(comm2, scope),
         },
         note: note || undefined,
       }, idemKey)
@@ -278,6 +284,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step1Reason} onChange={(e) => setStep1Reason(e.target.value)} /></div>
             )}
+            <CommissionSection value={comm1} onChange={setComm1} scope={scope} idPrefix="wizard-commission1" testId="wizard-commission-1" />
             <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => setStep(2)} disabled={!step1Preview || !step1Ready}>
               التالي
             </button>
@@ -355,6 +362,7 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
               <div className="field"><label className="field-label">سبب الهامش السالب</label>
                 <input value={step2Reason} onChange={(e) => setStep2Reason(e.target.value)} /></div>
             )}
+            <CommissionSection value={comm2} onChange={setComm2} scope={scope} idPrefix="wizard-commission2" testId="wizard-commission-2" />
             <div className="field">
               <label className="field-label" htmlFor="chain-note">ملاحظة (اختياري)</label>
               <textarea id="chain-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
