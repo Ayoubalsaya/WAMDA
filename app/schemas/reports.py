@@ -42,7 +42,7 @@ class ProfitByPeriodRow(BaseModel):
     transfer_fee: list[CurrencyAmount]
     exchange_spread: list[CurrencyAmount]
     net_by_currency: list[CurrencyAmount]
-    exchange_commission: list[CurrencyAmount] = []  # ٢٠٢٦-١٠-٠٤: بند منفصل لكل عملة (+ إيراد · − مصروف)
+    exchange_commission: list[CurrencyAmount] = []  # ٢٠٢٦-١٠-٠٤: بند ظاهر لكل عملة (+ إيراد · − مصروف) ويدخل net_by_currency
 
 
 class TrialBalanceRow(BaseModel):

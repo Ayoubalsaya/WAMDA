@@ -127,14 +127,16 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
     ]
     transfer_totals = _group_currency_amounts(transfer_pairs)
     exchange_totals = _group_currency_amounts(exchange_pairs)
+    commission_pairs = _commission_pairs(today_entries)
     net_pairs = (
         [(c.currency_code, c.amount) for c in transfer_totals]
         + [(c.currency_code, c.amount) for c in exchange_totals]
+        + commission_pairs  # العمولة تدخل الصافي لكل عملة وتبقى بنداً مستقلاً ظاهراً (٢٠٢٦-١٠-٠٤)
     )
     today_profit = ProfitBreakdown(
         transfer_fee=transfer_totals, exchange_spread=exchange_totals,
         net_by_currency=_group_currency_amounts(net_pairs),
-        exchange_commission=_group_currency_amounts(_commission_pairs(today_entries)),
+        exchange_commission=_group_currency_amounts(commission_pairs),
     )
 
     # أفضل ٥ عملاء — معيار الترتيب: عدد القيود المُرحَّلة (POSTED) التي شارك

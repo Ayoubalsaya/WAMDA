@@ -144,14 +144,16 @@ def profit_by_period(
         exchange_pairs = [(e.profit_currency, e.profit_amount) for e in period_entries if _is_client_facing_spread(e) and e.profit_currency]
         transfer_totals = _group_currency_amounts(transfer_pairs)
         exchange_totals = _group_currency_amounts(exchange_pairs)
+        commission_pairs = _commission_pairs(period_entries)
         net_pairs = (
             [(c.currency_code, c.amount) for c in transfer_totals]
             + [(c.currency_code, c.amount) for c in exchange_totals]
+            + commission_pairs  # عمولة الصرافة تدخل الصافي لكل عملة (+ إيراد · − مصروف) وتبقى بنداً ظاهراً مستقلاً (٢٠٢٦-١٠-٠٤)
         )
         rows.append(ProfitByPeriodRow(
             period_label=period, transfer_fee=transfer_totals, exchange_spread=exchange_totals,
             net_by_currency=_group_currency_amounts(net_pairs),
-            exchange_commission=_group_currency_amounts(_commission_pairs(period_entries)),
+            exchange_commission=_group_currency_amounts(commission_pairs),
         ))
     return rows
 

@@ -82,7 +82,7 @@ export function DashboardScreen() {
             <ProfitColumn title="فرق التحويل" rows={data.today_profit.transfer_fee} currencies={currencies} />
             <ProfitColumn title="فروق أسعار صرف العملاء" rows={data.today_profit.exchange_spread} currencies={currencies} />
             <ProfitColumn title="عمولة الصرافة (+إيراد / −مصروف)" rows={data.today_profit.exchange_commission} currencies={currencies} />
-            <ProfitColumn title="الصافي (لكل عملة)" rows={data.today_profit.net_by_currency} currencies={currencies} />
+            <ProfitColumn title="الصافي (لكل عملة، يشمل العمولة)" rows={data.today_profit.net_by_currency} currencies={currencies} />
           </div>
         </div>
         <div className="card">

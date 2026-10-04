@@ -269,3 +269,30 @@ def test_recompute_verify_fails_when_commission_columns_and_lines_disagree(db, c
         assert any("بلا أعمدة" in p for p in recompute.verify(db).commission_problems)
     finally:
         db.execute(text("ALTER TABLE journal_entries ENABLE TRIGGER USER"))
+
+
+def test_commission_enters_the_net_per_currency_and_stays_a_visible_item(db, client, now):
+    """الإيراد يُضاف والمصروف يُطرح في الصافي لكل عملة، وتبقى «عمولة الصرافة» بنداً مستقلاً (٢٠٢٦-١٠-٠٤)."""
+    user = _login(db, client)
+    c = _client_with(db, now, user)
+
+    def snapshot():
+        profit = client.get("/dashboard/summary").json()["today_profit"]
+        take = lambda items: {x["currency_code"]: Decimal(x["amount"]) for x in items}
+        period = {}
+        for row in client.get("/reports/profit-by-period").json():
+            for key in ("net_by_currency", "exchange_commission"):
+                for x in row[key]:
+                    period[(key, x["currency_code"])] = period.get((key, x["currency_code"]), Decimal("0")) + Decimal(x["amount"])
+        return take(profit["net_by_currency"]), take(profit["exchange_commission"]), period
+
+    net0, comm0, period0 = snapshot()
+    assert _post(client, _client_exchange(c, commission_direction="IN", commission_currency="LYD", commission_amount="25", commission_account_code="1101")).status_code == 201
+    assert _post(client, _client_exchange(c, commission_direction="OUT", commission_currency="LYD", commission_amount="5", commission_account_code="1101")).status_code == 201
+    net1, comm1, period1 = snapshot()
+    g = lambda d, k: d.get(k, Decimal("0"))
+    assert g(comm1, "LYD") - g(comm0, "LYD") == Decimal("20.000"), "بند العمولة: +25 − 5"
+    # الصافي لعملة العمولة يتحرك بـ٢٠ بالضبط (لا فرق سعر بالدينار في هذه الصرافة)، وفرق السعر بالعملة الأخرى لا يتأثر بالعمولة
+    assert g(net1, "LYD") - g(net0, "LYD") == Decimal("20.000")
+    assert g(period1, ("net_by_currency", "LYD")) - g(period0, ("net_by_currency", "LYD")) == Decimal("20.000")
+    assert g(period1, ("exchange_commission", "LYD")) - g(period0, ("exchange_commission", "LYD")) == Decimal("20.000")

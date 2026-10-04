@@ -38,13 +38,13 @@ class DashboardKpis(BaseModel):
 class ProfitBreakdown(BaseModel):
     """§٧-٢: مقسّمة حسب المصدر والعملة — فرق التحويل (CASH_TRANSFER→٤١١٠)
     وفروق صرافة العملاء (EXCHANGE بعميل/REMIT_OUT→٤١٢٠) دائماً منفصلتان،
-    `net_by_currency` مجموعهما داخل كل عملة وحدها (لا دمج عبر العملات).
+    `net_by_currency` مجموعهما **مع عمولة الصرافة** داخل كل عملة وحدها (لا دمج عبر العملات).
     صرافة الخزينة بلا ربح (سعر واحد — ٢٠٢٦-١٠-٠٢) فلا بند لها هنا."""
 
     transfer_fee: list[CurrencyAmount]
     exchange_spread: list[CurrencyAmount]
     net_by_currency: list[CurrencyAmount]
-    # عمولة الصرافة (٢٠٢٦-١٠-٠٤): بند منفصل عن فرق السعر لكل عملة (موجب = إيراد نقبضه، سالب = مصروف ندفعه) — لا يدخل `net_by_currency`
+    # عمولة الصرافة (٢٠٢٦-١٠-٠٤): بند ظاهر مستقل لكل عملة (موجب = إيراد نقبضه، سالب = مصروف ندفعه) **ويدخل** `net_by_currency`
     exchange_commission: list[CurrencyAmount] = []
 
 
