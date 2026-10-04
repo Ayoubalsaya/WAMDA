@@ -149,6 +149,7 @@ ROUTE_AUTH: dict[str, str] = {
     # المرحلة ١٤ب — §٥ قاعدة ٢: تعديل/إلغاء قيد مُرحّل = EDIT_POSTED_ENTRY، مدير حصراً
     "POST /operations/{entry_id}/cancel": ADMIN,
     "POST /operations/{entry_id}/edit": ADMIN,
+    "GET /operations/{entry_id}/source-request": ADMIN,
     "POST /partners": ADMIN,
     "POST /partners/{partner_id}/accounts": ADMIN,
     "GET /periods/opening-balances": ADMIN,

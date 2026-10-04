@@ -71,6 +71,13 @@ export interface ClientBalance {
   balance: string
 }
 
+// طلب الإنشاء الأصلي لقيد (٢٠٢٦-١٠-٠٤): يفتح به التعديل مملوءاً. request=null لقيد سابق بلا قيم محفوظة.
+export interface SourceRequestResponse {
+  operation_type: string
+  kind: 'STANDARD' | 'EXCHANGE_LOT'
+  request: Record<string, unknown> | null
+}
+
 export interface JournalLineOut {
   account_code: string
   account_name_ar: string

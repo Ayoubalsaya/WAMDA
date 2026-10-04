@@ -53,7 +53,7 @@ from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
 from app.models import EntryComment, JournalEntry, User
 from app.models.enums import EntryStatus, OperationType, SessionSubjectType
-from app.routers.operations import _entry_response, _get_client, _run
+from app.routers.operations import _entry_response, _get_client, _remember, _run
 from app.schemas.operations import (
     AdjustmentRequest,
     CancelRequest,
@@ -62,6 +62,7 @@ from app.schemas.operations import (
     CommentCreate,
     CommentOut,
     EditRequest,
+    SourceRequestResponse,
     EditResponse,
     EntryResponse,
     ExchangeLotRequest,
@@ -103,7 +104,7 @@ def _create_receipt(db: OrmSession, op: ReceiptRequest, user: User, now: datetim
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
         idempotency_key=idem, payment_method=op.payment_method, description=op.description,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -116,7 +117,7 @@ def _create_payment(db: OrmSession, op: PaymentRequest, user: User, now: datetim
         idempotency_key=idem, description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -133,7 +134,7 @@ def _create_exchange(db: OrmSession, op: ExchangeRatesRequest, user: User, now: 
         commission_amount=op.commission_amount, commission_account_code=op.commission_account_code,
         commission_location_code=op.commission_location_code,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -151,7 +152,7 @@ def _create_cash_transfer(db: OrmSession, op: CashTransferRequest, user: User, n
         idempotency_key=idem, description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -163,7 +164,7 @@ def _create_local_move(db: OrmSession, op: LocalMoveRequest, user: User, now: da
         description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -176,7 +177,7 @@ def _create_remit_out(db: OrmSession, op: RemitOutRequest, user: User, now: date
         now=now, idempotency_key=idem, description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -187,7 +188,7 @@ def _create_swift_out(db: OrmSession, op: SwiftOutRequest, user: User, now: date
         idempotency_key=idem, external_ref=op.external_ref, description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -199,7 +200,7 @@ def _create_swift_in(db: OrmSession, op: SwiftInRequest, user: User, now: dateti
         idempotency_key=idem, bank_conversion_rate=op.bank_conversion_rate,
         description=op.description,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -211,7 +212,7 @@ def _create_swift_return(db: OrmSession, op: SwiftReturnRequest, user: User, now
         return_fee_amount=op.return_fee_amount, work_timezone=settings.work_timezone,
         created_by=user.id, now=now, idempotency_key=idem, description=op.description,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -223,7 +224,7 @@ def _create_expense(db: OrmSession, op: ExpenseRequest, user: User, now: datetim
         idempotency_key=idem, allow_negative=op.allow_negative,
         override_reason=op.override_reason,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -242,7 +243,7 @@ def _create_opening(db: OrmSession, op: OpeningRequest, user: User, now: datetim
         confidence=op.confidence, approved_by=user.id, created_by=user.id, now=now,
         idempotency_key=idem, source_note=op.source_note,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -253,7 +254,7 @@ def _create_adjustment(db: OrmSession, op: AdjustmentRequest, user: User, now: d
         created_by=user.id, now=now, idempotency_key=idem,
         allow_negative=op.allow_negative,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -282,7 +283,7 @@ def _create_exchange_lot(db: OrmSession, op: ExchangeLotRequest, user: User, now
         amount=op.amount, client_rate=op.client_rate, work_timezone=settings.work_timezone,
         created_by=user.id, now=now, idempotency_key=idem, description=op.description,
     ))
-    entry.note = op.note
+    _remember(entry, op)
     return entry
 
 
@@ -424,6 +425,20 @@ def edit_entry(
     )
     db.commit()
     return EditResponse(reversed_entry_id=entry.id, new_entry=_entry_response(new_entry))
+
+
+@router.get("/{entry_id}/source-request", response_model=SourceRequestResponse)
+def entry_source_request(
+    entry_id: int,
+    db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.EDIT_POSTED_ENTRY)),
+) -> SourceRequestResponse:
+    """جسم طلب الإنشاء الأصلي لهذا القيد — يفتح به نموذج التعديل مملوءاً بكل القيم الأصلية (٢٠٢٦-١٠-٠٤). `request=null` لقيد
+    سابق لهذه الميزة (لا قيم محفوظة): الواجهة تُنبِّه المستخدم بدل تعبئة مضلِّلة."""
+    entry = _get_entry(db, entry_id)
+    dispatch = _dispatch_for(entry)
+    kind = "EXCHANGE_LOT" if dispatch is not None and dispatch[0] is ExchangeLotRequest else "STANDARD"
+    return SourceRequestResponse(operation_type=entry.operation_type.value, kind=kind, request=entry.source_request)
 
 
 @router.get("/{entry_id}/comments", response_model=list[CommentOut])

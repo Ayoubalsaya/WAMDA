@@ -16,6 +16,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -43,6 +44,8 @@ class JournalEntry(Base):
     commission_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6))
     commission_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
     commission_direction: Mapped[Optional[str]] = mapped_column(Text)  # IN = نقبضها (إيراد) · OUT = ندفعها (مصروف)
+    # جسم طلب الإنشاء الأصلي (بعد التحقق) — يفتح به التعديل مملوءاً (٢٠٢٦-١٠-٠٤)؛ NULL لقيود سابقة
+    source_request: Mapped[Optional[dict]] = mapped_column(JSONB)
     is_backdated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     backdate_reason: Mapped[Optional[str]] = mapped_column(Text)
     negative_margin_reason: Mapped[Optional[str]] = mapped_column(Text)

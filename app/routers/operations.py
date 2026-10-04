@@ -108,6 +108,12 @@ def _run(fn: Callable[[], JournalEntry]) -> JournalEntry:
         raise  # pragma: no cover — لا يُصل إليه، كل صنف مُغطّى أعلاه
 
 
+def _remember(entry: JournalEntry, request) -> None:
+    """ملاحظة القيد + جسم طلب الإنشاء الأصلي (للتعديل المملوء، ٢٠٢٦-١٠-٠٤). يُستدعى من مسار الإنشاء ومن مسار التعديل."""
+    entry.note = request.note
+    entry.source_request = request.model_dump(mode="json")
+
+
 def _idempotency_key(idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key")) -> str:
     if not idempotency_key:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "ترويسة Idempotency-Key إلزامية")
@@ -158,7 +164,7 @@ def create_receipt(
         work_timezone=settings.work_timezone, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, payment_method=payload.payment_method, description=payload.description,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -181,7 +187,7 @@ def create_payment(
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -206,7 +212,7 @@ def create_exchange(
         commission_amount=payload.commission_amount, commission_account_code=payload.commission_account_code,
         commission_location_code=payload.commission_location_code,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -225,7 +231,7 @@ def create_exchange_from_lot(
         amount=payload.amount, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -355,7 +361,7 @@ def create_cash_transfer(
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -377,7 +383,7 @@ def create_local_move(
         description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -400,7 +406,7 @@ def create_remit_out(
         now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -421,7 +427,7 @@ def create_swift_out(
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, external_ref=payload.external_ref, description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -441,7 +447,7 @@ def create_swift_in(
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, bank_conversion_rate=payload.bank_conversion_rate,
         description=payload.description,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -461,7 +467,7 @@ def create_swift_return(
         return_fee_amount=payload.return_fee_amount, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -483,7 +489,7 @@ def create_expense(
         idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, allow_negative=payload.allow_negative,
         override_reason=payload.override_reason,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -509,7 +515,7 @@ def create_opening(
         confidence=payload.confidence, approved_by=current_user.id, created_by=current_user.id, now=now,
         idempotency_key=idempotency_key, source_note=payload.source_note,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)
 
@@ -528,6 +534,6 @@ def create_adjustment(
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason,
         allow_negative=payload.allow_negative,
     ))
-    entry.note = payload.note
+    _remember(entry, payload)
     db.commit()
     return _entry_response(entry)

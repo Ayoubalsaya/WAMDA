@@ -349,6 +349,12 @@ class EditRequest(BaseModel):
     operation: dict
 
 
+class SourceRequestResponse(BaseModel):
+    operation_type: str
+    kind: str  # STANDARD · EXCHANGE_LOT (بيع رمبي من دفعة — نموذج مختلف)
+    request: Optional[dict] = None
+
+
 class EditResponse(BaseModel):
     reversed_entry_id: int
     new_entry: EntryResponse

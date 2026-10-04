@@ -4,6 +4,7 @@ import {
 } from 'lucide-react'
 import { api, ApiError, newIdempotencyKey } from '../../api/client'
 import type {
+  SourceRequestResponse,
   ClientBalance, ClientSearchResult, Currency, EditResponse, EntryResponse, Location,
   PendingSwiftMovement,
 } from '../../api/types'
@@ -244,6 +245,95 @@ export function OperationForm({
   }
 
   useEffect(() => { resetForm() }, [tab])
+
+  // ═══ التعديل يفتح مملوءاً بكل قيم القيد الأصلي (٢٠٢٦-١٠-٠٤) ═══
+  // الخادم يحفظ جسم طلب الإنشاء مع القيد؛ نجلبه هنا ونُسقطه على حالة النموذج بعد تصفير التبويب، فيغيّر المستخدم ما يريد فقط
+  // ولا تضيع عمولة أو ملاحظة أو موقع بصمت. قيد سابق بلا طلب محفوظ ⇒ تنبيه صريح.
+  const [prefill, setPrefill] = useState<SourceRequestResponse | null>(null)
+  const [prefillMissing, setPrefillMissing] = useState(false)
+  useEffect(() => {
+    if (mode !== 'edit' || !editEntryId) return
+    let cancelled = false
+    void api.get<SourceRequestResponse>(`/operations/${editEntryId}/source-request`).then((res) => {
+      if (cancelled) return
+      if (res.request) setPrefill(res)
+      else setPrefillMissing(true)
+    })
+    return () => { cancelled = true }
+  }, [mode, editEntryId])
+  useEffect(() => {
+    if (prefill && prefill.kind === 'STANDARD' && prefill.operation_type === tab && prefill.request) applyPrefill(prefill.request)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, prefill])
+
+  function applyPrefill(r: Record<string, unknown>) {
+    const str = (k: string): string => (r[k] === null || r[k] === undefined ? '' : String(r[k]))
+    const f: Record<string, string> = {}
+    const put = (key: string, from: string = key) => { if (r[from] !== null && r[from] !== undefined) f[key] = String(r[from]) }
+    if (r.entry_date) setEntryDate(str('entry_date'))
+    if (r.backdate_reason) setBackdateReason(str('backdate_reason'))
+    put('note')
+    switch (tab) {
+      case 'RECEIPT':
+      case 'PAYMENT':
+        setCurrencyCode(str('currency_code')); setLocationCode(str('location_code')); setAmount(str('amount'))
+        setAccountCode(str(tab === 'RECEIPT' ? 'receiving_account_code' : 'paying_account_code'))
+        break
+      case 'EXCHANGE':
+        setCurrencyCode(str('from_currency')); setToCurrency(str('to_currency')); setAmount(str('amount')); setClientRate(str('client_rate'))
+        if (r.source_account_code) {
+          setExchangeScope('TREASURY')
+          setTreasurySourceAccount(str('source_account_code')); setTreasuryDestAccount(str('destination_account_code'))
+        } else {
+          setExchangeScope('CLIENT')
+          setLocationCode(str('from_location_code')); setToLocation(str('to_location_code')); setCostRate(str('cost_rate'))
+          setNegativeMarginReason(str('negative_margin_reason'))
+        }
+        if (r.commission_amount) {
+          setCommissionOpen(true); setCommDirection(r.commission_direction === 'OUT' ? 'OUT' : 'IN')
+          setCommCurrency(str('commission_currency')); setCommAmount(str('commission_amount'))
+          if (r.commission_location_code) { setCommSource('CLIENT'); setCommLocation(str('commission_location_code')) }
+          else { setCommSource('COMPANY'); setCommAccount(str('commission_account_code')) }
+        }
+        break
+      case 'CASH_TRANSFER':
+        setCurrencyCode(str('currency_code')); setFromLocation(str('from_location_code')); setToLocationCt(str('to_location_code'))
+        setAmount(str('amount')); setSourceAccount(str('source_account_code')); setExecutionAccount(str('execution_account_code'))
+        if (r.collection_account_code) { setCollectFromCompanyAccount(true); setCollectionAccount(str('collection_account_code')) }
+        else { setCollectFromCompanyAccount(false); setCollectionLocation(str('collection_location_code')) }
+        setCommissionCurrency(str('commission_currency')); setClientCommission(str('client_commission_amount'))
+        setCostCommission(str('cost_commission_amount')); setCostCorrespondentAccount(str('cost_correspondent_account_code'))
+        break
+      case 'REMIT_OUT':
+        put('from_location_code'); put('sending_account_code'); put('currency_code'); put('amount')
+        break
+      case 'EXPENSE':
+        put('expense_account_code'); put('currency_code'); put('paying_account_code'); put('amount'); put('description')
+        break
+      case 'SWIFT_OUT':
+        put('partner_account_code'); put('amount'); put('external_ref'); put('description')
+        break
+      case 'SWIFT_IN':
+        put('swift_movement_id'); put('total_amount'); put('fee_amount'); put('receiving_account_code'); put('bank_conversion_rate')
+        break
+      case 'SWIFT_RETURN':
+        put('swift_movement_id'); put('total_amount'); put('client_location_code'); put('return_fee_amount')
+        break
+      case 'LOCAL_MOVE':
+        put('currency_code'); put('from_account_code'); put('to_account_code'); put('amount'); put('fee_amount')
+        break
+      case 'OPENING':
+        put('account_code'); put('currency_code'); put('amount'); put('as_of_date'); put('source_type'); put('confidence'); put('source_note')
+        f.is_debit = r.is_debit ? 'true' : 'false'
+        setOpeningAccountMode(client ? 'client' : 'system')
+        break
+      case 'ADJUSTMENT':
+        put('account_code'); put('currency_code'); put('amount'); put('reason')
+        f.is_debit = r.is_debit ? 'true' : 'false'
+        break
+    }
+    setFields(f)
+  }
 
   // تبويب الصرافة يفتح بعملتين مختلفتين (لا دولار ← دولار): أول عملة غير دولار ← الدولار
   useEffect(() => {
@@ -708,7 +798,12 @@ export function OperationForm({
           </div>
         </div>
 
-        {isEdit && <FormGuide tone="warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — أدخل القيم الكاملة للعملية.</FormGuide>}
+        {isEdit && !prefillMissing && <FormGuide tone="warning">تعديل يعكس العملية الأصلية وينشئ بديلاً بالقيم الجديدة — الحقول مملوءة بالقيم الأصلية؛ غيّر ما تريد فقط.</FormGuide>}
+        {isEdit && prefillMissing && (
+          <FormGuide tone="warning" title="لا قيم محفوظة لهذا القيد">
+            هذا القيد أُنشئ قبل حفظ القيم الأصلية، فلا يمكن ملء النموذج بها — أدخل **كل** الحقول (العملات، المواقع، الحسابات، المبالغ، الأسعار، العمولة، الملاحظة) بعناية.
+          </FormGuide>
+        )}
         {isEdit && client && (
           <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>العميل: {client.name_ar} ({client.code})</p>
         )}
