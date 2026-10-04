@@ -166,6 +166,14 @@ export function OperationForm({
   const [amount, setAmount] = useState('')
   const [accountCode, setAccountCode] = useState('')
   const [toCurrency, setToCurrency] = useState('')
+  // عمولة الصرافة الاختيارية (٢٠٢٦-١٠-٠٤): مطويّة افتراضياً؛ عملتها مستقلة عن عملتي الصرف
+  const [commissionOpen, setCommissionOpen] = useState(false)
+  const [commDirection, setCommDirection] = useState<'IN' | 'OUT'>('IN')
+  const [commCurrency, setCommCurrency] = useState('')
+  const [commAmount, setCommAmount] = useState('')
+  const [commSource, setCommSource] = useState<'COMPANY' | 'CLIENT'>('COMPANY')
+  const [commAccount, setCommAccount] = useState('')
+  const [commLocation, setCommLocation] = useState('')
   const [toLocation, setToLocation] = useState('')
   const [costRate, setCostRate] = useState('')
   const [clientRate, setClientRate] = useState('')
@@ -216,6 +224,7 @@ export function OperationForm({
   function resetForm() {
     setCurrencyCode(''); setLocationCode(''); setAmount(''); setAccountCode('')
     setToCurrency(''); setToLocation(''); setCostRate(''); setClientRate(''); setNegativeMarginReason('')
+    setCommissionOpen(false); setCommDirection('IN'); setCommCurrency(''); setCommAmount(''); setCommSource('COMPANY'); setCommAccount(''); setCommLocation('')
     setFromLocation(''); setToLocationCt(''); setCommissionCurrency('')
     setClientCommission(''); setCostCommission(''); setSourceAccount(''); setExecutionAccount('')
     setCollectionAccount(''); setCollectFromCompanyAccount(false); setCollectionLocation('')
@@ -330,6 +339,9 @@ export function OperationForm({
     tab === 'SWIFT_IN' ? { mode: 'operation', operationType: 'SWIFT_IN', field: 'receiving', currencyCode: swiftInCurrency } : null
 
   // الإرسال الخارجي (٢٠٢٦-١٠-٠٤): حساب الشركة المُرسِل بعملة العملية نفسها (بنك/مراسل/صندوق) — يوان ← حسابات اليوان فقط، بلا دولار وسيط
+  const commissionSpec: AccountPickerSpec | null =
+    tab === 'EXCHANGE' && commissionOpen && commCurrency ? { mode: 'operation', operationType: 'EXCHANGE', field: 'commission', currencyCode: commCurrency } : null
+  const commissionClientLocations = useMemo(() => locationsForCurrency(commCurrency), [commCurrency, locationsForCurrency])
   const remitOutSendingSpec: AccountPickerSpec | null =
     tab === 'REMIT_OUT' ? { mode: 'operation', operationType: 'REMIT_OUT', field: 'sending', currencyCode: fields.currency_code ?? '' } : null
   const remitClientLocations = useMemo(() => locationsForCurrency(fields.currency_code ?? ''), [fields.currency_code, locationsForCurrency])
@@ -426,6 +438,18 @@ export function OperationForm({
   // ب: يبني {url, payload} فقط — لا يرسل — كي يُعاد استخدام نفس الجسم عند
   // إعادة المحاولة بعد تجاوز رصيد سالب (allow_negative+override_reason
   // يُضافان لاحقاً بلا تكرار كل هذا التفريع من جديد).
+
+  // حقول العمولة تُرسَل فقط إن طُوي القسم مفتوحاً وأُدخل مبلغ (اختياري بالكامل)
+  function commissionPayload(): Record<string, string | undefined> {
+    if (!commissionOpen || !commAmount) return {}
+    const company = exchangeScope === 'TREASURY' || commSource === 'COMPANY'
+    return {
+      commission_direction: commDirection, commission_currency: commCurrency, commission_amount: commAmount,
+      commission_account_code: company ? commAccount : undefined,
+      commission_location_code: company ? undefined : commLocation,
+    }
+  }
+
   function buildRequest(): { url: string; payload: Record<string, unknown> } | null {
     if (tab === 'RECEIPT') {
       return { url: '/operations/receipt', payload: {
@@ -441,11 +465,12 @@ export function OperationForm({
       return { url: '/operations/exchange', payload: exchangeScope === 'TREASURY' ? {
         source_account_code: treasurySourceAccount, destination_account_code: treasuryDestAccount,
         from_currency: currencyCode, to_currency: toCurrency, amount,
-        client_rate: clientRate, note: fields.note || undefined,
+        client_rate: clientRate, note: fields.note || undefined, ...commissionPayload(),
       } : {
         client_id: client!.id, from_currency: currencyCode, from_location_code: locationCode,
         to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
         client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
+        ...commissionPayload(),
       } }
     } else if (tab === 'CASH_TRANSFER') {
       return { url: '/operations/cash-transfer', payload: {
@@ -1218,6 +1243,54 @@ export function OperationForm({
             <div className="field">
               <label className="field-label">سبب الهامش السالب (إلزامي)</label>
               <input value={negativeMarginReason} onChange={(e) => setNegativeMarginReason(e.target.value)} />
+            </div>
+          )}
+
+          {tab === 'EXCHANGE' && (
+            <div className="commission-section" data-testid="commission-section">
+              <button
+                type="button" className="btn-text commission-toggle" aria-expanded={commissionOpen}
+                onClick={() => setCommissionOpen((v) => !v)}
+              >
+                {commissionOpen ? '▾' : '◂'} عمولة (اختياري)
+              </button>
+              {commissionOpen && (
+                <div className="commission-body">
+                  <PillTabs
+                    label="اتجاه العمولة" value={commDirection} onChange={setCommDirection}
+                    options={[{ id: 'IN', label: 'نقبضها (إيراد)' }, { id: 'OUT', label: 'ندفعها (مصروف)' }]}
+                  />
+                  <div className="form-row">
+                    <div className="field">
+                      <label className="field-label">عملة العمولة</label>
+                      <CurrencySelect
+                        value={commCurrency} currencies={currencies}
+                        onChange={(v) => { setCommCurrency(v); setCommAccount(''); setCommLocation('') }}
+                      />
+                    </div>
+                    <AmountStage id="commission-amount" label={`مبلغ العمولة (${commCurrency || '—'})`} value={commAmount} onChange={setCommAmount} currencyCode={commCurrency || undefined} />
+                  </div>
+                  {exchangeScope === 'CLIENT' && (
+                    <PillTabs
+                      label="حساب العمولة" value={commSource} onChange={(v) => { setCommSource(v); setCommAccount(''); setCommLocation('') }}
+                      options={[{ id: 'COMPANY', label: 'حساب شركة' }, { id: 'CLIENT', label: 'حساب العميل' }]}
+                    />
+                  )}
+                  {(exchangeScope === 'TREASURY' || commSource === 'COMPANY') ? (
+                    <AccountPicker
+                      value={commAccount} onChange={(code) => setCommAccount(code)} spec={commissionSpec}
+                      label={commDirection === 'IN' ? 'الحساب الذي تُودَع فيه' : 'الحساب الذي تُخصم منه'}
+                      emptyMessage={!commCurrency ? 'اختر عملة العمولة أولاً' : `لا حسابات شركة (صندوق أو بنك أو مراسل) بعملة ${commCurrency}`}
+                    />
+                  ) : (
+                    <div className="field">
+                      <label className="field-label">موقع حساب العميل ({commCurrency || '—'})</label>
+                      <LocationSelect value={commLocation} onChange={setCommLocation} locations={commissionClientLocations} disabled={!commCurrency} />
+                    </div>
+                  )}
+                  <div className="rate-hint">زوج أسطر متوازن بعملة العمولة نفسها، منفصل عن فرق السعر في الأرباح.</div>
+                </div>
+              )}
             </div>
           )}
 

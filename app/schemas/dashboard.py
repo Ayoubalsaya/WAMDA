@@ -44,6 +44,8 @@ class ProfitBreakdown(BaseModel):
     transfer_fee: list[CurrencyAmount]
     exchange_spread: list[CurrencyAmount]
     net_by_currency: list[CurrencyAmount]
+    # عمولة الصرافة (٢٠٢٦-١٠-٠٤): بند منفصل عن فرق السعر لكل عملة (موجب = إيراد نقبضه، سالب = مصروف ندفعه) — لا يدخل `net_by_currency`
+    exchange_commission: list[CurrencyAmount] = []
 
 
 class TopClientRow(BaseModel):

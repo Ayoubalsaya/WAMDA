@@ -65,6 +65,13 @@ _SPECS: dict[tuple[str, str], _FieldSpec] = {
     # حسابي شركة عبر مراسل طرف ثالث §١-٥): أي حساب شركة بعملة كل طرف، أي
     # موقع — حسابات العملاء (2100-*) مستبعَدة أصلاً هنا كبقية `_SPECS`
     # (نفس الاستبعاد البنيوي في `accounts_for_operation` أدناه لكل الحقول).
+    # حساب عمولة الصرافة (٢٠٢٦-١٠-٠٤): حسابات الشركة بعملة العمولة المستقلة عن عملتي الصرف، أي موقع
+    # (نطاق العميل يضيف حساب العميل نفسه في الواجهة عبر موقع، لا عبر هذا الملف — حسابات العملاء مستبعَدة بنيوياً هنا).
+    ("EXCHANGE", "commission"): _FieldSpec(
+        types=frozenset({AccountType.ASSET}),
+        forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),
+        location_mode="none",
+    ),
     ("EXCHANGE", "source"): _FieldSpec(
         types=frozenset({AccountType.ASSET}),
         forms=frozenset({AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT}),

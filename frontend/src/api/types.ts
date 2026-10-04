@@ -251,6 +251,7 @@ export interface ProfitBreakdown {
   transfer_fee: CurrencyAmount[]
   exchange_spread: CurrencyAmount[]
   net_by_currency: CurrencyAmount[]
+  exchange_commission: CurrencyAmount[]  // عمولة الصرافة منفصلة عن الفرق (+ إيراد · − مصروف)
 }
 
 export interface TopClientRow {
@@ -380,6 +381,7 @@ export interface ProfitByPeriodRow {
   transfer_fee: CurrencyAmount[]
   exchange_spread: CurrencyAmount[]
   net_by_currency: CurrencyAmount[]
+  exchange_commission: CurrencyAmount[]  // عمولة الصرافة منفصلة عن الفرق (+ إيراد · − مصروف)
 }
 
 export interface TrialBalanceRow {

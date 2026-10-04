@@ -129,6 +129,9 @@ def _create_exchange(db: OrmSession, op: ExchangeRatesRequest, user: User, now: 
         cost_rate=op.cost_rate, client_rate=op.client_rate, work_timezone=settings.work_timezone,
         created_by=user.id, now=now, idempotency_key=idem, description=op.description,
         negative_margin_reason=op.negative_margin_reason,
+        commission_direction=op.commission_direction, commission_currency=op.commission_currency,
+        commission_amount=op.commission_amount, commission_account_code=op.commission_account_code,
+        commission_location_code=op.commission_location_code,
     ))
     entry.note = op.note
     return entry

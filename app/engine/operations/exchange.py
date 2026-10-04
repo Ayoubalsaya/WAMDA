@@ -26,9 +26,56 @@ from app.engine import accounts_repo, clearing, clock, fx, lots_fifo, posting, p
 from app.engine.rounding import RoundingKind, round_amount
 from app.models import Client, JournalEntry
 from app.engine.profit import NegativeMarginReasonRequiredError
-from app.models.enums import OperationType
+from app.models.enums import AccountForm, AccountType, OperationType
 
-__all__ = ["NegativeMarginReasonRequiredError", "execute_via_rates", "execute_via_lot"]
+__all__ = ["InvalidCommissionError", "NegativeMarginReasonRequiredError", "execute_via_rates", "execute_via_lot"]
+
+
+class InvalidCommissionError(Exception):
+    """عمولة الصرافة غير صالحة: حساب بعملة مختلفة، أو حساب ليس للشركة/العميل المناسب، أو بيانات ناقصة."""
+
+
+_COMPANY_COMMISSION_FORMS = (AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT)
+
+
+def _add_commission(
+    db: Session, draft, *, is_treasury: bool, client: Optional[Client], direction: str, currency_code: str, amount: Decimal,
+    account_code: Optional[str], location_code: Optional[str],
+) -> None:
+    """عمولة الصرافة (٢٠٢٦-١٠-٠٤): زوج أسطر متوازن **بعملتها هي** (لا تحويل لعملة أساس) مستقل عن عملتي الصرف.
+    نقبضها (IN): مدين الحساب المختار ← دائن 4110 بفرع عملتها. ندفعها (OUT): مدين 5410 بفرع عملتها ← دائن الحساب المختار.
+    الحساب المختار: حساب شركة (صندوق/بنك/مراسل) بعملة العمولة؛ ونطاق العميل يقبل أيضاً حساب العميل نفسه (عملة العمولة × الموقع)."""
+    if direction not in ("IN", "OUT"):
+        raise InvalidCommissionError("اتجاه العمولة: نقبضها أو ندفعها")
+    if amount <= 0:
+        raise InvalidCommissionError("مبلغ العمولة يجب أن يكون أكبر من صفر")
+    ccy = accounts_repo.get_currency(db, currency_code)
+    if account_code:
+        account = accounts_repo.get_account_by_code(db, account_code)
+        if account.client_id is not None or account.type != AccountType.ASSET or account.form not in _COMPANY_COMMISSION_FORMS:
+            raise InvalidCommissionError(f"الحساب {account_code} ليس حساب شركة (صندوق أو بنك أو مراسل) للعمولة")
+    elif is_treasury:
+        raise InvalidCommissionError("عمولة صرافة الخزينة تتطلب حساب شركة")
+    else:
+        if not location_code:
+            raise InvalidCommissionError("اختر حساب العمولة: موقع حساب العميل أو حساب شركة")
+        account = accounts_repo.get_or_create_client_account(db, client=client, currency_code=currency_code, location_code=location_code)
+    if account.currency_code != currency_code:
+        raise InvalidCommissionError(f"حساب العمولة بعملة {account.currency_code} لا {currency_code} — العمولة بعملتها فقط")
+    amount = round_amount(amount, ccy.decimals, RoundingKind.INTERNAL)
+    if amount <= 0:
+        raise InvalidCommissionError("مبلغ العمولة يُقرَّب إلى صفر بخانات هذه العملة")
+    revenue = accounts_repo.get_currency_subaccount(db, "4110", currency_code)
+    cost = accounts_repo.get_currency_subaccount(db, "5410", currency_code)
+    if direction == "IN":
+        draft.add(account_id=account.id, currency_code=currency_code, debit=amount)
+        draft.add(account_id=revenue.id, currency_code=currency_code, credit=amount)
+    else:
+        draft.add(account_id=cost.id, currency_code=currency_code, debit=amount)
+        draft.add(account_id=account.id, currency_code=currency_code, credit=amount)
+    draft.entry.commission_amount = amount
+    draft.entry.commission_currency = currency_code
+    draft.entry.commission_direction = direction
 
 
 def execute_via_rates(
@@ -55,6 +102,11 @@ def execute_via_rates(
     chain_ref: Optional[str] = None,
     chain_seq: Optional[int] = None,
     chain_total: Optional[int] = None,
+    commission_direction: Optional[str] = None,
+    commission_currency: Optional[str] = None,
+    commission_amount: Optional[Decimal] = None,
+    commission_account_code: Optional[str] = None,
+    commission_location_code: Optional[str] = None,
 ) -> JournalEntry:
     """نطاقان (٢٠٢٦-٠٩-٢٤، طلب مالك — لا نوع عملية ثالث عشر): **عميل**
     (`client`+المواقع، الأصل) أو **خزينة** (`source_account_code`+
@@ -77,6 +129,8 @@ def execute_via_rates(
     بنفس الانعكاس.
     """
     is_treasury = source_account_code is not None
+    if (commission_amount is None) != (commission_direction is None) or (commission_amount is None) != (commission_currency is None):
+        raise InvalidCommissionError("العمولة تتطلب الاتجاه والعملة والمبلغ معاً")
     if is_treasury and cost_rate is not None:
         raise ValueError("صرافة الخزينة بسعر واحد — لا cost_rate")
     if not is_treasury and cost_rate is None:
@@ -163,6 +217,11 @@ def execute_via_rates(
                 draft.add(account_id=pl_account.id, currency_code=to_currency, **pl_amounts)
             draft.entry.profit_amount = diff
             draft.entry.profit_currency = to_currency
+        if commission_amount is not None:
+            _add_commission(
+                db, draft, is_treasury=is_treasury, client=client, direction=commission_direction, currency_code=commission_currency,
+                amount=commission_amount, account_code=commission_account_code, location_code=commission_location_code,
+            )
         return posting.post_entry(db, draft, posted_by=created_by, now=now)
 
     return posting.execute_idempotent(
@@ -170,6 +229,7 @@ def execute_via_rates(
         idempotency_key=idempotency_key,
         request_payload={
             "op": "EXCHANGE_VIA_RATES",
+            "commission": [commission_direction, commission_currency, commission_amount, commission_account_code, commission_location_code],
             "client_id": client.id if client else None,
             "source_account_code": source_account_code,
             "destination_account_code": destination_account_code,

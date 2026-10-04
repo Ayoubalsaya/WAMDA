@@ -123,8 +123,8 @@ def build_monthly_profit_context(db: OrmSession, *, doc_size: str, now: datetime
     ctx = base_context(db, now=now, work_timezone=work_timezone)
     ctx.update({
         "doc_size": doc_size, "doc_title": "الأرباح الشهرية", "doc_subtitle": None, "qr_data_uri": None,
-        "columns": ["الشهر", "فرق التحويل", "فروق الصرف", "الصافي"],
-        "rows": [[r.period_label, fmt_list(r.transfer_fee), fmt_list(r.exchange_spread), fmt_list(r.net_by_currency)] for r in rows],
+        "columns": ["الشهر", "فرق التحويل", "فروق الصرف", "عمولة الصرافة", "الصافي"],
+        "rows": [[r.period_label, fmt_list(r.transfer_fee), fmt_list(r.exchange_spread), fmt_list(r.exchange_commission), fmt_list(r.net_by_currency)] for r in rows],
         "summary": None,
     })
     return ctx

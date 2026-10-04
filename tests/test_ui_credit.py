@@ -180,7 +180,7 @@ def test_per_currency_three_states_in_client_screen_and_debtors_report(journal_p
     editor.locator("label.credit-mode-option", has_text="حد بمبلغ").click()
     editor.locator("input[inputmode='decimal']").fill("250")
     editor.get_by_role("button", name="حفظ الحد").click()
-    pg.wait_for_timeout(600)
+    _wait_status(pg, "PARTIAL")  # انتظار فعلي لا مهلة ثابتة (الحمل في المجموعة الكاملة يؤخّر الرد)
     assert pg.locator("[data-testid=credit-status-badge]").inner_text() == "جزئي"
     editor.locator("label.credit-mode-option", has_text="بلا سقف").click()
     editor.get_by_role("button", name="حفظ الحد").click()

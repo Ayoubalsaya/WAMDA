@@ -143,4 +143,6 @@ def cli_restore_test(backup_file: str) -> None:
         print(f"  سويفت: {p}")
     for p in outcome.report.lot_problems:
         print(f"  دفعة: {p}")
+    for p in getattr(outcome.report, "commission_problems", []):
+        print(f"  عمولة: {p}")
     sys.exit(1)

@@ -14,7 +14,7 @@
 
 .profit-columns {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));  /* ٤ بنود بعد عمولة الصرافة (٢٠٢٦-١٠-٠٤) */
 }
 .profit-col { padding: 0 var(--space-3); }
 .profit-col + .profit-col { border-inline-start: 1px solid var(--divider); }

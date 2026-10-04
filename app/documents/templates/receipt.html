@@ -36,6 +36,10 @@
   </tbody>
 </table>
 
+{% if commission %}
+<div class="doc-box" style="margin: 8px 0;"><div class="row"><span>{{ commission.label }}</span><span class="num">{{ commission.amount }} {{ commission.currency }}</span></div></div>
+{% endif %}
+
 <div class="balances-strip">
   {% for b in balances %}
   <div class="balances-box">

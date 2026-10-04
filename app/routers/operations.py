@@ -25,6 +25,7 @@ from app.engine.clock import system_clock
 from app.engine.fx import ImplausibleRateError, InvalidCurrencyPairError, SAME_CURRENCY_MESSAGE
 from app.engine.idempotency import IdempotencyConflict
 from app.engine.operations.remit_out import InvalidSendingAccountError
+from app.engine.operations.exchange import InvalidCommissionError
 from app.engine.operations import (
     adjustment as adjustment_op,
     cash_transfer as cash_transfer_op,
@@ -78,6 +79,7 @@ _ENGINE_ERROR_STATUS: list[tuple[type[Exception], int]] = [
     (OverrideReasonRequiredError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidClientLocationError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     (InvalidSendingAccountError, status.HTTP_422_UNPROCESSABLE_ENTITY),
+    (InvalidCommissionError, status.HTTP_422_UNPROCESSABLE_ENTITY),
     # ٢٠٢٦-٠٩-٢٧: شبكة أمان — كان REMIT_OUT بالدولار (currency_code==pivot)
     # يُسقِط هذا الاستثناء غير المُعالَج فيصل ٥٠٠ خام (أُصلح جذرياً في
     # remit_out.py نفسه، انظر _to_usd هناك). هذا السطر يمنع أي طريق آخر لم
@@ -200,6 +202,9 @@ def create_exchange(
         cost_rate=payload.cost_rate, client_rate=payload.client_rate, work_timezone=settings.work_timezone,
         created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, description=payload.description,
         negative_margin_reason=payload.negative_margin_reason,
+        commission_direction=payload.commission_direction, commission_currency=payload.commission_currency,
+        commission_amount=payload.commission_amount, commission_account_code=payload.commission_account_code,
+        commission_location_code=payload.commission_location_code,
     ))
     entry.note = payload.note
     db.commit()

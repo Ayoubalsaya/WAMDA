@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
@@ -32,6 +32,7 @@ from app.models import (
 from app.models.enums import AccountType, EntryStatus, OperationType, ReconciliationStatus
 from app.routers.dashboard import (
     _TRANSFER_FEE_OPS,
+    _commission_pairs,
     _group_currency_amounts,
     _is_client_facing_spread,
 )
@@ -117,7 +118,8 @@ def profit_by_period(
     date_to: Optional[date] = Query(default=None),
     db: OrmSession = Depends(get_db),
 ) -> list[ProfitByPeriodRow]:
-    query = select(JournalEntry).where(JournalEntry.status == EntryStatus.POSTED, JournalEntry.profit_amount.isnot(None))
+    query = select(JournalEntry).where(
+        JournalEntry.status == EntryStatus.POSTED, or_(JournalEntry.profit_amount.isnot(None), JournalEntry.commission_amount.isnot(None)))
     if date_from:
         query = query.where(JournalEntry.entry_date >= date_from)
     if date_to:
@@ -149,6 +151,7 @@ def profit_by_period(
         rows.append(ProfitByPeriodRow(
             period_label=period, transfer_fee=transfer_totals, exchange_spread=exchange_totals,
             net_by_currency=_group_currency_amounts(net_pairs),
+            exchange_commission=_group_currency_amounts(_commission_pairs(period_entries)),
         ))
     return rows
 

@@ -34,6 +34,8 @@ def _cmd_recompute_balances(verify_only: bool) -> None:
                 print(f"  سويفت: {p}")
             for p in report.lot_problems:
                 print(f"  دفعة: {p}")
+            for p in report.commission_problems:
+                print(f"  عمولة: {p}")
         sys.exit(0 if report.ok else 1)
     except Exception:
         db.rollback()

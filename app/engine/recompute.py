@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Account, AccountBalance, CurrencyLot, JournalEntry, JournalLine, LotConsumption, SwiftMovement
-from app.models.enums import AccountType, EntryStatus, LotStatus, SwiftStatus
+from app.models.enums import AccountType, EntryStatus, LotStatus, OperationType, SwiftStatus
 
 _CREDIT_NORMAL = (AccountType.LIABILITY, AccountType.EQUITY, AccountType.REVENUE)
 
@@ -31,10 +31,11 @@ class VerifyReport:
     balance_diffs: list[BalanceDiff] = field(default_factory=list)
     swift_problems: list[str] = field(default_factory=list)
     lot_problems: list[str] = field(default_factory=list)
+    commission_problems: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return not (self.balance_diffs or self.swift_problems or self.lot_problems)
+        return not (self.balance_diffs or self.swift_problems or self.lot_problems or self.commission_problems)
 
 
 def compute_true_balances(db: Session) -> dict[int, Decimal]:
@@ -153,6 +154,49 @@ def verify_lots_consistency(db: Session) -> list[str]:
     return problems
 
 
+def verify_commission_consistency(db: Session) -> list[str]:
+    """عمولة الصرافة (٢٠٢٦-١٠-٠٤): أعمدة القيد (المبلغ · العملة · الاتجاه) تطابق أسطر العمولة الفعلية (4110/5410 بفروعها).
+    يُفحص كل قيد EXCHANGE أصلي (قيود العكس تعكس الأسطر ولا تحمل أعمدة): IN ⇒ دائن فرع 4110 بعملة العمولة بالمبلغ نفسه؛
+    OUT ⇒ مدين فرع 5410؛ ولا أسطر عمولة بلا أعمدة، ولا أعمدة بلا أسطر، ولا اتجاهان معاً."""
+    problems: list[str] = []
+    parents = {a.code: a.id for a in db.execute(select(Account).where(Account.code.in_(("4110", "5410")))).scalars()}
+    if len(parents) < 2:
+        return problems
+    rev_ids = {a.id for a in db.execute(select(Account).where(Account.parent_id == parents["4110"])).scalars()}
+    cost_ids = {a.id for a in db.execute(select(Account).where(Account.parent_id == parents["5410"])).scalars()}
+    entries = db.execute(
+        select(JournalEntry).where(JournalEntry.operation_type == OperationType.EXCHANGE, JournalEntry.reverses_entry_id.is_(None))
+    ).scalars().all()
+    lines_by_entry: dict[int, list[JournalLine]] = {}
+    for ln in db.execute(
+        select(JournalLine).where(JournalLine.account_id.in_(rev_ids | cost_ids), JournalLine.entry_id.in_([e.id for e in entries] or [-1]))
+    ).scalars():
+        lines_by_entry.setdefault(ln.entry_id, []).append(ln)
+    for e in entries:
+        ls = lines_by_entry.get(e.id, [])
+        income = [(ln.currency_code, ln.credit - ln.debit) for ln in ls if ln.account_id in rev_ids]
+        expense = [(ln.currency_code, ln.debit - ln.credit) for ln in ls if ln.account_id in cost_ids]
+        has_cols = e.commission_amount is not None
+        if not has_cols:
+            if ls:
+                problems.append(f"journal_entries.entry_no={e.entry_no}: أسطر عمولة (4110/5410) بلا أعمدة عمولة على القيد")
+            continue
+        if income and expense:
+            problems.append(f"journal_entries.entry_no={e.entry_no}: عمولة بالاتجاهين معاً (إيراد ومصروف)")
+            continue
+        actual = income if e.commission_direction == "IN" else expense
+        other = expense if e.commission_direction == "IN" else income
+        total = sum((a for _, a in actual), Decimal("0"))
+        ccys = {c for c, _ in actual}
+        if other or ccys != {e.commission_currency} or total != e.commission_amount:
+            problems.append(
+                f"journal_entries.entry_no={e.entry_no}: أعمدة العمولة ({e.commission_direction} {e.commission_amount} {e.commission_currency}) "
+                f"لا تطابق أسطرها الفعلية ({'IN' if e.commission_direction == 'IN' else 'OUT'}={total} {sorted(ccys)}"
+                f"{'، واتجاه معاكس موجود' if other else ''})"
+            )
+    return problems
+
+
 def verify(db: Session) -> VerifyReport:
     """لا يكتب شيئاً — تقرير فقط (`--verify`)."""
     true_balances = compute_true_balances(db)
@@ -160,6 +204,7 @@ def verify(db: Session) -> VerifyReport:
         balance_diffs=_diff_against_cache(db, true_balances),
         swift_problems=verify_swift_consistency(db),
         lot_problems=verify_lots_consistency(db),
+        commission_problems=verify_commission_consistency(db),
     )
 
 
@@ -170,6 +215,7 @@ def rebuild(db: Session) -> VerifyReport:
         balance_diffs=_diff_against_cache(db, true_balances),
         swift_problems=verify_swift_consistency(db),
         lot_problems=verify_lots_consistency(db),
+        commission_problems=verify_commission_consistency(db),
     )
     existing = {row.account_id: row for row in db.execute(select(AccountBalance)).scalars()}
     for acc_id, balance in true_balances.items():

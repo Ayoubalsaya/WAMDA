@@ -39,6 +39,10 @@ class JournalEntry(Base):
     client_rate: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 10))
     profit_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6))  # مشتق لا مُدخل
     profit_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
+    # عمولة الصرافة الاختيارية (٢٠٢٦-١٠-٠٤): مرجع للتقارير والإيصال؛ الأسطر الفعلية (4110/5410) هي الحقيقة ويطابقها recompute.verify
+    commission_amount: Mapped[Optional[Decimal]] = mapped_column(Numeric(20, 6))
+    commission_currency: Mapped[Optional[str]] = mapped_column(Text, ForeignKey("currencies.code"))
+    commission_direction: Mapped[Optional[str]] = mapped_column(Text)  # IN = نقبضها (إيراد) · OUT = ندفعها (مصروف)
     is_backdated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     backdate_reason: Mapped[Optional[str]] = mapped_column(Text)
     negative_margin_reason: Mapped[Optional[str]] = mapped_column(Text)

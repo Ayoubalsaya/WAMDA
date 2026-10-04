@@ -36,6 +36,7 @@ def run() -> None:
             "balance_diff_count": len(report.balance_diffs),
             "swift_problem_count": len(report.swift_problems),
             "lot_problem_count": len(report.lot_problems),
+            "commission_problem_count": len(getattr(report, "commission_problems", [])),
         }
         row = db.execute(select(Setting).where(Setting.key == INTEGRITY_CHECK_SETTING_KEY)).scalar_one_or_none()
         if row is None:
@@ -55,6 +56,8 @@ def run() -> None:
             print(f"  سويفت: {p}")
         for p in report.lot_problems:
             print(f"  دفعة: {p}")
+        for p in getattr(report, "commission_problems", []):
+            print(f"  عمولة: {p}")
         sys.exit(1)
     except Exception:
         db.rollback()

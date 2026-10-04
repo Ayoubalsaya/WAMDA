@@ -90,9 +90,20 @@ class ExchangeRatesRequest(BackdateFields):
     description: Optional[str] = None
     note: Optional[str] = None
     negative_margin_reason: Optional[str] = None
+    # عمولة اختيارية (٢٠٢٦-١٠-٠٤) — مستقلة عن عملتي الصرف: كلها معاً أو لا شيء
+    commission_direction: Optional[str] = Field(default=None, pattern="^(IN|OUT)$")  # IN نقبضها · OUT ندفعها
+    commission_currency: Optional[str] = None
+    commission_amount: Optional[Decimal] = Field(default=None, gt=0)
+    commission_account_code: Optional[str] = None  # حساب شركة بعملة العمولة
+    commission_location_code: Optional[str] = None  # نطاق العميل: حساب العميل نفسه بهذا الموقع بدل حساب شركة
 
     @model_validator(mode="after")
     def _one_scope(self):
+        parts = (self.commission_direction, self.commission_currency, self.commission_amount)
+        if any(p is not None for p in parts) and not all(p is not None for p in parts):
+            raise ValueError("العمولة تتطلب الاتجاه والعملة والمبلغ معاً")
+        if self.commission_account_code and self.commission_location_code:
+            raise ValueError("حساب العمولة: حساب شركة أو حساب العميل — لا كليهما")
         is_client = self.client_id is not None
         is_treasury = self.source_account_code is not None or self.destination_account_code is not None
         if is_client == is_treasury:

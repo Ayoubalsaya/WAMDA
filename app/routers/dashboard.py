@@ -11,7 +11,7 @@ from typing import Optional
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession
 
 from app.database import get_db
@@ -69,6 +69,14 @@ def _is_client_facing_spread(e: JournalEntry) -> bool:
     return e.operation_type in _EXCHANGE_SPREAD_OPS
 
 
+def _commission_pairs(entries) -> list[tuple[str, Decimal]]:
+    """عمولة الصرافة موقَّعة: نقبضها (IN) + · ندفعها (OUT) − ، بعملتها (٢٠٢٦-١٠-٠٤)."""
+    return [
+        (e.commission_currency, e.commission_amount if e.commission_direction == "IN" else -e.commission_amount)
+        for e in entries if e.commission_amount is not None and e.commission_currency
+    ]
+
+
 def _balances_by_account(db: OrmSession) -> dict[int, Decimal]:
     return {row.account_id: row.balance for row in db.execute(select(AccountBalance)).scalars()}
 
@@ -107,7 +115,8 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
     today = local_entry_date(system_clock(), settings.work_timezone)
     today_entries = db.execute(
         select(JournalEntry).where(
-            JournalEntry.entry_date == today, JournalEntry.status == EntryStatus.POSTED, JournalEntry.profit_amount.isnot(None)
+            JournalEntry.entry_date == today, JournalEntry.status == EntryStatus.POSTED,
+            or_(JournalEntry.profit_amount.isnot(None), JournalEntry.commission_amount.isnot(None)),
         )
     ).scalars().all()
     transfer_pairs = [
@@ -125,6 +134,7 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
     today_profit = ProfitBreakdown(
         transfer_fee=transfer_totals, exchange_spread=exchange_totals,
         net_by_currency=_group_currency_amounts(net_pairs),
+        exchange_commission=_group_currency_amounts(_commission_pairs(today_entries)),
     )
 
     # أفضل ٥ عملاء — معيار الترتيب: عدد القيود المُرحَّلة (POSTED) التي شارك

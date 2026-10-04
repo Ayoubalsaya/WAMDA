@@ -98,5 +98,11 @@ def build_receipt_context(db: OrmSession, *, entry_id: int, doc_size: str, now: 
         # الملف)، فلا حاجة لأي حجب لاحق مهما تغيّر هذا القالب مستقبلاً.
         "client_rate": format_rate(entry.client_rate) if entry.client_rate is not None else None,
         "balances": balances,
+        # عمولة الصرافة (٢٠٢٦-١٠-٠٤): تظهر في إيصال العميل بعملتها وخانات تلك العملة (نطاق الخزينة بلا إيصال أصلاً)
+        "commission": (
+            {"label": "عمولة نقبضها" if entry.commission_direction == "IN" else "عمولة ندفعها",
+             "amount": format_amount(entry.commission_amount, entry.commission_currency, dec), "currency": entry.commission_currency}
+            if entry.commission_amount is not None else None
+        ),
     })
     return ctx
