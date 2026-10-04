@@ -17,7 +17,7 @@ import { FieldErrorPortals, type PlacedError } from '../../components/FieldError
 import { placeFieldErrors, type FieldLabel } from '../../lib/apiErrors'
 import { decimalInputError } from '../../lib/decimalInput'
 import { SegmentedTabs } from '../../components/SegmentedTabs'
-import { AmountStage, ExchangeSummary, FormGuide, PillTabs, SelectWrap } from './journalUi'
+import { AmountStage, DisabledReason, ExchangeSummary, FormGuide, PillTabs, SelectWrap } from './journalUi'
 import './journal-design.css'
 
 // ٢٠٢٦-٠٩-٢٢: "اليوم" بتوقيت العمل (Africa/Tripoli) — لا `new Date()` خام
@@ -79,7 +79,7 @@ const ALL_TABS = [...LEVEL1, ...LEVEL2]
 const NUMERIC_FIELD_LABELS: Record<string, string> = {
   amount: 'المبلغ', total_amount: 'المبلغ', cost_rate: 'سعر التكلفة', client_rate: 'سعر العميل',
   fee_amount: 'الرسوم', return_fee_amount: 'رسوم الإرجاع', bank_conversion_rate: 'سعر تحويل البنك',
-  client_commission_amount: 'عمولة العميل', cost_commission_amount: 'تكلفة العمولة',
+  client_commission_amount: 'عمولة العميل', cost_commission_amount: 'تكلفة العمولة', commission_amount: 'مبلغ العمولة',
 }
 
 const REQUIRES_CLIENT = new Set<OpTab>(['RECEIPT', 'PAYMENT', 'EXCHANGE', 'CASH_TRANSFER', 'REMIT_OUT', 'SWIFT_RETURN'])
@@ -179,6 +179,12 @@ export function OperationForm({
   // شركة عبر مراسل طرف ثالث، لا عميل في القيد إطلاقاً). "سعر العميل"
   // يصبح مفهومياً "سعر التنفيذ" في نطاق الخزينة، لكن نفس الحقل/الحالة.
   const [exchangeScope, setExchangeScope] = useState<'CLIENT' | 'TREASURY'>('CLIENT')
+  // ٢٠٢٦-١٠-٠٥ (قرار مالك): «تحويل بعمولة» بنطاقين واجهةً فقط. نطاق الخزينة = LOCAL_MOVE نفسه (المسار الخادمي نفسه،
+  // لا مسار ثانٍ): بلا عميل، حقول النقل الداخلي، وعمولة اختيارية بالمكوّن المشترك. نطاق العميل CASH_TRANSFER كما كان.
+  const [ctScope, setCtScope] = useState<'CLIENT' | 'TREASURY'>('CLIENT')
+  const isLocalMove = tab === 'LOCAL_MOVE' || (tab === 'CASH_TRANSFER' && ctScope === 'TREASURY')
+  const ctClientScope = tab === 'CASH_TRANSFER' && ctScope === 'CLIENT'
+  const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY') && !isLocalMove
   const [treasurySourceAccount, setTreasurySourceAccount] = useState('')
   const [treasuryDestAccount, setTreasuryDestAccount] = useState('')
   const [treasurySourceName, setTreasurySourceName] = useState('')
@@ -207,7 +213,7 @@ export function OperationForm({
   const [clientBalancesForOpening, setClientBalancesForOpening] = useState<ClientBalance[]>([])
 
   const formKey = JSON.stringify([
-    tab, exchangeScope, currencyCode, locationCode, amount, accountCode, toCurrency, toLocation, costRate, clientRate,
+    tab, exchangeScope, ctScope, currencyCode, locationCode, amount, accountCode, toCurrency, toLocation, costRate, clientRate,
     negativeMarginReason, treasurySourceAccount, treasuryDestAccount, fromLocation, toLocationCt, sourceAccount,
     executionAccount, collectionAccount, collectFromCompanyAccount, collectionLocation, commissionCurrency,
     clientCommission, costCommission, costCorrespondentAccount, fields, entryDate, backdateReason, editReason,
@@ -220,7 +226,8 @@ export function OperationForm({
   function resetForm() {
     setCurrencyCode(''); setLocationCode(''); setAmount(''); setAccountCode('')
     setToCurrency(''); setToLocation(''); setCostRate(''); setClientRate(''); setNegativeMarginReason('')
-    setComm(emptyCommission())
+    setComm(emptyCommission(tab === 'LOCAL_MOVE' ? 'OUT' : 'IN'))
+    setCtScope('CLIENT')
     setFromLocation(''); setToLocationCt(''); setCommissionCurrency('')
     setClientCommission(''); setCostCommission(''); setSourceAccount(''); setExecutionAccount('')
     setCollectionAccount(''); setCollectFromCompanyAccount(false); setCollectionLocation('')
@@ -246,6 +253,7 @@ export function OperationForm({
   // ولا تضيع عمولة أو ملاحظة أو موقع بصمت. قيد سابق بلا طلب محفوظ ⇒ تنبيه صريح.
   const [prefill, setPrefill] = useState<SourceRequestResponse | null>(null)
   const [prefillMissing, setPrefillMissing] = useState(false)
+  const [legacyFee, setLegacyFee] = useState<string | null>(null)
   useEffect(() => {
     if (mode !== 'edit' || !editEntryId) return
     let cancelled = false
@@ -310,7 +318,10 @@ export function OperationForm({
         put('swift_movement_id'); put('total_amount'); put('client_location_code'); put('return_fee_amount')
         break
       case 'LOCAL_MOVE':
-        put('currency_code'); put('from_account_code'); put('to_account_code'); put('amount'); put('fee_amount')
+        put('currency_code'); put('from_account_code'); put('to_account_code'); put('amount')
+        setComm(commissionFromRequest(r))
+        // قيد قديم بحقل الرسوم المحذوف (5200): لا يُسقَط بصمت — تنبيه صريح ليدخلها المستخدم كعمولة إن أرادها
+        setLegacyFee(Number(r.fee_amount) > 0 ? String(r.fee_amount) : null)
         break
       case 'OPENING':
         put('account_code'); put('currency_code'); put('amount'); put('as_of_date'); put('source_type'); put('confidence'); put('source_note')
@@ -389,25 +400,25 @@ export function OperationForm({
     tab === 'EXCHANGE' && exchangeScope === 'TREASURY' ? { mode: 'operation', operationType: 'EXCHANGE', field: 'destination', currencyCode: toCurrency } : null
 
   const ctSourceSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
+    ctClientScope ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'source', currencyCode, locationCode: fromLocation || undefined } : null
 
   const ctExecutionSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
+    ctClientScope ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'execution', currencyCode, locationCode: toLocationCt || undefined } : null
 
   // ٢٠٢٦-٠٩-٢٣ (توضيح مالك): عملة/حساب العمولة مستقلّان تماماً عن موقع
   // الوجهة — كانا مربوطين بـtoLocationCt خطأً (عمولة دينار لتحويل هدفه
   // تركيا لا علاقة لها بتركيا إطلاقاً). كلا الحقلين الآن بلا قيد موقع.
   const ctCollectionSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' && collectFromCompanyAccount ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency } : null
+    ctClientScope && collectFromCompanyAccount ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'collection', currencyCode: commissionCurrency } : null
 
   const ctCostCorrespondentSpec: AccountPickerSpec | null =
-    tab === 'CASH_TRANSFER' ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency } : null
+    ctClientScope ? { mode: 'operation', operationType: 'CASH_TRANSFER', field: 'cost_correspondent', currencyCode: commissionCurrency } : null
 
   const localMoveFromSpec: AccountPickerSpec | null =
-    tab === 'LOCAL_MOVE' ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
+    isLocalMove ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'from', currencyCode: fields.currency_code ?? '' } : null
 
   const localMoveToSpec: AccountPickerSpec | null =
-    tab === 'LOCAL_MOVE' ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'to', currencyCode: fields.currency_code ?? '' } : null
+    isLocalMove ? { mode: 'operation', operationType: 'LOCAL_MOVE', field: 'to', currencyCode: fields.currency_code ?? '' } : null
 
   const swiftOutPartnerSpec: AccountPickerSpec | null =
     tab === 'SWIFT_OUT' ? { mode: 'operation', operationType: 'SWIFT_OUT', field: 'partner', currencyCode: PIVOT_CODE } : null
@@ -466,7 +477,7 @@ export function OperationForm({
       case 'backdate_reason': return { name: 'سبب القيد بأثر رجعي' }
       case 'note': return { name: 'ملاحظة', nth: 'last' }
       case 'edit_reason': return { name: 'سبب التعديل' }
-      case 'amount': return { name: t === 'CASH_TRANSFER' ? 'المبلغ المنقول' : 'المبلغ' }
+      case 'amount': return { name: ctClientScope ? 'المبلغ المنقول' : 'المبلغ' }
       case 'total_amount': return { name: t === 'SWIFT_RETURN' ? 'المبلغ المرتجع كاملاً' : 'المبلغ الواصل' }
       case 'client_rate': return { name: treasury ? 'سعر التنفيذ' : 'سعر العميل' }
       case 'cost_rate': return { name: 'سعر التكلفة' }
@@ -500,8 +511,8 @@ export function OperationForm({
       case 'return_fee_amount': return { name: 'رسوم على العميل' }
       case 'client_location_code': return { name: 'موقع العميل' }
       case 'bank_conversion_rate': return { name: 'سعر تحويل البنك للرمبي' }
-      case 'from_account_code': return { name: 'من حساب' }
-      case 'to_account_code': return { name: 'إلى حساب' }
+      case 'from_account_code': return { name: t === 'CASH_TRANSFER' ? 'الحساب المصدر' : 'من حساب' }
+      case 'to_account_code': return { name: t === 'CASH_TRANSFER' ? 'الحساب المنفِّذ' : 'إلى حساب' }
       case 'account_code': return { name: t === 'OPENING' && openingAccountMode === 'client' ? 'حساب العميل' : 'الحساب' }
       case 'as_of_date': return { name: 'التاريخ' }
       case 'source_type': return { name: 'مصدر الرصيد' }
@@ -517,6 +528,8 @@ export function OperationForm({
   // يُضافان لاحقاً بلا تكرار كل هذا التفريع من جديد).
 
   const commissionPayload = () => commissionToPayload(comm, exchangeScope)
+  // النقل الداخلي/تحويل الخزينة: حساب شركة دائماً (نطاق خزينة)
+  const localMoveCommissionPayload = () => commissionToPayload(comm, 'TREASURY')
 
   function buildRequest(): { url: string; payload: Record<string, unknown> } | null {
     if (tab === 'RECEIPT') {
@@ -539,6 +552,13 @@ export function OperationForm({
         to_currency: toCurrency, to_location_code: toLocation, amount, cost_rate: costRate,
         client_rate: clientRate, negative_margin_reason: negativeMarginReason || undefined, note: fields.note || undefined,
         ...commissionPayload(),
+      } }
+    } else if (isLocalMove) {
+      // «تحويل بعمولة» نطاق خزينة ينتهي هنا — المسار نفسه الذي يرسله «نقل داخلي»
+      return { url: '/operations/local-move', payload: {
+        currency_code: fields.currency_code, from_account_code: fields.from_account_code,
+        to_account_code: fields.to_account_code, amount: fields.amount, note: fields.note || undefined,
+        ...localMoveCommissionPayload(),
       } }
     } else if (tab === 'CASH_TRANSFER') {
       return { url: '/operations/cash-transfer', payload: {
@@ -581,11 +601,6 @@ export function OperationForm({
         total_amount: fields.total_amount, client_id: client!.id, client_location_code: fields.client_location_code,
         return_fee_amount: fields.return_fee_amount || '0', note: fields.note || undefined,
       } }
-    } else if (tab === 'LOCAL_MOVE') {
-      return { url: '/operations/local-move', payload: {
-        currency_code: fields.currency_code, from_account_code: fields.from_account_code,
-        to_account_code: fields.to_account_code, amount: fields.amount, fee_amount: fields.fee_amount || '0', note: fields.note || undefined,
-      } }
     } else if (tab === 'OPENING') {
       return { url: '/operations/opening', payload: {
         account_code: fields.account_code, currency_code: fields.currency_code, amount: fields.amount,
@@ -621,7 +636,7 @@ export function OperationForm({
         onEdited?.(result)
       } else {
         const entry = await api.post<EntryResponse>(url, payload, idemKey)
-        if (tab === 'CASH_TRANSFER' && costCorrespondentAccount) rememberCostCorrespondent(costCorrespondentAccount)
+        if (ctClientScope && costCorrespondentAccount) rememberCostCorrespondent(costCorrespondentAccount)
         resetForm()
         setSuccess(entry)
         onPosted(entry)
@@ -650,7 +665,6 @@ export function OperationForm({
   }
 
   async function submit(printAfter = false) {
-    const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY')
     if (needsClient && !client) {
       setError('اختر عميلاً أولاً')
       return
@@ -726,9 +740,15 @@ export function OperationForm({
     }
   }
 
-  const needsClient = REQUIRES_CLIENT.has(tab) && !(tab === 'EXCHANGE' && exchangeScope === 'TREASURY')
   const adminBlocked = ADMIN_ONLY_TABS.has(tab) && currentUserRole !== 'ADMIN'
   const isEdit = mode === 'edit'
+  // سبب تعطيل زر الترحيل — يظهر بجانب الزر دائماً (٢٠٢٦-١٠-٠٥): لا زر معطَّل بلا تفسير في أي حالة
+  const submitBlockedReason: string | null =
+    busy ? (isEdit ? 'جارٍ ترحيل التعديل…' : 'جارٍ الترحيل…')
+      : needsClient && !client ? (tab === 'CASH_TRANSFER' ? 'اختر عميلاً من العمود الأيمن، أو بدّل النطاق إلى «خزينة»' : 'اختر عميلاً من العمود الأيمن أولاً')
+        : adminBlocked ? 'تتطلب هذه العملية صلاحية مدير'
+          : isEdit && !editReason.trim() ? 'اكتب سبب التعديل أولاً'
+            : null
   const activeMeta = ALL_TABS.find((t) => t.id === tab)
 
   function toDockItems(metas: TabMeta[]) {
@@ -828,6 +848,23 @@ export function OperationForm({
             />
           )}
 
+          {tab === 'CASH_TRANSFER' && (
+            <PillTabs
+              label="نطاق التحويل"
+              value={ctScope}
+              onChange={(v) => {
+                setCtScope(v)
+                setFields((f) => ({ note: f.note ?? '' }))
+                setComm(emptyCommission(v === 'TREASURY' ? 'OUT' : 'IN'))
+                setError(null)
+              }}
+              options={[
+                { id: 'CLIENT', label: 'عميل' },
+                { id: 'TREASURY', label: 'خزينة', title: 'خزينة — بين حسابي شركة' },
+              ]}
+            />
+          )}
+
           {tab !== 'CASH_TRANSFER' && (tab === 'RECEIPT' || tab === 'PAYMENT' || tab === 'EXCHANGE') && (
             <div className="form-row">
               <div className="field">
@@ -894,7 +931,7 @@ export function OperationForm({
             />
           )}
 
-          {tab === 'CASH_TRANSFER' && (
+          {ctClientScope && (
             <>
               <div className="form-row">
                 <div className="field">
@@ -1123,31 +1160,34 @@ export function OperationForm({
             </>
           )}
 
-          {tab === 'LOCAL_MOVE' && (
+          {isLocalMove && (
             <>
-              <FormGuide tone="info">نقل داخلي بين حسابات الشركة فقط — لا يمسّ أي حساب عميل إطلاقاً.</FormGuide>
+              <FormGuide tone="info">
+                {tab === 'LOCAL_MOVE'
+                  ? 'نقل داخلي بين حسابات الشركة فقط — لا يمسّ أي حساب عميل إطلاقاً.'
+                  : 'تحويل بين حسابي شركة — لا عميل ولا ربح عميل في هذا النطاق؛ العمولة اختيارية أدناه.'}
+              </FormGuide>
               <div className="field">
                 <label className="field-label">العملة</label>
                 <CurrencySelect value={fields.currency_code ?? ''} onChange={(v) => setField('currency_code', v)} currencies={currencies} />
               </div>
               <div className="form-row">
                 <AccountPicker
-                  value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} spec={localMoveFromSpec} label="من حساب"
+                  value={fields.from_account_code ?? ''} onChange={(v) => setField('from_account_code', v)} spec={localMoveFromSpec} label={tab === 'LOCAL_MOVE' ? 'من حساب' : 'الحساب المصدر'}
                   emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
                 />
                 <AccountPicker
-                  value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} spec={localMoveToSpec} label="إلى حساب"
+                  value={fields.to_account_code ?? ''} onChange={(v) => setField('to_account_code', v)} spec={localMoveToSpec} label={tab === 'LOCAL_MOVE' ? 'إلى حساب' : 'الحساب المنفِّذ'}
                   emptyMessage={!fields.currency_code ? 'اختر العملة أولاً' : 'لا حسابات شركة بهذه العملة'}
                 />
               </div>
-              <div className="form-row">
-                <AmountStage id="localmove-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
-                <div className="field">
-                  <label className="field-label">رسوم (اختياري — تُقيَّد في 5200)</label>
-                  <DecimalInput className="num" placeholder="0" value={fields.fee_amount ?? ''} onChange={(v) => setField('fee_amount', v)} />
-                  <DecimalError value={fields.fee_amount ?? ''} />
-                </div>
-              </div>
+              <AmountStage id="localmove-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
+              {isEdit && legacyFee && (
+                <FormGuide tone="warning">
+                  هذا القيد كان بحقل رسوم قديم ({legacyFee}، مقيَّدة في 5200) أُلغي — التعديل لن يحمله؛ إن أردتها فأدخلها عمولةً «ندفعها» أدناه.
+                </FormGuide>
+              )}
+              <CommissionSection value={comm} onChange={setComm} scope="TREASURY" idPrefix="localmove-commission" testId="localmove-commission-section" />
             </>
           )}
 
@@ -1350,6 +1390,7 @@ export function OperationForm({
               />
               <div className="form-row">
                 <button type="button" className="btn btn-secondary" onClick={() => setNegOverride(null)}>تراجع</button>
+                <DisabledReason reason={busy ? 'جارٍ الترحيل…' : !negReason.trim() ? 'اكتب سبب تجاوز الرصيد أولاً' : null} />
                 <button
                   type="button" className="btn btn-primary" style={{ flex: 1 }}
                   disabled={busy || !negReason.trim()} onClick={() => void confirmNegativeOverride()}
@@ -1368,6 +1409,7 @@ export function OperationForm({
               />
               <div className="form-row">
                 <button type="button" className="btn btn-secondary" onClick={() => setBackdateOverride(null)}>تراجع</button>
+                <DisabledReason reason={busy ? 'جارٍ الترحيل…' : !backdateOverrideReason.trim() ? 'اكتب سبب القيد بأثر رجعي أولاً' : null} />
                 <button
                   type="button" className="btn btn-primary" style={{ flex: 1 }}
                   disabled={busy || !backdateOverrideReason.trim()} onClick={() => void confirmBackdateOverride()}
@@ -1394,9 +1436,10 @@ export function OperationForm({
               {isEdit && (
                 <button type="button" className="btn btn-secondary" onClick={onCancelEdit} disabled={busy}>تراجع</button>
               )}
+              <DisabledReason reason={submitBlockedReason} />
               <button
                 type="button" className="btn btn-primary btn-lg btn-post"
-                disabled={busy || (needsClient && !client) || adminBlocked || (isEdit && !editReason.trim())}
+                disabled={submitBlockedReason !== null}
                 onClick={() => submit()}
               >
                 {isEdit ? 'ترحيل التعديل' : 'حفظ وترحيل'}

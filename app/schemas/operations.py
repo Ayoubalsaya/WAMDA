@@ -233,16 +233,24 @@ class CashTransferRequest(BackdateFields):
     override_reason: Optional[str] = None
 
 
-class LocalMoveRequest(BackdateFields):
+class LocalMoveRequest(BackdateFields, CommissionFields):
+    """نقل داخلي بين حسابي شركة، بعمولة اختيارية (٢٠٢٦-١٠-٠٥) حلّت محل `fee_amount` القديم.
+    لا موقع للعمولة هنا — حساب شركة بعملتها دائماً (نطاق الخزينة)."""
     currency_code: str
     from_account_code: str
     to_account_code: str
     amount: Decimal = Field(gt=0)
-    fee_amount: Decimal = Field(default=Decimal("0"), ge=0)
     description: Optional[str] = None
     note: Optional[str] = None
     allow_negative: bool = False
     override_reason: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _commission_ok(self):
+        self._check_commission()
+        if self.commission_amount is not None and not self.commission_account_code:
+            raise ValueError("العمولة تتطلب حساب شركة تُودَع فيه أو تُخصم منه")
+        return self
 
 
 class RemitOutRequest(BackdateFields):

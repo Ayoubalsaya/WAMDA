@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import type { FoundingPeriodStatus, PeriodRow } from '../../api/types'
 import { useFormErrors } from '../../hooks/useFormErrors'
+import { DisabledReason } from '../journal/journalUi'
 
 const MONTH_NAMES = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -143,6 +144,7 @@ function FoundingPeriodSection() {
               أقرّ بأن رصيد فروق التأسيس أعلاه سيبقى غير مُسوَّى بعد الإقفال
             </label>
           )}
+          <DisabledReason reason={busy ? 'جارٍ الإقفال…' : suspenseEntries.length > 0 && !acknowledge ? 'أقرّ ببقاء رصيد فروق التأسيس أعلاه لتفعيل الإقفال' : null} />
           <button
             type="button" className="btn btn-primary" disabled={busy || (suspenseEntries.length > 0 && !acknowledge)}
             onClick={() => void close()}

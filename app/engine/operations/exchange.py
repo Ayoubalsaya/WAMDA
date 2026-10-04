@@ -28,7 +28,7 @@ from app.models import Client, JournalEntry
 from app.engine.profit import NegativeMarginReasonRequiredError
 from app.models.enums import AccountForm, AccountType, OperationType
 
-__all__ = ["InvalidCommissionError", "NegativeMarginReasonRequiredError", "execute_via_rates", "execute_via_lot"]
+__all__ = ["InvalidCommissionError", "NegativeMarginReasonRequiredError", "add_commission", "execute_via_rates", "execute_via_lot"]
 
 
 class InvalidCommissionError(Exception):
@@ -38,11 +38,11 @@ class InvalidCommissionError(Exception):
 _COMPANY_COMMISSION_FORMS = (AccountForm.CASH, AccountForm.BANK, AccountForm.CORRESPONDENT)
 
 
-def _add_commission(
+def add_commission(
     db: Session, draft, *, is_treasury: bool, client: Optional[Client], direction: str, currency_code: str, amount: Decimal,
     account_code: Optional[str], location_code: Optional[str],
 ) -> None:
-    """عمولة الصرافة (٢٠٢٦-١٠-٠٤): زوج أسطر متوازن **بعملتها هي** (لا تحويل لعملة أساس) مستقل عن عملتي الصرف.
+    """عمولة الصرافة والنقل الداخلي (٢٠٢٦-١٠-٠٤/٠٥؛ LOCAL_MOVE يستعملها بنطاق الخزينة): زوج أسطر متوازن **بعملتها هي** (لا تحويل لعملة أساس) مستقل عن عملتي الصرف.
     نقبضها (IN): مدين الحساب المختار ← دائن 4110 بفرع عملتها. ندفعها (OUT): مدين 5410 بفرع عملتها ← دائن الحساب المختار.
     الحساب المختار: حساب شركة (صندوق/بنك/مراسل) بعملة العمولة؛ ونطاق العميل يقبل أيضاً حساب العميل نفسه (عملة العمولة × الموقع)."""
     if direction not in ("IN", "OUT"):
@@ -218,7 +218,7 @@ def execute_via_rates(
             draft.entry.profit_amount = diff
             draft.entry.profit_currency = to_currency
         if commission_amount is not None:
-            _add_commission(
+            add_commission(
                 db, draft, is_treasury=is_treasury, client=client, direction=commission_direction, currency_code=commission_currency,
                 amount=commission_amount, account_code=commission_account_code, location_code=commission_location_code,
             )

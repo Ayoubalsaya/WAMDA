@@ -385,9 +385,11 @@ def create_local_move(
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=payload.currency_code, from_account_code=payload.from_account_code,
         to_account_code=payload.to_account_code, amount=payload.amount, work_timezone=settings.work_timezone,
-        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason, fee_amount=payload.fee_amount,
+        created_by=current_user.id, now=now, idempotency_key=idempotency_key, entry_date=payload.entry_date, backdate_reason=payload.backdate_reason,
         description=payload.description,
         allow_negative=payload.allow_negative, override_reason=payload.override_reason,
+        commission_direction=payload.commission_direction, commission_currency=payload.commission_currency,
+        commission_amount=payload.commission_amount, commission_account_code=payload.commission_account_code,
     ))
     _remember(entry, payload)
     db.commit()

@@ -1,7 +1,10 @@
 """LOCAL_MOVE — نقل نفس العملة بين أي حسابين للشركة بلا ربح. §٤ رقم ٥.
 
-لا يمسّ أي حساب عميل. تكلفته إن وُجدت (رسوم تحويل بنكي داخلي مثلاً) تُقيَّد
-في `5200` (فرعي العملة) بطرف مقابل الحساب المصدر.
+لا يمسّ أي حساب عميل. العمولة اختيارية (٢٠٢٦-١٠-٠٥، قرار مالك — حلّت محل حقل الرسوم
+القديم المقيَّد في 5200): زوج أسطر متوازن بعملتها المستقلة، المنطق نفسه الذي في الصرافة
+(`exchange.add_commission`، نطاق الخزينة: حساب شركة دائماً) — ندفعها (الحالة الغالبة):
+مدين 5410 ← دائن الحساب المختار؛ نقبضها: مدين الحساب المختار ← دائن 4110.
+هذه هي «تحويل بعمولة / خزينة» في الواجهة: لا مسار خادم ثانٍ.
 """
 
 from __future__ import annotations
@@ -13,7 +16,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from app.engine import accounts_repo, clock, posting
+from app.engine.operations.exchange import InvalidCommissionError, add_commission
 from app.models.enums import OperationType
+
+__all__ = ["InvalidCommissionError", "execute"]
 
 
 def execute(
@@ -29,11 +35,18 @@ def execute(
     entry_date: Optional[date] = None,
     backdate_reason: Optional[str] = None,
     idempotency_key: str,
-    fee_amount: Decimal = Decimal("0"),
     description: Optional[str] = None,
     allow_negative: bool = False,
     override_reason: Optional[str] = None,
+    commission_direction: Optional[str] = None,
+    commission_currency: Optional[str] = None,
+    commission_amount: Optional[Decimal] = None,
+    commission_account_code: Optional[str] = None,
 ):
+    parts = (commission_direction, commission_currency, commission_amount)
+    if any(p is not None for p in parts) and not all(p is not None for p in parts):
+        raise InvalidCommissionError("العمولة تتطلب الاتجاه والعملة والمبلغ معاً")
+
     _today = clock.local_entry_date(now, work_timezone)
 
     entry_date = entry_date or _today
@@ -54,10 +67,12 @@ def execute(
         draft.add(account_id=to_account.id, currency_code=currency_code, debit=amount)
         draft.add(account_id=from_account.id, currency_code=currency_code, credit=amount)
 
-        if fee_amount > 0:
-            fee_account = accounts_repo.get_currency_subaccount(db, "5200", currency_code)
-            draft.add(account_id=fee_account.id, currency_code=currency_code, debit=fee_amount)
-            draft.add(account_id=from_account.id, currency_code=currency_code, credit=fee_amount)
+        if commission_amount is not None:
+            add_commission(
+                db, draft, is_treasury=True, client=None, direction=commission_direction,
+                currency_code=commission_currency, amount=commission_amount,
+                account_code=commission_account_code, location_code=None,
+            )
 
         return posting.post_entry(
             db, draft, posted_by=created_by, now=now,
@@ -73,7 +88,7 @@ def execute(
             "from_account_code": from_account_code,
             "to_account_code": to_account_code,
             "amount": amount,
-            "fee_amount": fee_amount,
+            "commission": [commission_direction, commission_currency, commission_amount, commission_account_code],
         },
         create_fn=_create,
     )

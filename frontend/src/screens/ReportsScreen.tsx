@@ -113,7 +113,7 @@ function ProfitByPeriodTab({ currencies }: { currencies: Currency[] }) {
       </div>
       {!rows ? <p className="text-muted">...جارٍ التحميل</p> : (
         <table className="data-table">
-          <thead><tr><th>الفترة</th><th>فرق التحويل</th><th>فروق صرافة العملاء</th><th>عمولة الصرافة</th><th>الصافي</th></tr></thead>
+          <thead><tr><th>الفترة</th><th>فرق التحويل</th><th>فروق صرافة العملاء</th><th>العمولات</th><th>الصافي</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.period_label}>

@@ -10,7 +10,7 @@ import { DecimalError, DecimalInput } from '../../components/DecimalInput'
 import { FieldErrorPortals, type PlacedError } from '../../components/FieldErrorPortals'
 import { placeFieldErrors, type FieldLabel } from '../../lib/apiErrors'
 import { decimalInputError } from '../../lib/decimalInput'
-import { AmountStage, ExchangeSummary, FormGuide, PillTabs } from './journalUi'
+import { AmountStage, DisabledReason, ExchangeSummary, FormGuide, PillTabs } from './journalUi'
 import './journal-design.css'
 
 interface ExchangeWizardProps {
@@ -104,6 +104,16 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
 
   const step1Ready = scope === 'TREASURY' ? Boolean(step1SourceAccount && step1DestAccount) : Boolean(fromLocation && step1ToLocation)
   const step2Ready = scope === 'TREASURY' ? Boolean(step2DestAccount) : Boolean(step2ToLocation)
+  // أسباب تعطيل «التالي» و«حفظ السلسلة» — تظهر بجانب الزر دائماً (٢٠٢٦-١٠-٠٥)
+  const nextBlockedReason: string | null =
+    !step1Preview ? 'أدخل المبلغ وسعر الخطوة ١ أولاً'
+      : !step1Ready ? (scope === 'TREASURY' ? 'اختر الحساب المصدر والحساب الوجهة' : 'اختر موقعي الخطوة ١')
+        : null
+  const saveBlockedReason: string | null =
+    busy ? 'جارٍ الحفظ…'
+      : scope === 'CLIENT' && !client ? 'اختر عميلاً من دفتر اليومية ثم أعد فتح المعالج، أو بدّل النطاق إلى «خزينة»'
+        : !step2Ready ? (scope === 'TREASURY' ? 'اختر الحساب الوجهة للخطوة ٢' : 'اختر موقع الخطوة ٢')
+          : null
 
   // الاسم الظاهر لحقل `step1.…`/`step2.…` (نص التسمية فوق الحقل في الخطوة المعنيّة)
   function onScreenLabel(key: string, serverLabel: string | null): FieldLabel {
@@ -285,9 +295,12 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 <input value={step1Reason} onChange={(e) => setStep1Reason(e.target.value)} /></div>
             )}
             <CommissionSection value={comm1} onChange={setComm1} scope={scope} idPrefix="wizard-commission1" testId="wizard-commission-1" />
-            <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={() => setStep(2)} disabled={!step1Preview || !step1Ready}>
-              التالي
-            </button>
+            <div className="form-row" style={{ alignItems: 'center' }}>
+              <DisabledReason reason={nextBlockedReason} />
+              <button type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }} onClick={() => setStep(2)} disabled={nextBlockedReason !== null}>
+                التالي
+              </button>
+            </div>
           </div>
         )}
 
@@ -379,11 +392,12 @@ export function ExchangeWizard({ client, onClose, onPosted }: ExchangeWizardProp
                 </button>
               </>
             ) : (
-              <div className="form-row">
+              <div className="form-row" style={{ alignItems: 'center' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setStep(1)}>السابق</button>
+                <DisabledReason reason={saveBlockedReason} />
                 <button
                   type="button" className="btn btn-primary btn-lg" style={{ flex: 1 }}
-                  disabled={busy || !step2Ready || (scope === 'CLIENT' && !client)} onClick={save}
+                  disabled={saveBlockedReason !== null} onClick={save}
                 >
                   حفظ السلسلة
                 </button>

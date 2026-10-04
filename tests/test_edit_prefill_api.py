@@ -92,7 +92,8 @@ def test_receipt_payment_remit_expense_local_move(db, client, now):
         "expense_account_code": expense.code, "currency_code": "LYD", "paying_account_code": "1101", "amount": "150.000", "description": "إيجار", "note": "ملاحظة مصروف"}, "amount")
     box_to = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
     _check_roundtrip(db, client, "/operations/local-move", "LOCAL_MOVE", {
-        "currency_code": "LYD", "from_account_code": "1101", "to_account_code": box_to.code, "amount": "50.000", "fee_amount": "1.000", "note": "نقل"}, "amount")
+        "currency_code": "LYD", "from_account_code": "1101", "to_account_code": box_to.code, "amount": "50.000",
+        "commission_direction": "OUT", "commission_currency": "LYD", "commission_amount": "1.000", "commission_account_code": "1101", "note": "نقل"}, "amount")
     yuan = f.make_correspondent_account(db, currency_code="CNY", location_code="CHINA", parent_code="1320")
     f.fund_client(db, client=c, currency_code="CNY", location_code="CHINA", amount=Decimal("9000.00"), receiving_account_code=yuan.code, user=user, now=now)
     _check_roundtrip(db, client, "/operations/remit-out", "REMIT_OUT", {

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../../api/client'
 import type { BackupCodesStatus } from '../../api/types'
 import { BackupCodesPanel } from '../../components/BackupCodesPanel'
-import { FormGuide } from '../journal/journalUi'
+import { DisabledReason, FormGuide } from '../journal/journalUi'
 import { useFormErrors } from '../../hooks/useFormErrors'
 
 // الإعدادات ← الأمان (٢٠٢٦-١٠-٠٣): عدد الرموز الاحتياطية المتبقّية، تنبيه عند ٣ أو أقل، وإعادة الإنشاء (تُبطل كل السابقة).
@@ -83,6 +83,7 @@ export function SecurityTab() {
           <FormGuide tone="warning">ستُبطَل كل الرموز السابقة فور الإنشاء.</FormGuide>
           <div className="op-row" style={{ marginTop: 12 }}>
             <button type="button" className="btn btn-secondary" onClick={() => { setAsking(false); setPassword(''); setError(null) }}>إلغاء</button>
+            <DisabledReason reason={busy ? 'جارٍ الإنشاء…' : !password ? 'أدخل كلمة المرور الحالية أولاً' : null} />
             <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !password}>تأكيد وإنشاء</button>
           </div>
         </form>

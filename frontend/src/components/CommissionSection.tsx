@@ -3,7 +3,7 @@ import { AccountPicker, type AccountPickerSpec } from './AccountPicker'
 import { useReferenceData } from '../hooks/useReferenceData'
 import { AmountStage, PillTabs, SelectWrap } from '../screens/journal/journalUi'
 
-// عمولة اختيارية في الصرافة (٢٠٢٦-١٠-٠٤): اتجاه · عملة مستقلة عن عملتي الصرف · مبلغ · حساب. تُستعمل في نموذج الصرافة وفي كل خطوة من المعالج.
+// عمولة اختيارية (٢٠٢٦-١٠-٠٤): اتجاه · عملة مستقلة عن عملة العملية · مبلغ · حساب. تُستعمل في نموذج الصرافة وفي كل خطوة من المعالج وفي النقل الداخلي/تحويل الخزينة.
 export interface CommissionState {
   open: boolean
   direction: 'IN' | 'OUT'  // IN نقبضها (إيراد) · OUT ندفعها (مصروف)
@@ -14,7 +14,8 @@ export interface CommissionState {
   location: string
 }
 
-export const emptyCommission = (): CommissionState => ({ open: false, direction: 'IN', currency: '', amount: '', source: 'COMPANY', account: '', location: '' })
+// الاتجاه الافتراضي: نقبضها في الصرافة، وندفعها في نقل الخزينة (الحالة الغالبة هناك)
+export const emptyCommission = (direction: 'IN' | 'OUT' = 'IN'): CommissionState => ({ open: false, direction, currency: '', amount: '', source: 'COMPANY', account: '', location: '' })
 
 // حقول الطلب: تُرسَل فقط إن فُتح القسم وأُدخل مبلغ. نطاق الخزينة حساب شركة دائماً؛ نطاق العميل حساب شركة أو حساب العميل (موقع).
 export function commissionToPayload(c: CommissionState, scope: 'CLIENT' | 'TREASURY'): Record<string, string | undefined> {

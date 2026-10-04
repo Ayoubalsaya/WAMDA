@@ -20,6 +20,12 @@ export function SelectWrap({ children }: { children: ReactNode }) {
 
 export type GuideTone = 'info' | 'warning' | 'critical' | 'success'
 
+// سبب تعطيل زر الترحيل (٢٠٢٦-١٠-٠٥): يُوضَع بجانب الزر دائماً — لا زر معطَّل بلا تفسير. `reason=null` ⇒ الزر فعّال فلا شيء يُعرَض.
+export function DisabledReason({ reason }: { reason: string | null }) {
+  if (!reason) return null
+  return <span className="submit-reason" role="status" data-testid="submit-disabled-reason">{reason}</span>
+}
+
 // form-guide: شريط جانبي ملوّن + خلفية فاتحة — للتلميحات والتحذيرات وأخطاء
 // النموذج. `children` قد يحوي حقلاً وأزراراً (تجاوز الرصيد السالب/القيد الرجعي).
 export function FormGuide({

@@ -160,9 +160,11 @@ def _create_local_move(db: OrmSession, op: LocalMoveRequest, user: User, now: da
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=op.currency_code, from_account_code=op.from_account_code,
         to_account_code=op.to_account_code, amount=op.amount, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem, fee_amount=op.fee_amount,
+        created_by=user.id, now=now, idempotency_key=idem,
         description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
+        commission_direction=op.commission_direction, commission_currency=op.commission_currency,
+        commission_amount=op.commission_amount, commission_account_code=op.commission_account_code,
     ))
     _remember(entry, op)
     return entry

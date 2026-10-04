@@ -207,7 +207,9 @@
   border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--sky-50);
   color: var(--text-secondary); font: 600 var(--fs-2xs)/1.5 var(--font-ar);
 }
-.command-actions { display: flex; gap: var(--space-2); margin-inline-start: auto; }
+.command-actions { display: flex; align-items: center; gap: var(--space-2); margin-inline-start: auto; }
+/* سبب تعطيل زر الترحيل — بجانب الزر دائماً (٢٠٢٦-١٠-٠٥) */
+.submit-reason { color: var(--text-secondary); font-size: var(--fs-sm); font-weight: 600; max-width: 320px; }
 .command-actions .btn-post { min-width: 168px; }
 
 /* ── سجل العمليات ────────────────────────────────────────────────── */

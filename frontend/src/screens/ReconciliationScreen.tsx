@@ -5,6 +5,7 @@ import type {
 } from '../api/types'
 import { DecimalError, DecimalInput } from '../components/DecimalInput'
 import { decimalInputError } from '../lib/decimalInput'
+import { DisabledReason } from './journal/journalUi'
 import './ReconciliationScreen.css'
 import { useFormErrors } from '../hooks/useFormErrors'
 
@@ -185,6 +186,7 @@ function AdjustModal({
         {portals}
         <div className="op-row">
           <button type="button" className="btn btn-secondary" onClick={onClose}>إلغاء</button>
+          <DisabledReason reason={busy ? 'جارٍ الترحيل…' : !reasonOk ? 'اكتب سبب التسوية (٣ أحرف على الأقل)' : null} />
           <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !reasonOk}>
             ترحيل التسوية وربطها
           </button>

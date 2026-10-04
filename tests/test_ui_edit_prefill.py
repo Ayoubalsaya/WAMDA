@@ -49,7 +49,15 @@ CASES = {
     "SWIFT_OUT": ({"partner_account_code": "1321", "amount": "10000.00", "external_ref": "REF-778", "description": "سويفت", "note": "ملاحظة سويفت"}, "amount", "swiftout-amount", False),
     "SWIFT_IN": ({"swift_movement_id": 777001, "total_amount": "10000.00", "fee_amount": "25.00", "receiving_account_code": "1403", "bank_conversion_rate": "6.7", "note": "وصول"}, "total_amount", "swiftin-total", False),
     "SWIFT_RETURN": ({"swift_movement_id": 777002, "partner_account_code": "1321", "total_amount": "5000.00", "client_location_code": "TURKEY", "return_fee_amount": "50.00", "note": "مرتجع"}, "total_amount", "swiftreturn-total", True),
-    "LOCAL_MOVE": ({"currency_code": "LYD", "from_account_code": "1101", "to_account_code": "1102", "amount": "50.000", "fee_amount": "1.000", "note": "نقل داخلي"}, "amount", "localmove-amount", False),
+    "LOCAL_MOVE": ({"currency_code": "LYD", "from_account_code": "1101", "to_account_code": "1102", "amount": "50.000", "note": "نقل داخلي"}, "amount", "localmove-amount", False),
+    "LOCAL_MOVE_COMMISSION_PAID": ({
+        "operation_type": "LOCAL_MOVE", "currency_code": "USD", "from_account_code": "1104", "to_account_code": "1321", "amount": "500.00",
+        "commission_direction": "OUT", "commission_currency": "USD", "commission_amount": "5.00", "commission_account_code": "1321",
+        "note": "تحويل خزينة بعمولة"}, "amount", "localmove-amount", False),
+    "LOCAL_MOVE_COMMISSION_RECEIVED": ({
+        "operation_type": "LOCAL_MOVE", "currency_code": "USD", "from_account_code": "1104", "to_account_code": "1321", "amount": "500.00",
+        "commission_direction": "IN", "commission_currency": "LYD", "commission_amount": "20.000", "commission_account_code": "1101",
+        "note": "نقل بعمولة مقبوضة"}, "amount", "localmove-amount", False),
     "OPENING": ({"account_code": "1101", "currency_code": "LYD", "amount": "5000.000", "is_debit": True, "as_of_date": "2026-01-01", "source_type": "VERIFIED",
                  "confidence": "HIGH", "source_note": "جرد افتتاحي", "note": "رصيد افتتاحي"}, "amount", "opening-amount", False),
     "ADJUSTMENT": ({"account_code": "1101", "currency_code": "LYD", "amount": "10.000", "is_debit": False, "reason": "تسوية جرد", "note": "تسوية", "allow_negative": True}, "amount", "adjustment-amount", False),
@@ -64,6 +72,8 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
     op_type = request.pop("operation_type", None) or ("RECEIPT" if name == "RECEIPT" else name)
     if name.startswith("CASH_TRANSFER"):
         op_type = "CASH_TRANSFER"
+    elif name.startswith("LOCAL_MOVE"):
+        op_type = "LOCAL_MOVE"
     db = SessionLocal()
     try:
         cid = db.execute(text("SELECT id FROM clients WHERE code = :c"), {"c": pg.client_code}).scalar_one()
@@ -122,8 +132,12 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
         # تغيير المبلغ وحده
         new_amount = "777.5"
         modal.locator(f"#{amount_id}").fill(new_amount)
+        # الزر معطَّل قبل كتابة السبب وسببه ظاهر بجانبه، ثم يزول بعد الكتابة
+        submit_btn = modal.get_by_role("button", name="ترحيل التعديل", exact=True)
+        assert submit_btn.is_disabled() and "سبب التعديل" in modal.locator("[data-testid=submit-disabled-reason]").inner_text()
         reason = modal.locator(".field", has=pg.locator("label.field-label", has_text="سبب التعديل")).locator("input, textarea").first
         reason.fill("تصحيح المبلغ فقط")
+        assert submit_btn.is_enabled() and modal.locator("[data-testid=submit-disabled-reason]").count() == 0
         modal.get_by_role("button", name="ترحيل التعديل", exact=True).dispatch_event("click")
         pg.wait_for_function("true")
         for _ in range(40):

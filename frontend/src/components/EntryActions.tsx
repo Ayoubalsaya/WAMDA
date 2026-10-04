@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { CancelResponse, CommentOut, HistoryResponse } from '../api/types'
 import { EditEntryModal } from './EditEntryModal'
+import { DisabledReason } from '../screens/journal/journalUi'
 
 // ═══ إلغاء ═══
 
@@ -62,6 +63,7 @@ export function CancelButton({ entryId, chainRef, onCancelled, className }: Canc
             {error && <div className="alert alert-critical" style={{ marginBottom: 12 }}>{error}</div>}
             <div className="op-row">
               <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)} disabled={busy}>تراجع</button>
+              <DisabledReason reason={busy ? 'جارٍ الإلغاء…' : !reason.trim() ? 'اكتب سبب الإلغاء أولاً' : null} />
               <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={busy || !reason.trim()}>
                 تأكيد الإلغاء
               </button>

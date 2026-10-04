@@ -289,7 +289,6 @@ class Runner:
             self.pick("من حساب", "1101")
             self.pick("إلى حساب", "1103")
             self.fill("المبلغ", "100")
-            self.fill("رسوم (اختياري", "1", prefix=True)
         elif op == "ADJUSTMENT":
             self.pick("الحساب", "1101")
             self.select("العملة", "LYD")

@@ -156,7 +156,7 @@ def verify_lots_consistency(db: Session) -> list[str]:
 
 def verify_commission_consistency(db: Session) -> list[str]:
     """عمولة الصرافة (٢٠٢٦-١٠-٠٤): أعمدة القيد (المبلغ · العملة · الاتجاه) تطابق أسطر العمولة الفعلية (4110/5410 بفروعها).
-    يُفحص كل قيد EXCHANGE أصلي (قيود العكس تعكس الأسطر ولا تحمل أعمدة): IN ⇒ دائن فرع 4110 بعملة العمولة بالمبلغ نفسه؛
+    يُفحص كل قيد EXCHANGE وLOCAL_MOVE أصلي (قيود العكس تعكس الأسطر ولا تحمل أعمدة): IN ⇒ دائن فرع 4110 بعملة العمولة بالمبلغ نفسه؛
     OUT ⇒ مدين فرع 5410؛ ولا أسطر عمولة بلا أعمدة، ولا أعمدة بلا أسطر، ولا اتجاهان معاً."""
     problems: list[str] = []
     parents = {a.code: a.id for a in db.execute(select(Account).where(Account.code.in_(("4110", "5410")))).scalars()}
@@ -165,7 +165,8 @@ def verify_commission_consistency(db: Session) -> list[str]:
     rev_ids = {a.id for a in db.execute(select(Account).where(Account.parent_id == parents["4110"])).scalars()}
     cost_ids = {a.id for a in db.execute(select(Account).where(Account.parent_id == parents["5410"])).scalars()}
     entries = db.execute(
-        select(JournalEntry).where(JournalEntry.operation_type == OperationType.EXCHANGE, JournalEntry.reverses_entry_id.is_(None))
+        select(JournalEntry).where(
+            JournalEntry.operation_type.in_((OperationType.EXCHANGE, OperationType.LOCAL_MOVE)), JournalEntry.reverses_entry_id.is_(None))
     ).scalars().all()
     lines_by_entry: dict[int, list[JournalLine]] = {}
     for ln in db.execute(
