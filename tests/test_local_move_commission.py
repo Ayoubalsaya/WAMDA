@@ -223,3 +223,11 @@ def test_verify_catches_local_move_commission_columns_that_disagree_with_lines(d
         assert any("بلا أعمدة" in p for p in recompute.verify(db).commission_problems)
     finally:
         db.execute(text("ALTER TABLE journal_entries ENABLE TRIGGER USER"))
+
+
+def test_the_removed_fee_field_is_not_advertised_in_openapi(client):
+    """الحقل المرفوض لا يُعلَن في الوثيقة: `fee_amount` غائب من مخطط نقل داخلي (والرفض بالعربية يبقى يعمل —
+    الاختبار السابق)، بينما يبقى حقلاً شرعياً في سويفت وصول."""
+    schemas = client.get("/openapi.json").json()["components"]["schemas"]
+    assert "fee_amount" not in schemas["LocalMoveRequest"]["properties"]
+    assert "fee_amount" in schemas["SwiftInRequest"]["properties"]
