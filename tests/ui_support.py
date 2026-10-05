@@ -45,6 +45,32 @@ NEEDS_CLIENT = {"RECEIPT", "PAYMENT", "EXCHANGE", "CASH_TRANSFER", "REMIT_OUT", 
 DISTINCT_VALUES = ["11.11", "22.22", "33.33", "44.44", "55.55", "66.66"]
 
 
+def kill_process_tree(proc: subprocess.Popen) -> None:
+    """يُنهي العملية وكل أبنائها (uvicorn قد يُنتج أبناء) — يُستدعى من finally دائماً."""
+    import psutil
+
+    try:
+        parent = psutil.Process(proc.pid)
+        procs = [parent, *parent.children(recursive=True)]
+    except psutil.NoSuchProcess:
+        procs = []
+    for q in procs:
+        try:
+            q.terminate()
+        except psutil.NoSuchProcess:
+            pass
+    _, alive = psutil.wait_procs(procs, timeout=10)
+    for q in alive:
+        try:
+            q.kill()
+        except psutil.NoSuchProcess:
+            pass
+    try:
+        proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        pass
+
+
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
@@ -73,11 +99,7 @@ def live_server():
             pytest.skip("تعذّر تشغيل خادم مؤقت")
         yield base
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        kill_process_tree(proc)
 
 
 @pytest.fixture(scope="module")
@@ -153,48 +175,50 @@ def journal_page(live_server, qa_identity):
                 browser = p.chromium.launch()
             except Exception:
                 pytest.skip("لا متصفح Playwright متاح")
-        ctx = browser.new_context(viewport={"width": 1440, "height": 1500}, locale="ar")
-        pg = ctx.new_page()
-        sent: list[dict] = []
+        try:
+            ctx = browser.new_context(viewport={"width": 1440, "height": 1500}, locale="ar")
+            pg = ctx.new_page()
+            sent: list[dict] = []
 
-        pg.mode = "stub"  # type: ignore[attr-defined]
+            pg.mode = "stub"  # type: ignore[attr-defined]
 
-        def stub(route):
-            req = route.request
-            if req.method != "POST" or "/operations/" not in req.url:
-                route.continue_()
-                return
-            sent.append({"url": req.url, "body": json.loads(req.post_data or "{}")})
-            mode = pg.mode  # type: ignore[attr-defined]
-            if mode == "real":
-                route.continue_()
-            elif mode == "raw422":  # شكل Pydantic الخام القديم — يجب ألا يصل الشاشة أبداً
-                route.fulfill(status=422, content_type="application/json", body=json.dumps({"detail": [
-                    {"type": "greater_than", "loc": ["body", "cost_rate"], "msg": "Input should be greater than 0",
-                     "input": "0", "ctx": {"gt": 0}}]}))
-            elif mode == "abort":
-                route.abort()
-            elif mode == "html502":
-                route.fulfill(status=502, content_type="text/html", body="<html><body>502 Bad Gateway</body></html>")
-            else:
-                route.fulfill(status=422, content_type="application/json", body=json.dumps({"detail": "رفض مُصطنَع (اختبار)"}))
+            def stub(route):
+                req = route.request
+                if req.method != "POST" or "/operations/" not in req.url:
+                    route.continue_()
+                    return
+                sent.append({"url": req.url, "body": json.loads(req.post_data or "{}")})
+                mode = pg.mode  # type: ignore[attr-defined]
+                if mode == "real":
+                    route.continue_()
+                elif mode == "raw422":  # شكل Pydantic الخام القديم — يجب ألا يصل الشاشة أبداً
+                    route.fulfill(status=422, content_type="application/json", body=json.dumps({"detail": [
+                        {"type": "greater_than", "loc": ["body", "cost_rate"], "msg": "Input should be greater than 0",
+                         "input": "0", "ctx": {"gt": 0}}]}))
+                elif mode == "abort":
+                    route.abort()
+                elif mode == "html502":
+                    route.fulfill(status=502, content_type="text/html", body="<html><body>502 Bad Gateway</body></html>")
+                else:
+                    route.fulfill(status=422, content_type="application/json", body=json.dumps({"detail": "رفض مُصطنَع (اختبار)"}))
 
-        pg.route("**/operations/**", stub)
-        pg.goto(live_server + "/", wait_until="networkidle")
-        pg.fill("#username", qa_identity["username"])
-        pg.fill("#password", QA_PASS)
-        pg.click("button:has-text('دخول')")
-        pg.wait_for_selector("#totp", timeout=20000)
-        pg.fill("#totp", pyotp.TOTP(QA_SECRET).now())
-        pg.click("button:has-text('تأكيد')")
-        pg.wait_for_selector("nav.sidebar")
-        pg.click("button[title^='دفتر اليومية']")
-        pg.wait_for_selector(".journal-col-center")
-        pg.wait_for_timeout(800)
-        pg.sent = sent  # type: ignore[attr-defined]
-        pg.client_code = qa_identity["client_code"]  # type: ignore[attr-defined]
-        yield pg
-        browser.close()
+            pg.route("**/operations/**", stub)
+            pg.goto(live_server + "/", wait_until="networkidle")
+            pg.fill("#username", qa_identity["username"])
+            pg.fill("#password", QA_PASS)
+            pg.click("button:has-text('دخول')")
+            pg.wait_for_selector("#totp", timeout=20000)
+            pg.fill("#totp", pyotp.TOTP(QA_SECRET).now())
+            pg.click("button:has-text('تأكيد')")
+            pg.wait_for_selector("nav.sidebar")
+            pg.click("button[title^='دفتر اليومية']")
+            pg.wait_for_selector(".journal-col-center")
+            pg.wait_for_timeout(800)
+            pg.sent = sent  # type: ignore[attr-defined]
+            pg.client_code = qa_identity["client_code"]  # type: ignore[attr-defined]
+            yield pg
+        finally:
+            browser.close()
 
 
 def _composer(pg):

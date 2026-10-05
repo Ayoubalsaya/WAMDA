@@ -76,6 +76,7 @@ export interface SourceRequestResponse {
   operation_type: string
   kind: 'STANDARD' | 'EXCHANGE_LOT'
   request: Record<string, unknown> | null
+  dropped_fields?: string[]  // حقول لم يعد المخطط يعرفها نُزعت من الطلب المحفوظ
 }
 
 export interface JournalLineOut {

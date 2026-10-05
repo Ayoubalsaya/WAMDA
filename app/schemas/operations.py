@@ -12,7 +12,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.enums import ConfidenceLevel, OpeningSourceType
 
@@ -28,7 +28,13 @@ class EntryResponse(BaseModel):
     chain_total: Optional[int] = None
 
 
-class BackdateFields(BaseModel):
+class StrictModel(BaseModel):
+    """أساس كل مخططات طلبات العمليات (٢٠٢٦-١٠-٠٥): حقل غير معروف يُرفض بـ٤٢٢ بدل أن يضيع بصمت (خطأ كتابة في الواجهة، أو حقل أُلغي).
+    الطلبات القديمة المحفوظة (`source_request`) تُنقَّى من حقولها غير المعروفة عند فتح التعديل وتُسمّى للمستخدم — انظر `entry_actions`."""
+    model_config = ConfigDict(extra="forbid")
+
+
+class BackdateFields(StrictModel):
     """تاريخ العملية (٢٠٢٦-٠٩-٢٢، طلب مالك) — مشترك بين كل العمليات ما عدا
     OPENING (لها `as_of_date` الخاص بها أصلاً بنفس الدور). `None` = اليوم
     بتوقيت العمل (`app.engine.clock.local_entry_date`). البوابة الفعلية
@@ -68,7 +74,7 @@ _TREASURY_NO_COST_MESSAGE = (
 )
 
 
-class CommissionFields(BaseModel):
+class CommissionFields(StrictModel):
     """عمولة اختيارية (٢٠٢٦-١٠-٠٤) — مستقلة عن عملتي الصرف: كلها معاً أو لا شيء. نفسها في الصرافة المفردة ولكل خطوة من المعالج."""
     commission_direction: Optional[str] = Field(default=None, pattern="^(IN|OUT)$")  # IN نقبضها · OUT ندفعها
     commission_currency: Optional[str] = None
@@ -244,15 +250,14 @@ class LocalMoveRequest(BackdateFields, CommissionFields):
     note: Optional[str] = None
     allow_negative: bool = False
     override_reason: Optional[str] = None
-    # الحقل القديم أُلغي (٢٠٢٦-١٠-٠٥): يُقبَل اسماً فقط ليُرفض برسالة صريحة بدل أن يُتجاهَل بصمت
-    fee_amount: Optional[Decimal] = None
 
-    @field_validator("fee_amount")
+    @model_validator(mode="before")
     @classmethod
-    def _fee_removed(cls, v):
-        if v is not None:
+    def _fee_removed(cls, data):
+        # الحقل القديم أُلغي (٢٠٢٦-١٠-٠٥): يُرفض برسالة صريحة (لا تجاهل صامت ولا «حقل غير معروف» عامة)، حتى بقيمة صفر
+        if isinstance(data, dict) and "fee_amount" in data:
             raise ValueError("حقل الرسوم أُلغي — استخدم قسم العمولة")
-        return v
+        return data
 
     @model_validator(mode="after")
     def _commission_ok(self):
@@ -316,7 +321,7 @@ class ExpenseRequest(BackdateFields):
     override_reason: Optional[str] = None
 
 
-class OpeningRequest(BaseModel):
+class OpeningRequest(StrictModel):
     """رصيد افتتاحي — إمّا لحساب نظامي (`account_code`) أو لحساب عميل
     (`client_id` + `location_code`، يُنشَأ كسولاً إن لم يوجد). أحدهما
     فقط، لا كلاهما."""
@@ -386,6 +391,8 @@ class SourceRequestResponse(BaseModel):
     operation_type: str
     kind: str  # STANDARD · EXCHANGE_LOT (بيع رمبي من دفعة — نموذج مختلف)
     request: Optional[dict] = None
+    # حقول كانت في الطلب المحفوظ ولم يعد المخطط الحالي يعرفها: نُزعت من `request` ولن تُنقل إلى بديل التعديل (تُسمّى للمستخدم)
+    dropped_fields: list[str] = []
 
 
 class EditResponse(BaseModel):

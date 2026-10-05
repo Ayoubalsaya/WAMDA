@@ -58,6 +58,10 @@ CASES = {
         "operation_type": "LOCAL_MOVE", "currency_code": "USD", "from_account_code": "1104", "to_account_code": "1321", "amount": "500.00",
         "commission_direction": "IN", "commission_currency": "LYD", "commission_amount": "20.000", "commission_account_code": "1101",
         "note": "نقل بعمولة مقبوضة"}, "amount", "localmove-amount", False),
+    # قيد محفوظ بطلب فيه حقول لم يعد المخطط يعرفها: الخادم ينزعها ويُسمّيها (`_legacy` هنا = ما نزعه) والنموذج يُنبّه ولا يُرسلها
+    "LOCAL_MOVE_LEGACY_FIELDS": ({
+        "operation_type": "LOCAL_MOVE", "currency_code": "LYD", "from_account_code": "1101", "to_account_code": "1102", "amount": "50.000", "note": "قيد قديم",
+        "_legacy": {"fee_amount": "3.000", "gone_field": "x"}}, "amount", "localmove-amount", False),
     "OPENING": ({"account_code": "1101", "currency_code": "LYD", "amount": "5000.000", "is_debit": True, "as_of_date": "2026-01-01", "source_type": "VERIFIED",
                  "confidence": "HIGH", "source_note": "جرد افتتاحي", "note": "رصيد افتتاحي"}, "amount", "opening-amount", False),
     "ADJUSTMENT": ({"account_code": "1101", "currency_code": "LYD", "amount": "10.000", "is_debit": False, "reason": "تسوية جرد", "note": "تسوية", "allow_negative": True}, "amount", "adjustment-amount", False),
@@ -69,6 +73,7 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
     pg = journal_page
     request, amount_key, amount_id, with_client = CASES[name]
     request = dict(request)
+    legacy = request.pop("_legacy", {})
     op_type = request.pop("operation_type", None) or ("RECEIPT" if name == "RECEIPT" else name)
     if name.startswith("CASH_TRANSFER"):
         op_type = "CASH_TRANSFER"
@@ -98,7 +103,7 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
             route.continue_()
 
     def source_route(route):
-        route.fulfill(status=200, content_type="application/json", body=json.dumps({"operation_type": op_type, "kind": "STANDARD", "request": request}))
+        route.fulfill(status=200, content_type="application/json", body=json.dumps({"operation_type": op_type, "kind": "STANDARD", "request": request, "dropped_fields": sorted(legacy)}))
 
     def edit_route(route):
         captured["body"] = json.loads(route.request.post_data)
@@ -128,6 +133,11 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
         assert modal.locator(f"#{amount_id}").input_value() == str(request[amount_key])
         assert modal.locator("#op-note").input_value() == request["note"]
         assert "لا قيم محفوظة" not in modal.inner_text()
+        if legacy:  # تنبيه يسمّي الحقول المنزوعة
+            body_text = modal.inner_text()
+            assert "حقول لم تعد مستخدمة ولن تُنقل" in body_text and all(k in body_text for k in legacy), body_text
+        else:
+            assert "حقول لم تعد مستخدمة" not in modal.inner_text()
 
         # تغيير المبلغ وحده
         new_amount = "777.5"
@@ -160,5 +170,6 @@ def test_edit_opens_prefilled_and_changing_only_the_amount_keeps_everything(jour
             continue
         assert key in sent, f"{name}: ضاع الحقل {key}"
         assert sent[key] == original, f"{name}: تغيّر {key}: {original!r} → {sent[key]!r}"
+    assert not (set(sent) & set(legacy)), f"{name}: حقول منزوعة أُرسلت: {set(sent) & set(legacy)}"
     extra = {k for k, v in sent.items() if k not in request and v is not None}
     assert not extra, f"{name}: حقول جديدة لم تكن في الأصل: {extra}"

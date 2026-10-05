@@ -207,3 +207,46 @@ def pytest_collection_modifyitems(config, items):
         raise pytest.UsageError("علامات acceptance غير صالحة:\n" + "\n".join(bad))
 
     config._acceptance_coverage = coverage
+
+
+_LEAK_MARKERS = ("playwright", "uvicorn", "msedge", "chrome", "chromium", "headless_shell")
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """يفشل الجلسة إن بقيت عمليات Playwright/متصفح/uvicorn أطلقتها الاختبارات (علّة العمليات اليتيمة).
+
+    تُفحص أبناء عملية pytest نفسها فقط — لا تُمَسّ عمليات المستخدم الأخرى (Edge/uvicorn:8000 اليدوي).
+    ما وُجد يُنهى ثم تُفشَل الجلسة باسم العملية، كي لا تتراكم يتيمة بصمت."""
+    import psutil
+
+    # محرك التوليد المشترك (app/documents/render.py) يبقى حيّاً طوال الجلسة عمداً (إعادة تشغيله لكل ملف
+    # كلّفت ساعات) — يُوقَف صراحةً هنا مرة واحدة، لا بالاعتماد على خروج العملية (غير مضمون على ويندوز).
+    try:
+        from app.documents import render as doc_render
+
+        doc_render.stop()
+    except Exception as exc:  # noqa: BLE001 — يُبلَّغ ويُكمَل الفحص أدناه
+        sys.stderr.write(f"\nتعذّر إيقاف محرك التوليد: {exc!r}\n")
+
+    try:
+        kids = psutil.Process().children(recursive=True)
+    except psutil.Error:
+        return
+    leaked = []
+    for p in kids:
+        try:
+            desc = " ".join([p.name(), *p.cmdline()]).lower()
+        except psutil.Error:
+            continue
+        if any(m in desc for m in _LEAK_MARKERS):
+            leaked.append((p, desc[:140]))
+    if not leaked:
+        return
+    for p, _ in leaked:
+        try:
+            p.kill()
+        except psutil.Error:
+            pass
+    sys.stderr.write("\nعمليات يتيمة أطلقتها الاختبارات وبقيت بعد نهاية الجلسة:\n"
+                     + "\n".join(f"  pid={p.pid}: {d}" for p, d in leaked) + "\n")
+    session.exitstatus = 1

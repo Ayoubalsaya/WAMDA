@@ -253,13 +253,14 @@ export function OperationForm({
   // ولا تضيع عمولة أو ملاحظة أو موقع بصمت. قيد سابق بلا طلب محفوظ ⇒ تنبيه صريح.
   const [prefill, setPrefill] = useState<SourceRequestResponse | null>(null)
   const [prefillMissing, setPrefillMissing] = useState(false)
-  const [legacyFee, setLegacyFee] = useState<string | null>(null)
+  // حقول كانت في الطلب المحفوظ ولم يعد المخطط يعرفها — نزعها الخادم؛ تُسمّى للمستخدم كي لا يضيع شيء دون علمه
+  const [prefillDropped, setPrefillDropped] = useState<string[]>([])
   useEffect(() => {
     if (mode !== 'edit' || !editEntryId) return
     let cancelled = false
     void api.get<SourceRequestResponse>(`/operations/${editEntryId}/source-request`).then((res) => {
       if (cancelled) return
-      if (res.request) setPrefill(res)
+      if (res.request) { setPrefill(res); setPrefillDropped(res.dropped_fields ?? []) }
       else setPrefillMissing(true)
     })
     return () => { cancelled = true }
@@ -320,8 +321,6 @@ export function OperationForm({
       case 'LOCAL_MOVE':
         put('currency_code'); put('from_account_code'); put('to_account_code'); put('amount')
         setComm(commissionFromRequest(r))
-        // قيد قديم بحقل الرسوم المحذوف (5200): لا يُسقَط بصمت — تنبيه صريح ليدخلها المستخدم كعمولة إن أرادها
-        setLegacyFee(Number(r.fee_amount) > 0 ? String(r.fee_amount) : null)
         break
       case 'OPENING':
         put('account_code'); put('currency_code'); put('amount'); put('as_of_date'); put('source_type'); put('confidence'); put('source_note')
@@ -802,6 +801,12 @@ export function OperationForm({
             هذا القيد أُنشئ قبل حفظ القيم الأصلية، فلا يمكن ملء النموذج بها — أدخل **كل** الحقول (العملات، المواقع، الحسابات، المبالغ، الأسعار، العمولة، الملاحظة) بعناية.
           </FormGuide>
         )}
+        {isEdit && prefillDropped.length > 0 && (
+          <FormGuide tone="warning" title="حقول لم تعد مستخدمة ولن تُنقل">
+            {prefillDropped.map((k) => (NUMERIC_FIELD_LABELS[k] ? `${NUMERIC_FIELD_LABELS[k]} (${k})` : k)).join('، ')}
+            {prefillDropped.includes('fee_amount') && ' — الرسوم القديمة (5200) أُلغيت؛ إن أردتها فأدخلها عمولةً «ندفعها» في قسم العمولة.'}
+          </FormGuide>
+        )}
         {isEdit && client && (
           <p className="text-muted" style={{ fontSize: 'var(--fs-sm)' }}>العميل: {client.name_ar} ({client.code})</p>
         )}
@@ -1182,11 +1187,6 @@ export function OperationForm({
                 />
               </div>
               <AmountStage id="localmove-amount" label="المبلغ" value={fields.amount ?? ''} onChange={(v) => setField('amount', v)} currencyCode={fields.currency_code || undefined} />
-              {isEdit && legacyFee && (
-                <FormGuide tone="warning">
-                  هذا القيد كان بحقل رسوم قديم ({legacyFee}، مقيَّدة في 5200) أُلغي — التعديل لن يحمله؛ إن أردتها فأدخلها عمولةً «ندفعها» أدناه.
-                </FormGuide>
-              )}
               <CommissionSection value={comm} onChange={setComm} scope="TREASURY" idPrefix="localmove-commission" testId="localmove-commission-section" />
             </>
           )}

@@ -440,7 +440,13 @@ def entry_source_request(
     entry = _get_entry(db, entry_id)
     dispatch = _dispatch_for(entry)
     kind = "EXCHANGE_LOT" if dispatch is not None and dispatch[0] is ExchangeLotRequest else "STANDARD"
-    return SourceRequestResponse(operation_type=entry.operation_type.value, kind=kind, request=entry.source_request)
+    request, dropped = entry.source_request, []
+    if request is not None and dispatch is not None:
+        # طلب محفوظ بحقل لم يعد المخطط يعرفه (حقل أُلغي لاحقاً): يُنزع ويُسمّى — وإلا رفضه `extra="forbid"` عند الحفظ فلا يُعدَّل القيد القديم السليم
+        known = set(dispatch[0].model_fields)
+        dropped = sorted(k for k in request if k not in known)
+        request = {k: v for k, v in request.items() if k in known}
+    return SourceRequestResponse(operation_type=entry.operation_type.value, kind=kind, request=request, dropped_fields=dropped)
 
 
 @router.get("/{entry_id}/comments", response_model=list[CommentOut])

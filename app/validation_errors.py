@@ -133,6 +133,8 @@ def translate_validation_errors(raw_errors: list[dict[str, Any]]) -> list[dict[s
             loc = loc[1:]  # الجذر فقط (body/query/…) — حقل اسمه "body" داخل الجسم يبقى
         field = next((p for p in reversed(loc) if isinstance(p, str)), None)
         label = FIELD_LABELS_AR.get(field, _GENERIC_FIELD) if field else None
+        if err.get("type") == "extra_forbidden" and field and field not in FIELD_LABELS_AR:
+            label = field  # حقل مجهول: يُسمّى كما وصل كي يعرف المرسِل أيّ حقل رُفض
         out.append({"loc": loc, "field": field, "label": label, "message": _message(err), "type": err.get("type", "")})
     return out
 

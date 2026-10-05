@@ -165,3 +165,51 @@ def test_legacy_entry_without_a_saved_request_reports_null(db, client, now):
     entry = f.fund_client(db, client=c, currency_code="LYD", location_code="TRIPOLI", amount=Decimal("10.000"), receiving_account_code="1101", user=user, now=now)
     r = client.get(f"/operations/{entry.id}/source-request")
     assert r.status_code == 200 and r.json()["request"] is None and r.json()["operation_type"] == "RECEIPT"
+
+
+def test_old_entry_with_removed_fields_opens_stripped_named_and_saves(db, client, now):
+    """قيد محفوظ بطلب فيه حقول لم يعد المخطط يعرفها (الرسوم القديمة وحقل مجهول): المصدر يُرجعه منقّى مع تسمية المنزوع، والتعديل به ينجح (لا ٤٢٢ من extra=forbid)."""
+    from sqlalchemy import text
+
+    user = _login(db, client)
+    f.fund_client(db, client=f.make_client(db), currency_code="LYD", location_code="TRIPOLI", amount=Decimal("5000.000"), receiving_account_code="1101", user=user, now=now)
+    box_to = f.make_bank_account(db, currency_code="LYD", location_code="TRIPOLI", parent_code="1400")
+    body = {"currency_code": "LYD", "from_account_code": "1101", "to_account_code": box_to.code, "amount": "50.000", "note": "قيد قديم"}
+    eid = client.post("/operations/local-move", json=body, headers=_h(client)).json()["id"]
+    db.execute(text("ALTER TABLE journal_entries DISABLE TRIGGER USER"))
+    try:
+        stored = dict(db.get(JournalEntry, eid).source_request)
+        db.execute(text("UPDATE journal_entries SET source_request = CAST(:r AS jsonb) WHERE id = :i"),
+                   {"r": __import__("json").dumps({**stored, "fee_amount": "3.000", "gone_field": "x"}), "i": eid})
+    finally:
+        db.execute(text("ALTER TABLE journal_entries ENABLE TRIGGER USER"))
+    db.expire_all()
+    got = client.get(f"/operations/{eid}/source-request").json()
+    assert got["dropped_fields"] == ["fee_amount", "gone_field"]
+    assert "fee_amount" not in got["request"] and "gone_field" not in got["request"] and got["request"]["amount"] == "50.000"
+    edited = {k: v for k, v in got["request"].items() if v is not None}
+    edited["amount"] = "60.000"
+    edit = client.post(f"/operations/{eid}/edit", json={"reason": "تصحيح", "operation": edited}, headers={"X-CSRF-Token": client.cookies.get("wamda_csrf")})
+    assert edit.status_code == 200, edit.text
+    # وإرسال الحقل المنزوع نفسه إلى مسار التعديل يُرفض (الحارس يعمل): الرسوم بالرسالة الخاصة، والمجهول بتسميته
+    again = client.post(f"/operations/{edit.json()['new_entry']['id']}/edit",
+                        json={"reason": "x", "operation": {**edited, "fee_amount": "3.000"}}, headers={"X-CSRF-Token": client.cookies.get("wamda_csrf")})
+    assert again.status_code == 422 and "حقل الرسوم أُلغي — استخدم قسم العمولة" in again.text, again.text
+    unknown = client.post("/operations/local-move", json={**body, "gone_field": "x"}, headers=_h(client))
+    assert unknown.status_code == 422 and "«gone_field»: حقل غير معروف" in unknown.json()["detail"], unknown.text
+
+
+def test_every_operation_schema_rejects_unknown_fields_by_name(db, client, now):
+    _login(db, client)
+    cases = {
+        "/operations/receipt": {"client_id": 1, "currency_code": "LYD", "location_code": "TRIPOLI", "amount": "1", "receiving_account_code": "1101"},
+        "/operations/exchange": {"from_currency": "USD", "to_currency": "CNY", "amount": "1", "client_rate": "6.9", "source_account_code": "1104", "destination_account_code": "1105"},
+        "/operations/cash-transfer": {"client_id": 1, "currency_code": "USD", "from_location_code": "TRIPOLI", "to_location_code": "TURKEY", "amount": "1"},
+        "/operations/expense": {"expense_account_code": "5201", "currency_code": "LYD", "paying_account_code": "1101", "amount": "1", "description": "x"},
+        "/operations/opening": {"account_code": "1101", "currency_code": "LYD", "amount": "1", "is_debit": True},
+        "/operations/exchange-chain": {"step1": {"from_currency": "LYD", "to_currency": "USD", "amount": "1", "client_rate": "5", "extra_in_step": "x"},
+                                       "step2": {"to_currency": "CNY", "client_rate": "6.9"}},
+    }
+    for url, body in cases.items():
+        r = client.post(url, json={**body, "mystery_field": "x"}, headers=_h(client))
+        assert r.status_code == 422 and "حقل غير معروف" in r.text and ("mystery_field" in r.text or "extra_in_step" in r.text), (url, r.text)
