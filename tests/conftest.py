@@ -58,6 +58,11 @@ def _use_isolated_test_database() -> str:
 
 TEST_DATABASE_URL = _use_isolated_test_database()
 
+# مفتاح تشفير 2FA للاختبارات (مشتق، لا حرفي) — يُفعِّل مسار التشفير الحقيقي في كل الاختبارات. قبل أي استيراد لـ`app.config`.
+import base64  # noqa: E402
+
+os.environ.setdefault("TOTP_ENCRYPTION_KEY", base64.urlsafe_b64encode(b"wamda-tests-totp-key".ljust(32, b"_")).decode())
+
 from sqlalchemy import create_engine, event, select  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 

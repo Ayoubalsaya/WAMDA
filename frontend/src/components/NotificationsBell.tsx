@@ -16,14 +16,21 @@ export function NotificationsBell() {
   const [alerts, setAlerts] = useState<AlertRow[] | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
 
-  async function load() {
-    const data = await api.get<DashboardSummary>('/dashboard/summary')
-    setAlerts(data.alerts)
+  async function load(background = false) {
+    try {
+      const data = background
+        ? await api.getBackground<DashboardSummary>('/dashboard/summary')
+        : await api.get<DashboardSummary>('/dashboard/summary')
+      setAlerts(data.alerts)
+    } catch {
+      // 401 يعالجه حدث انتهاء الجلسة العام؛ غيره (انقطاع شبكة) لا يُسقط الواجهة
+    }
   }
 
   useEffect(() => {
     void load()
-    const timer = window.setInterval(() => void load(), 60_000)
+    // الاستعلام الدوري آلي: لا يُحتسب نشاطاً (وإلا لم تنتهِ مهلة الخمول أبداً بوجود الصفحة مفتوحة)
+    const timer = window.setInterval(() => void load(true), 60_000)
     return () => window.clearInterval(timer)
   }, [])
 

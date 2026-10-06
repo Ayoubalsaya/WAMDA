@@ -46,6 +46,15 @@ class Settings(BaseSettings):
     # صرامة بفصل الصلاحيات.
     backup_admin_database_url: Optional[str] = None
 
+    # مفتاح Fernet **مستقل** عن مفتاح النسخ الاحتياطي لتشفير `users.totp_secret` (٢٠٢٦-١٠-٠٦). إلزامي حين APP_ENV=production
+    # (يرفض الإقلاع بدونه). فقدانه = تعذّر فكّ أسرار 2FA (يُعاد تسجيل الأجهزة بـ`reset-2fa`)؛ يحفظه المالك خارج git والنسخ السحابية.
+    totp_encryption_key: Optional[str] = None
+
+    # مهلة الخمول (٢٠٢٦-١٠-٠٦): تنتهي الجلسة بعد هذه المدة بلا أي نشاط **فعلي** (فوق السقف المطلق ٨ ساعات). الموظف ٣٠ دقيقة بقرار
+    # المالك؛ البوابة ١٥ دقيقة (مقترَح: بيانات مالية على هاتف قد يُترك مفتوحاً، وإعادة الدخول بكلمة مرور فقط).
+    staff_idle_timeout_minutes: int = 30
+    portal_idle_timeout_minutes: int = 15
+
     # §٩ المرحلة ١٢ — تحديد معدل مسارات الدخول (لكل عنوان IP، نافذة منزلقة).
     # الموظف: عنوان ثابت غالباً → حدّ أضيق. العميل: هاتف بشبكة متغيّرة →
     # حدّ أوسع. يُطبَّق على تسجيل الدخول فقط، لا أي طلب قراءة.
@@ -58,6 +67,21 @@ class Settings(BaseSettings):
     # يكون خلف nginx يضبط هذه الترويسات فعلاً (انظر README). بلا تفعيله
     # خلف nginx: كل الطلبات من 127.0.0.1 فيُقفَل الحدّ على الجميع.
     trust_proxy_headers: bool = False
+
+    @model_validator(mode="after")
+    def _validate_totp_encryption_key(self) -> "Settings":
+        if self.totp_encryption_key:
+            from cryptography.fernet import Fernet
+
+            try:
+                Fernet(self.totp_encryption_key.encode())
+            except Exception as exc:
+                raise ValueError("TOTP_ENCRYPTION_KEY ليس مفتاح Fernet صالحاً (٣٢ بايت base64 url-safe)") from exc
+        elif self.app_env == "production":
+            raise ValueError(
+                "رفض الإقلاع — APP_ENV=production يتطلب TOTP_ENCRYPTION_KEY (مفتاح Fernet مستقل لتشفير أسرار 2FA)"
+            )
+        return self
 
     @model_validator(mode="after")
     def _enforce_production_rate_limit_floor(self) -> "Settings":

@@ -86,6 +86,17 @@ def enforce_portal_invite_rate_limit(request: Request) -> None:
     _enforce(_portal_invite_rate_limiter, request)
 
 
+BACKGROUND_HEADER = "x-wamda-background"
+
+
+def _touch_unless_background(request: Request, db: OrmSession, session_row, now) -> None:
+    """النشاط الفعلي يجدّد مهلة الخمول؛ الاستعلام الآلي (جرس الإشعارات) يرسل `X-Wamda-Background` فلا يُبقي الجلسة حيّة بلا مستخدم."""
+    if request.headers.get(BACKGROUND_HEADER):
+        return
+    if sessions.touch(db, session_row, now):
+        db.commit()
+
+
 def get_current_user(
     request: Request,
     db: OrmSession = Depends(get_db),
@@ -100,6 +111,7 @@ def get_current_user(
     user = db.get(User, session_row.subject_id)
     if user is None or not user.is_active:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "المستخدم غير نشط")
+    _touch_unless_background(request, db, session_row, now)
     request.state.session_id = str(session_row.id)
     return user
 
@@ -129,6 +141,7 @@ def get_current_client(
     client = db.get(Client, session_row.subject_id)
     if client is None or not client.is_active or not client.portal_enabled:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "الحساب غير نشط")
+    _touch_unless_background(request, db, session_row, now)
     request.state.portal_session_id = str(session_row.id)
     return client
 

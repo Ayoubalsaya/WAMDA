@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { api, ApiError } from '../api/client'
+import { api, ApiError, SESSION_EXPIRED_EVENT } from '../api/client'
 import type { PortalLoginResponse, PortalMeResponse } from '../api/types'
 
 // مطابق لـuseAuth.ts لكن على /portal/* بجلسة كوكي منفصلة (wamda_portal_session)
@@ -22,6 +22,13 @@ export function usePortalAuth() {
   useEffect(() => {
     void refresh()
   }, [refresh])
+
+  // انتهاء الجلسة (خمول/سقف) أثناء الاستخدام ← شاشة الدخول
+  useEffect(() => {
+    const onExpired = () => setMe(null)
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired)
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired)
+  }, [])
 
   const login = useCallback(
     async (code: string, password: string) => {

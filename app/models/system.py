@@ -22,6 +22,7 @@ from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
+from app.models.crypto_types import EncryptedText
 from app.models.enums import (
     EditRequestStatus,
     ReconciliationStatus,
@@ -46,7 +47,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(Text, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    totp_secret: Mapped[Optional[str]] = mapped_column(Text)
+    totp_secret: Mapped[Optional[str]] = mapped_column(EncryptedText)  # Fernet (TOTP_ENCRYPTION_KEY) — انظر crypto_types
     failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
@@ -87,6 +88,8 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # آخر نشاط فعلي (مهلة الخمول) — يُحدَّث بحدّ أقصى مرة كل دقيقة، ولا تُحدّثه استعلامات الخلفية الآلية
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     ip: Mapped[Optional[str]] = mapped_column(INET)
     ua: Mapped[Optional[str]] = mapped_column(Text)
 

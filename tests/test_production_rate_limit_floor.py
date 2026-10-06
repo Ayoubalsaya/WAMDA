@@ -17,11 +17,12 @@ from app.config import (
 )
 
 _DB_URL = "postgresql+psycopg://wamda_app:x@localhost:5432/wamda_db"
+_TOTP_KEY = __import__("cryptography.fernet", fromlist=["Fernet"]).Fernet.generate_key().decode()
 
 
 def test_production_with_weak_login_limit_refuses_to_boot():
     with pytest.raises(ValidationError) as exc:
-        Settings(database_url=_DB_URL, app_env="production", login_rate_limit_max=6)
+        Settings(database_url=_DB_URL, app_env="production", totp_encryption_key=_TOTP_KEY, login_rate_limit_max=6)
     message = str(exc.value)
     assert "LOGIN_RATE_LIMIT_MAX=6" in message
     assert str(PRODUCTION_MAX_LOGIN_RATE_LIMIT) in message
@@ -29,13 +30,13 @@ def test_production_with_weak_login_limit_refuses_to_boot():
 
 def test_production_with_weak_portal_login_limit_refuses_to_boot():
     with pytest.raises(ValidationError) as exc:
-        Settings(database_url=_DB_URL, app_env="production", portal_login_rate_limit_max=6)
+        Settings(database_url=_DB_URL, app_env="production", totp_encryption_key=_TOTP_KEY, portal_login_rate_limit_max=6)
     assert "PORTAL_LOGIN_RATE_LIMIT_MAX=6" in str(exc.value)
 
 
 def test_production_with_short_window_refuses_to_boot():
     with pytest.raises(ValidationError) as exc:
-        Settings(database_url=_DB_URL, app_env="production", login_rate_limit_window_seconds=899)
+        Settings(database_url=_DB_URL, app_env="production", totp_encryption_key=_TOTP_KEY, login_rate_limit_window_seconds=899)
     message = str(exc.value)
     assert "LOGIN_RATE_LIMIT_WINDOW_SECONDS=899" in message
     assert str(PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS) in message
@@ -44,7 +45,7 @@ def test_production_with_short_window_refuses_to_boot():
 def test_production_with_strict_values_boots_fine():
     s = Settings(
         database_url=_DB_URL,
-        app_env="production",
+        app_env="production", totp_encryption_key=_TOTP_KEY,
         login_rate_limit_max=PRODUCTION_MAX_LOGIN_RATE_LIMIT,
         portal_login_rate_limit_max=PRODUCTION_MAX_LOGIN_RATE_LIMIT,
         login_rate_limit_window_seconds=PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS,

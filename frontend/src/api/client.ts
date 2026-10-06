@@ -78,12 +78,22 @@ async function request<T>(
     if (!res.ok) throw new ApiError(res.status, GENERIC_HTTP_MESSAGE(res.status))
     throw new ApiError(res.status, 'ردّ غير متوقع من الخادم')
   }
-  if (!res.ok) throw new ApiError(res.status, humanMessage(res.status, data), fieldErrorsOf(data))
+  if (!res.ok) {
+    // جلسة منتهية (خمول/سقف) أثناء الاستخدام → الشاشة تعود لتسجيل الدخول بدل البقاء معروضة بلا جلسة. مسارات الدخول/الهوية تُعالج 401 بنفسها.
+    if (res.status === 401 && !/^\/(auth|portal)\/(login|me|logout)/.test(path)) {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
+    throw new ApiError(res.status, humanMessage(res.status, data), fieldErrorsOf(data))
+  }
   return data as T
 }
 
+export const SESSION_EXPIRED_EVENT = 'wamda:session-expired'
+
 export const api = {
   get: <T>(path: string) => request<T>('GET', path),
+  // استعلام آلي بلا مستخدم (جرس الإشعارات): لا يجدّد مهلة الخمول في الخادم (X-Wamda-Background)
+  getBackground: <T>(path: string) => request<T>('GET', path, undefined, { 'X-Wamda-Background': '1' }),
   post: <T>(path: string, body?: unknown, idempotencyKey?: string) =>
     request<T>('POST', path, body, idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined),
   patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
