@@ -294,16 +294,26 @@ def compute_client_statement(
     if date_to is not None:
         rows_query = rows_query.where(JournalEntry.entry_date <= date_to)
 
+    all_rows = db.execute(rows_query).all()
+    # زوج الإلغاء/التعديل (الأصل المعكوس وقيد عكسه) صافيه صفر: يُخفى الزوج كله — **وأسطره خارج الرصيد المتحرك** —
+    # فقط حين يقع نصفاه في النافذة المعروضة. (قبل ٢٠٢٦-١٠-٠٦ كان المخفي يُحسب في الرصيد المتحرك بينما عكسه يأتي بعده
+    # بالترتيب، فيعرض آخر صف ظاهر رصيداً يزيد بمبلغ الملغى عن `closing_balance` الصحيح.) نصف زوج مقسوم بحدّ التاريخ يبقى
+    # ظاهراً ومحسوباً فيبقى الرصيد المتحرك متسقاً والختامي = رصيد الحساب الحقيقي دائماً.
+    in_window = {entry.id for entry, _ in all_rows}
+
+    def _is_hidden_pair_half(entry: JournalEntry) -> bool:
+        if include_reversed:
+            return False
+        return entry.reverses_entry_id in in_window or (
+            entry.status == EntryStatus.REVERSED and entry.reversed_by_entry_id in in_window
+        )
+
     running = opening_balance
     statement_rows: list[StatementRow] = []
-    for entry, line in db.execute(rows_query).all():
-        # الرصيد المتحرك يشمل كل سطر حقيقي دائماً — القيد المعكوس وعكسه
-        # كلاهما سطر حسابي فعلي وإلا فسد الرصيد لأي فترة تشمل إلغاءً.
-        # `include_reversed` يتحكّم بعرض الصف فقط، لا بحسابه.
-        running = running + line.credit - line.debit
-        is_cancelled_pair = entry.status == EntryStatus.REVERSED or entry.reverses_entry_id is not None
-        if is_cancelled_pair and not include_reversed:
+    for entry, line in all_rows:
+        if _is_hidden_pair_half(entry):
             continue
+        running = running + line.credit - line.debit
         statement_rows.append(
             StatementRow(
                 entry_id=entry.id, entry_no=entry.entry_no, entry_date=entry.entry_date,

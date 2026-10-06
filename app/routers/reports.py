@@ -255,7 +255,7 @@ def activity_by_currency(db: OrmSession = Depends(get_db)) -> list[ActivityRow]:
     rows = db.execute(
         select(JournalLine.currency_code, JournalLine.entry_id)
         .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
-        .where(JournalEntry.status == EntryStatus.POSTED)
+        .where(JournalEntry.status == EntryStatus.POSTED, JournalEntry.reverses_entry_id.is_(None))  # قيد العكس ليس نشاطاً (أصله REVERSED مستثنى أصلاً)
         .distinct()
     ).all()
     counts: dict[str, set[int]] = defaultdict(set)
@@ -269,7 +269,7 @@ def activity_by_currency(db: OrmSession = Depends(get_db)) -> list[ActivityRow]:
 
 @router.get("/activity-by-month", response_model=list[ActivityRow])
 def activity_by_month(db: OrmSession = Depends(get_db)) -> list[ActivityRow]:
-    entries = db.execute(select(JournalEntry.entry_date).where(JournalEntry.status == EntryStatus.POSTED)).scalars().all()
+    entries = db.execute(select(JournalEntry.entry_date).where(JournalEntry.status == EntryStatus.POSTED, JournalEntry.reverses_entry_id.is_(None))).scalars().all()
     counts: dict[str, int] = defaultdict(int)
     for d in entries:
         counts[f"{d.year}-{d.month:02d}"] += 1
@@ -294,7 +294,7 @@ def correspondent_activity(db: OrmSession = Depends(get_db)) -> list[Corresponde
         lines = db.execute(
             select(JournalLine)
             .join(JournalEntry, JournalEntry.id == JournalLine.entry_id)
-            .where(JournalLine.account_id.in_(account_ids), JournalEntry.status == EntryStatus.POSTED)
+            .where(JournalLine.account_id.in_(account_ids), JournalEntry.status == EntryStatus.POSTED, JournalEntry.reverses_entry_id.is_(None))
         ).scalars().all()
         debit_pairs = [(ln.currency_code, ln.debit) for ln in lines if ln.debit > 0]
         credit_pairs = [(ln.currency_code, ln.credit) for ln in lines if ln.credit > 0]

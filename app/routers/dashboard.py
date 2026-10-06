@@ -144,7 +144,7 @@ def dashboard_summary(db: OrmSession = Depends(get_db), current_user: User = Dep
     # واحد بلا سعر صرف موثوق (نفس المبدأ الموثَّق في app/schemas/dashboard.py).
     top_client_counts = db.execute(
         select(JournalEntry.client_id, func.count(JournalEntry.id).label("op_count"))
-        .where(JournalEntry.client_id.isnot(None), JournalEntry.status == EntryStatus.POSTED)
+        .where(JournalEntry.client_id.isnot(None), JournalEntry.status == EntryStatus.POSTED, JournalEntry.reverses_entry_id.is_(None))
         .group_by(JournalEntry.client_id)
         .order_by(func.count(JournalEntry.id).desc())
         .limit(5)
