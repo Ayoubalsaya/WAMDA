@@ -1,0 +1,14 @@
+mismatches = []
+journal_rows_shown = 12
+journal_posted_in_db = 15
+journal_entries_verified_equal = 12
+posted_entries_not_in_day_list = [["WMD-2026-004539", "RECEIPT", "2026-10-05", null, null], ["WMD-2026-004540", "RECEIPT", "2026-10-05", null, null], ["WMD-2026-004542", "EXCHANGE", "2026-10-05", null, null], ["WMD-2026-004546", "REMIT_OUT", "2026-10-05", null, null], ["WMD-2026-004548", "CASH_TRANSFER", "2026-10-05", null, null], ["WMD-2026-004550", "OPENING", "2026-01-01", null, null], ["WMD-2026-004552", "EXPENSE", "2026-10-05", 41023, null], ["WMD-2026-004554", "PAYMENT", "2026-10-05", 41020, null]]
+client_totals = {"LYD": {"shown": "1440.000", "db": "1440.000"}, "USD": {"shown": "395.00", "db": "395.00"}}
+statement_rows_shown = {"LYD": [], "USD": []}
+statement_expected_count = {"LYD": 5, "USD": 5}
+statement_shown_count = {"LYD": 0, "USD": 0}
+tab_click_errors = [["LYD", "Locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator(\".clients-screen button\").filter(has_text=\"طرا"], ["USD", "Locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for locator(\".clients-screen button\").filter(has_text=\"طرا"]]
+http_errors_seen_by_browser = [[401, "GET", "/auth/me"], [401, "GET", "/reference/currencies"], [401, "GET", "/reference/locations"], [401, "GET", "/reference/client-currency-locations"], [401, "GET", "/reference/accounts"], [400, "GET", "/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code="], [400, "GET", "/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code="]]
+client_error = null
+journal_error = null
+liquidity_error = null

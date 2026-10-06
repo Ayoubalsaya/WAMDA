@@ -1,0 +1,62 @@
+login 200 cookies: ['wamda_csrf', 'wamda_session']
+[200] GET /settings/company | tables={} | audit=[]
+[200] PUT /settings/company | tables={'settings': 1} | audit=[]
+[200] PUT /settings/company | tables={} | audit=[]
+[200] GET /settings/company | tables={} | audit=[]
+[201] POST /settings/currencies | tables={'account_number_assignments': 12, 'accounts': 12, 'currencies': 1} | audit=[]
+[200] PATCH /settings/currencies/QAZ | tables={} | audit=[]
+[201] POST /settings/locations | tables={'locations': 1} | audit=[]
+[200] PATCH /settings/locations/QA-LOC | tables={} | audit=[]
+[201] POST /settings/client-currency-locations | tables={'client_currency_locations': 1} | audit=[]
+[201] POST /settings/bank-accounts | tables={'account_number_counters': 1, 'accounts': 1} | audit=[]
+[201] POST /partners | tables={'partners': 1} | audit=[]
+[201] POST /partners/2812/accounts | tables={'account_number_counters': 1, 'accounts': 1} | audit=[]
+[201] POST /users | tables={'users': 1} | audit=['USER_CREATED/users#14017']
+[200] PATCH /users/14017 | tables={} | audit=['USER_UPDATED/users#14017']
+[201] POST /clients | tables={'clients': 1} | audit=['CLIENT_CREATED/clients#11587']
+[200] PATCH /clients/11585 | tables={} | audit=[]
+[200] PUT /clients/11585/credit-mode | tables={'client_credit_limits': 4} | audit=['CLIENT_CREDIT_MODE_CHANGED/clients#11585']
+[204] PUT /clients/11585/credit-limits/LYD | tables={} | audit=['CLIENT_CREDIT_LIMIT_SET/clients#11585']
+[200] POST /clients/11585/portal/enable | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_ENABLED/clients#11585']
+[200] POST /clients/11585/portal/invite | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_INVITED/clients#11585']
+[204] POST /clients/11585/portal/unlock | tables={} | audit=['CLIENT_PORTAL_UNLOCKED/clients#11585']
+[200] POST /clients/11585/portal/reset | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_RESET/clients#11585']
+[204] POST /clients/11585/portal/disable | tables={} | audit=['CLIENT_PORTAL_DISABLED/clients#11585']
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/payment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/exchange | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 5} | audit=[]
+[201] POST /operations/exchange | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/expense | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/local-move | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/remit-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/adjustment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/cash-transfer | tables={'account_balances': 2, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 8} | audit=[]
+[201] POST /operations/swift-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'swift_movements': 1} | audit=['NEGATIVE_BALANCE_OVERRIDE/accounts#15593']
+[201] POST /operations/opening | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'opening_balances': 1} | audit=[]
+[201] POST /operations/exchange-chain | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 2, 'journal_entries': 2, 'journal_lines': 10} | audit=[]
+[200] GET /reference/swift-movements/pending | tables={} | audit=[]
+[201] POST /operations/swift-in | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 3} | audit=[]
+[201] POST /operations/41042/comments | tables={'entry_comments': 1} | audit=['ENTRY_COMMENT_ADDED/entry_comments#57']
+[200] GET /operations/41042/source-request | tables={} | audit=[]
+[200] POST /operations/41042/edit | tables={'idempotency_keys': 1, 'journal_entries': 2, 'journal_lines': 4} | audit=['ENTRY_EDITED/journal_entries#41042']
+[200] POST /operations/41039/cancel | tables={'journal_entries': 1, 'journal_lines': 2} | audit=['ENTRY_CANCELLED/journal_entries#41039']
+[201] POST /reconciliation/statements | tables={'partner_statement_lines': 2, 'partner_statements': 1} | audit=[]
+[200] POST /reconciliation/statements/202/auto-match | tables={} | audit=[]
+[200] PATCH /reconciliation/statements/202/lines/227/resolve | tables={} | audit=[]
+[200] POST /reconciliation/statements/202/lines/228/adjust | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[200] POST /periods/close | tables={'periods': 1} | audit=['PERIOD_CLOSED/periods#None']
+[200] POST /periods/reopen | tables={} | audit=['PERIOD_REOPENED/periods#None']
+[200] POST /auth/backup-codes/regenerate | tables={'user_backup_codes': 10} | audit=['BACKUP_CODES_GENERATED/users#14016']
+COMPARE ok= 26 mismatches= 8
+  MISMATCH ('statement: عدد الصفوف ≠ عدد أسطر الحساب', 'LYD-TRIPOLI', 4, 6)
+  MISMATCH ('statement: صف ≠ سطر القاعدة', 'LYD-TRIPOLI', 'WMD-2026-004559', '0.000000', '490.000000', 'WMD-2026-004558', '200.000000', '0.000000')
+  MISMATCH ('statement: رصيد جارٍ ≠ تراكم الأسطر', 'LYD-TRIPOLI', 'WMD-2026-004559', '1290.000000', 'all=800.000000', 'live=1000.000000', 'لا يطابق أي تفسير')
+  MISMATCH ('statement: صف ≠ سطر القاعدة', 'LYD-TRIPOLI', 'WMD-2026-004563', '50.000000', '0.000000', 'WMD-2026-004559', '0.000000', '490.000000')
+  MISMATCH ('statement: رصيد جارٍ ≠ تراكم الأسطر', 'LYD-TRIPOLI', 'WMD-2026-004563', '1240.000000', 'all=1290.000000', 'live=1490.000000', 'لا يطابق أي تفسير')
+  MISMATCH ('statement: صف ≠ سطر القاعدة', 'LYD-TRIPOLI', 'WMD-2026-004568', '100.000000', '0.000000', 'WMD-2026-004563', '50.000000', '0.000000')
+  MISMATCH ('statement: رصيد جارٍ ≠ تراكم الأسطر', 'LYD-TRIPOLI', 'WMD-2026-004568', '1140.000000', 'all=1240.000000', 'live=1440.000000', 'لا يطابق أي تفسير')
+  MISMATCH ('statement: آخر رصيد جارٍ ≠ account_balances', 'LYD-TRIPOLI', '1140.000000', '1340.000000')
+AFTER CLEANUP {'qa_clients': 0, 'qa_partners': 0, 'qa_users': 0, 'entries': 0, 'lines': 0, 'qaz': 0, 'qaz_accounts': 0, 'qa_loc': 0, 'qa_accounts': 0, 'audit_rows': 684}
+DIFF vs before: {'audit_log': 19}
+orphans check (psutil): []

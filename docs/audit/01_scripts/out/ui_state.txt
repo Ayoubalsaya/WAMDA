@@ -1,0 +1,195 @@
+{
+ "mismatches": [
+  [
+   "client: الإجمالي المعروض",
+   "USD",
+   "1440.000",
+   "395.00"
+  ]
+ ],
+ "sidebar_titles": [
+  "لوحة التحكم (Alt+1)",
+  "دفتر اليومية (Alt+2)",
+  "العملاء (Alt+3)",
+  "مركز السيولة (Alt+4)",
+  "",
+  "",
+  "",
+  "",
+  "عملية جديدة (Ctrl+N)",
+  "الحسابات (Alt+5)",
+  "التقارير (Alt+6)",
+  "المطابقة (Alt+7)",
+  "الإعدادات (Alt+8)",
+  "",
+  "",
+  "",
+  ""
+ ],
+ "journal_rows_shown": 12,
+ "journal_posted_in_db": 15,
+ "journal_entries_verified_equal": 12,
+ "journal_text_sample": "تسوية\nWMD-2026-004538\nمصروف\nWMD-2026-004536\nمعدَّلة\nسويفت وصول\nWMD-2026-004534\nسويفت خروج\nWMD-2026-004532\nتحويل بعمولة\nعميل تدقيق معدّل QA-AUD-492B4A-1\nتسوية\nWMD-2026-004530\nإرسال خارجي\nعميل تدقيق معدّل QA-AUD-492B4A-1\nنقل داخلي\nWMD-2026-004528\nصرافة\nWMD-2026-004526\nصرافة\nعميل تدقيق معدّل QA-AUD-492B4A-1\nقبض\nعميل تدقيق معدّل QA-AUD-492B4A-1\nقبض\nعميل تدقيق معدّل QA-AUD-492B4A-1",
+ "client_page_text": " رجوع لقائمة العملاء\nعميل تدقيق معدّل QA-AUD-492B4A-1\nQA-AUD-492B4A-1 · 092\nبطاقة الرصيد\nنسخ البطاقة كصورة\nتعديل\nجزئي\nالسماح بائتمان\nإيقاف الائتمان\nبوابة العميل\nمعطّلة\nآخر دخول: لم يدخل بعد\nتفعيل + دعوة جديدة\nدينار ليبي\nدولار أمريكي\nيوان صيني (رمبي)\nQA عملة 2\nدينار ليبي\nدولار أمريكي\nيوان صيني (رمبي)\nQA عملة 2\nالإجمالي\n1440.000\nد.ل LYD\nالائتمان بعملة LYD\nبلا ائتمان\nحد بمبلغ\nبلا سقف\nحد الائتمان بعملة LYD\nحفظ الحد\nبنغازي\n0.000\nمصرفي ليبيا\n0.000\nطرابلس\n1440.000\nكشف الحساب — دينار ليبي\nبنغازي\nمصرفي ليبيا\nطرابلس\nإلى\nإظهار الملغاة\nتصفية\nطباعة PDF\nتنزيل Excel\nالتاريخ\tالقيد\tالعملية\tالبيان\tالسعر\tمدين\tدائن\tالرصيد المتحرك\t\nالرصيد الافتتاحي\t0.000\t\nلا حركة في هذا النطاق",
+ "client_totals": {
+  "LYD": {
+   "shown": "1440.000",
+   "db": "1440.000"
+  },
+  "USD": {
+   "shown": "1440.000",
+   "db": "395.00"
+  }
+ },
+ "statement_rows_shown": {
+  "LYD": [],
+  "USD": []
+ },
+ "statement_expected_count": {
+  "LYD": 5,
+  "USD": 5
+ },
+ "statement_shown_count": {
+  "LYD": 0,
+  "USD": 0
+ },
+ "operation_type_cell_sample": [],
+ "liquidity_rows_shown": [
+  [
+   "د.ل LYD بنغازي",
+   "100.000",
+   "0.000",
+   "+100.000"
+  ],
+  [
+   "د.ل LYD مصرفي ليبيا",
+   "0.000",
+   "0.000",
+   "+0.000"
+  ],
+  [
+   "د.ل LYD طرابلس",
+   "1083.000",
+   "1740.000",
+   "-657.000 ⚠"
+  ],
+  [
+   "$ USD طرابلس",
+   "0.00",
+   "295.00",
+   "-295.00 ⚠"
+  ],
+  [
+   "$ USD تركيا",
+   "35.50",
+   "100.00",
+   "-64.50 ⚠"
+  ]
+ ],
+ "liquidity_db_groups": [
+  [
+   "LYD",
+   "بنغازي",
+   "ASSET",
+   "100.000000"
+  ],
+  [
+   "LYD",
+   "طرابلس",
+   "ASSET",
+   "1083.000000"
+  ],
+  [
+   "LYD",
+   "طرابلس",
+   "LIABILITY",
+   "1740.000000"
+  ],
+  [
+   "LYD",
+   "مصرفي ليبيا",
+   "ASSET",
+   "0"
+  ],
+  [
+   "USD",
+   "تركيا",
+   "ASSET",
+   "35.500000"
+  ],
+  [
+   "USD",
+   "تركيا",
+   "LIABILITY",
+   "100.000000"
+  ],
+  [
+   "USD",
+   "طرابلس",
+   "ASSET",
+   "0"
+  ],
+  [
+   "USD",
+   "طرابلس",
+   "LIABILITY",
+   "295.000000"
+  ]
+ ],
+ "screens_visited_text_len": {
+  "لوحة التحكم": 1175,
+  "الحسابات": 405,
+  "التقارير": 365,
+  "المطابقة": 145,
+  "الإعدادات": 297
+ },
+ "console_errors": [
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ],
+  [
+   "error",
+   "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+  ]
+ ],
+ "non_get_requests_seen": [
+  [
+   "POST",
+   "/auth/login"
+  ],
+  [
+   "POST",
+   "/auth/login"
+  ],
+  [
+   "GET",
+   "/journal/entries?include_reversed=false&date=2026-10-05"
+  ],
+  [
+   "GET",
+   "/journal/entries?include_reversed=false&date=2026-10-05"
+  ]
+ ]
+}
+{"logo_survives_ui_put": false, "after_cleanup": {"qa_clients": 0, "qa_partners": 0, "qa_users": 0, "entries": 0, "lines": 0, "qaz": 0, "qaz_accounts": 0, "qa_loc": 0, "qa_accounts": 0, "audit_rows": 646}, "killed_pids": [21032, 6580, 25184, 16152, 22596, 13036], "server_pids": [21032, 6580, 25184, 16152, 22596, 13036], "purge_blocked": {}, "compare": {"ok": 19, "mismatches": [["statement: عدد الصفوف ≠ عدد أسطر الحساب", "LYD-TRIPOLI", 3, 5], ["statement: صف ≠ سطر القاعدة", "LYD-TRIPOLI", "WMD-2026-004525", "0.000000", "490.000000", "WMD-2026-004524", "200.000000", "0.000000"], ["statement: رصيد جارٍ ≠ تراكم الأسطر", "LYD-TRIPOLI", "WMD-2026-004525", "1290.000000", "all=800.000000", "live=1000.000000", "لا يطابق أي تفسير"], ["statement: صف ≠ سطر القاعدة", "LYD-TRIPOLI", "WMD-2026-004529", "50.000000", "0.000000", "WMD-2026-004525", "0.000000", "490.000000"], ["statement: رصيد جارٍ ≠ تراكم الأسطر", "LYD-TRIPOLI", "WMD-2026-004529", "1240.000000", "all=1290.000000", "live=1490.000000", "لا يطابق أي تفسير"], ["statement: آخر رصيد جارٍ ≠ account_balances", "LYD-TRIPOLI", "1240.000000", "1440.000000"], ["statement: صف ≠ سطر القاعدة", "USD-TRIPOLI", "WMD-2026-004531", "5.000000", "0.000000", "WMD-2026-004531", "100.000000", "0.000000"], ["statement: رصيد جارٍ ≠ تراكم الأسطر", "USD-TRIPOLI", "WMD-2026-004531", "395.000000", "all=300.000000", "live=300.000000", "لا يطابق أي تفسير"], ["statement: صف ≠ سطر القاعدة", "USD-TRIPOLI", "WMD-2026-004531", "100.000000", "0.000000", "WMD-2026-004531", "5.000000", "0.000000"]], "statement_checks": [["LYD", "TRIPOLI", 3], ["USD", "TRIPOLI", 4], ["USD", "TURKEY", 1]], "entries_checked": 12}}

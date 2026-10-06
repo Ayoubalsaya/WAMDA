@@ -1,0 +1,7 @@
+mismatches = []
+client_totals = {"LYD": {"shown": "1340.000", "db": "1340.000"}, "USD": {"shown": "395.00", "db": "395.00"}}
+statement_rows_shown = {"LYD": [], "USD": []}
+statement_expected_count = {"LYD": 6, "USD": 7}
+statement_shown_count = {"LYD": 0, "USD": 0}
+tab_click_errors = [["LYD", "Locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"tab\", name=\"طرابلس\").first\n"], ["USD", "Locator.click: Timeout 3000ms exceeded.\nCall log:\n  - waiting for get_by_role(\"tab\", name=\"طرابلس\").first\n"]]
+operation_type_cell_sample = []

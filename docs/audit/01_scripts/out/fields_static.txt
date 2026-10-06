@@ -1,0 +1,84 @@
+== (أ) نماذج الجسم: extra ==
+POST   /auth/backup-codes/regenerate                              RegenerateBackupCodesRequest       extra=ignore
+POST   /auth/change-password                                      ChangePasswordRequest              extra=ignore
+POST   /auth/login                                                LoginRequest                       extra=ignore
+POST   /auth/recover/complete                                     RecoverCompleteRequest             extra=ignore
+POST   /auth/recover/start                                        RecoverStartRequest                extra=ignore
+POST   /clients                                                   CreateClientRequest                extra=ignore
+PATCH  /clients/{client_id}                                       UpdateClientRequest                extra=ignore
+PUT    /clients/{client_id}/credit-limits/{currency_code}         SetCreditLimitRequest              extra=ignore
+PUT    /clients/{client_id}/credit-mode                           SetCreditModeRequest               extra=ignore
+POST   /operations/adjustment                                     AdjustmentRequest                  extra=forbid
+POST   /operations/cash-transfer                                  CashTransferRequest                extra=forbid
+POST   /operations/exchange                                       ExchangeRatesRequest               extra=forbid
+POST   /operations/exchange-chain                                 ExchangeChainRequest               extra=forbid
+POST   /operations/exchange/from-lot                              ExchangeLotRequest                 extra=forbid
+POST   /operations/expense                                        ExpenseRequest                     extra=forbid
+POST   /operations/local-move                                     LocalMoveRequest                   extra=forbid
+POST   /operations/opening                                        OpeningRequest                     extra=forbid
+POST   /operations/payment                                        PaymentRequest                     extra=forbid
+POST   /operations/receipt                                        ReceiptRequest                     extra=forbid
+POST   /operations/remit-out                                      RemitOutRequest                    extra=forbid
+POST   /operations/swift-in                                       SwiftInRequest                     extra=forbid
+POST   /operations/swift-out                                      SwiftOutRequest                    extra=forbid
+POST   /operations/swift-return                                   SwiftReturnRequest                 extra=forbid
+POST   /operations/{entry_id}/cancel                              CancelRequest                      extra=ignore
+POST   /operations/{entry_id}/comments                            CommentCreate                      extra=ignore
+POST   /operations/{entry_id}/edit                                EditRequest                        extra=ignore
+POST   /partners                                                  CreatePartnerRequest               extra=ignore
+POST   /partners/{partner_id}/accounts                            CreatePartnerAccountRequest        extra=ignore
+POST   /periods/close                                             ClosePeriodRequest                 extra=ignore
+POST   /periods/founding/close                                    CloseFoundingPeriodRequest         extra=ignore
+POST   /periods/reopen                                            ReopenPeriodRequest                extra=ignore
+POST   /portal/change-password                                    PortalChangePasswordRequest        extra=ignore
+POST   /portal/invite/accept                                      PortalInviteAcceptRequest          extra=ignore
+POST   /portal/invite/verify                                      PortalInviteVerifyRequest          extra=ignore
+POST   /portal/login                                              PortalLoginRequest                 extra=ignore
+POST   /portal/recover/complete                                   PortalRecoverCompleteRequest       extra=ignore
+POST   /portal/recover/start                                      PortalRecoverStartRequest          extra=ignore
+POST   /reconciliation/statements                                 CreatePartnerStatementRequest      extra=ignore
+POST   /reconciliation/statements/{statement_id}/lines/{line_id}/adjust AdjustLineRequest                  extra=ignore
+PATCH  /reconciliation/statements/{statement_id}/lines/{line_id}/match ManualMatchRequest                 extra=ignore
+PATCH  /reconciliation/statements/{statement_id}/lines/{line_id}/resolve ResolveLineRequest                 extra=ignore
+POST   /settings/bank-accounts                                    CreateBankAccountRequest           extra=ignore
+POST   /settings/client-currency-locations                        CreateClientCurrencyLocationRequest extra=ignore
+PUT    /settings/company                                          CompanyProfile                     extra=ignore
+POST   /settings/currencies                                       CreateCurrencyRequest              extra=ignore
+PATCH  /settings/currencies/{code}                                UpdateCurrencyRequest              extra=ignore
+POST   /settings/locations                                        CreateLocationRequest              extra=ignore
+PATCH  /settings/locations/{code}                                 UpdateLocationRequest              extra=ignore
+POST   /users                                                     CreateUserRequest                  extra=ignore
+PATCH  /users/{user_id}                                           UpdateUserRequest                  extra=ignore
+
+== (ب) مفاتيح الجسم المُرسَل (حرفياً في موقع الاستدعاء) مقابل حقول المخطط ==
+frontend/src/components/CreditControls.tsx:42 PUT /clients/${clientId}/credit-mode [SetCreditModeRequest extra=ignore] sent=['mode'] unknown=[] required_not_sent=[] ok
+frontend/src/components/EntryActions.tsx:27 POST /operations/${entryId}/cancel [CancelRequest extra=ignore] sent=['reason'] unknown=[] required_not_sent=[] ok
+frontend/src/components/EntryActions.tsx:196 POST /operations/${entryId}/comments [CommentCreate extra=ignore] sent=['body'] unknown=[] required_not_sent=[] ok
+frontend/src/portal/PortalAcceptInviteScreen.tsx:30 POST /portal/invite/verify [PortalInviteVerifyRequest extra=ignore] sent=['token'] unknown=[] required_not_sent=[] ok
+frontend/src/portal/PortalAcceptInviteScreen.tsx:58 POST /portal/invite/accept [PortalInviteAcceptRequest extra=ignore] sent=['token', 'password'] unknown=[] required_not_sent=[] ok
+frontend/src/portal/usePortalAuth.ts:28 POST /portal/login [PortalLoginRequest extra=ignore] sent=['code', 'password'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/ChangePasswordScreen.tsx:31 POST /auth/change-password [ChangePasswordRequest extra=ignore] sent=['current_password', 'new_password'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/LoginScreen.tsx:35 POST /auth/recover/start [RecoverStartRequest extra=ignore] sent=['username'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/LoginScreen.tsx:58 POST /auth/recover/complete [RecoverCompleteRequest extra=ignore] sent=['username', 'security_answer', 'new_password'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/ReconciliationScreen.tsx:49 POST /reconciliation/statements [CreatePartnerStatementRequest extra=ignore] sent=['partner_id', 'period_from', 'period_to', 'lines'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/ReconciliationScreen.tsx:136 POST /reconciliation/statements/${statementId}/lines/${line.id}/adjust [AdjustLineRequest extra=ignore] sent=['account_code', 'currency_code', 'amount', 'is_debit', 'reason'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/ReconciliationScreen.tsx:221 PATCH /reconciliation/statements/${statementId}/lines/${line.id}/match [ManualMatchRequest extra=ignore] sent=['entry_id'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/ReconciliationScreen.tsx:226 PATCH /reconciliation/statements/${statementId}/lines/${line.id}/resolve [ResolveLineRequest extra=ignore] sent=[] unknown=[] required_not_sent=[] ok
+frontend/src/screens/SettingsScreen.tsx:52 PUT /settings/company [CompanyProfile extra=ignore] sent=['name_ar'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/SettingsScreen.tsx:96 POST /users [CreateUserRequest extra=ignore] sent=['username', 'full_name', 'role', 'initial_password'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/SettingsScreen.tsx:171 POST /partners [CreatePartnerRequest extra=ignore] sent=['code', 'name_ar', 'country', 'contact_phone'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/SettingsScreen.tsx:213 POST /partners/${partnerId}/accounts [CreatePartnerAccountRequest extra=ignore] sent=['parent_code', 'currency_code', 'location_code'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/SettingsScreen.tsx:334 POST /settings/bank-accounts [CreateBankAccountRequest extra=ignore] sent=['currency_code', 'location_code'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/clients/ClientDetailView.tsx:74 PATCH /clients/${clientId} [UpdateClientRequest extra=ignore] sent=['name_ar', 'phone'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/clients/CreateClientModal.tsx:41 POST /clients [CreateClientRequest extra=ignore] sent=['code', 'name_ar', 'phone', 'id_number'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/journal/ExchangeWizard.tsx:157 POST /operations/exchange-chain [ExchangeChainRequest extra=forbid] sent=['client_id', 'step1', 'step2', 'note'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/CurrenciesTab.tsx:20 POST /settings/currencies [CreateCurrencyRequest extra=ignore] sent=['code', 'name_ar', 'symbol', 'decimals', 'sort_order'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/CurrenciesTab.tsx:70 PATCH /settings/currencies/${row.code} [UpdateCurrencyRequest extra=ignore] sent=['name_ar', 'symbol', 'decimals', 'sort_order'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/CurrenciesTab.tsx:114 PATCH /settings/currencies/${row.code} [UpdateCurrencyRequest extra=ignore] sent=['is_active'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/LocationsTab.tsx:19 POST /settings/locations [CreateLocationRequest extra=ignore] sent=['code', 'name_ar', 'country'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/LocationsTab.tsx:54 PATCH /settings/locations/${row.code} [UpdateLocationRequest extra=ignore] sent=['name_ar', 'country'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/LocationsTab.tsx:88 PATCH /settings/locations/${row.code} [UpdateLocationRequest extra=ignore] sent=['is_active'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/LocationsTab.tsx:129 POST /settings/client-currency-locations [CreateClientCurrencyLocationRequest extra=ignore] sent=['currency_code', 'location_code'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/PeriodsTab.tsx:23 POST /periods/${action} -> لا مسار
+frontend/src/screens/settings/PeriodsTab.tsx:104 POST /periods/founding/close [CloseFoundingPeriodRequest extra=ignore] sent=['acknowledged_remaining_suspense'] unknown=[] required_not_sent=[] ok
+frontend/src/screens/settings/SecurityTab.tsx:28 POST /auth/backup-codes/regenerate [RegenerateBackupCodesRequest extra=ignore] sent=['password'] unknown=[] required_not_sent=[] ok

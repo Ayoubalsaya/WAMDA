@@ -1,0 +1,94 @@
+login 200 cookies: ['wamda_csrf', 'wamda_session']
+[200] GET /settings/company | tables={} | audit=[]
+[200] PUT /settings/company | tables={} | audit=[]
+[200] PUT /settings/company | tables={} | audit=[]
+[200] GET /settings/company | tables={} | audit=[]
+[409] POST /settings/currencies | tables={} | audit=[] | ERR {"detail": "العملة QAZ موجودة بالفعل"}
+[200] PATCH /settings/currencies/QAZ | tables={} | audit=[]
+[409] POST /settings/locations | tables={} | audit=[] | ERR {"detail": "الموقع QA-LOC موجود بالفعل"}
+[200] PATCH /settings/locations/QA-LOC | tables={} | audit=[]
+[409] POST /settings/client-currency-locations | tables={} | audit=[] | ERR {"detail": "التركيبة QAZ·QA-LOC مسموحة بالفعل"}
+[201] POST /settings/bank-accounts | tables={'accounts': 1} | audit=[]
+[201] POST /partners | tables={'partners': 1} | audit=[]
+[201] POST /partners/2809/accounts | tables={'accounts': 1} | audit=[]
+[201] POST /users | tables={'users': 1} | audit=['USER_CREATED/users#14011']
+[200] PATCH /users/14011 | tables={} | audit=['USER_UPDATED/users#14011']
+[201] POST /clients | tables={'clients': 1} | audit=['CLIENT_CREATED/clients#11578']
+[200] PATCH /clients/11576 | tables={} | audit=[]
+[200] PUT /clients/11576/credit-mode | tables={'client_credit_limits': 4} | audit=['CLIENT_CREDIT_MODE_CHANGED/clients#11576']
+[204] PUT /clients/11576/credit-limits/LYD | tables={} | audit=['CLIENT_CREDIT_LIMIT_SET/clients#11576']
+[200] POST /clients/11576/portal/enable | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_ENABLED/clients#11576']
+[200] POST /clients/11576/portal/invite | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_INVITED/clients#11576']
+[204] POST /clients/11576/portal/unlock | tables={} | audit=['CLIENT_PORTAL_UNLOCKED/clients#11576']
+[200] POST /clients/11576/portal/reset | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_RESET/clients#11576']
+[204] POST /clients/11576/portal/disable | tables={} | audit=['CLIENT_PORTAL_DISABLED/clients#11576']
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/payment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/exchange | tables={'account_balances': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 5} | audit=[]
+[201] POST /operations/exchange | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/expense | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/local-move | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/remit-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/adjustment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/cash-transfer | tables={'account_balances': 2, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 8} | audit=[]
+[201] POST /operations/swift-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'swift_movements': 1} | audit=['NEGATIVE_BALANCE_OVERRIDE/accounts#15539']
+[201] POST /operations/opening | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'opening_balances': 1} | audit=[]
+[422] POST /operations/exchange-chain | tables={} | audit=[] | ERR {"detail": "لا يمكن التحويل مباشرة بين الدينار والرمبي — يجب المرور بالدولار بسعرين منفصلين."}
+[200] GET /reference/swift-movements/pending | tables={} | audit=[]
+[201] POST /operations/swift-in | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 3} | audit=[]
+[201] POST /operations/40987/comments | tables={'entry_comments': 1} | audit=['ENTRY_COMMENT_ADDED/entry_comments#54']
+[200] GET /operations/40987/source-request | tables={} | audit=[]
+[200] POST /operations/40987/edit | tables={'idempotency_keys': 1, 'journal_entries': 2, 'journal_lines': 4} | audit=['ENTRY_EDITED/journal_entries#40987']
+[200] POST /operations/40984/cancel | tables={'journal_entries': 1, 'journal_lines': 2} | audit=['ENTRY_CANCELLED/journal_entries#40984']
+[201] POST /reconciliation/statements | tables={'partner_statement_lines': 2, 'partner_statements': 1} | audit=[]
+[200] POST /reconciliation/statements/199/auto-match | tables={} | audit=[]
+[200] PATCH /reconciliation/statements/199/lines/221/resolve | tables={} | audit=[]
+[200] POST /reconciliation/statements/199/lines/222/adjust | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[200] POST /periods/close | tables={} | audit=['PERIOD_CLOSED/periods#None']
+[200] POST /periods/reopen | tables={} | audit=['PERIOD_REOPENED/periods#None']
+[200] POST /auth/backup-codes/regenerate | tables={'user_backup_codes': 10} | audit=['BACKUP_CODES_GENERATED/users#14010']
+COMPARE ok= 20 mismatches= 86
+  MISMATCH ('balances: خانات عشرية', '2100-QA-AUD-D5E6E6-1-USD-TRIPOLI', '295.000000', 'decimals=2')
+  MISMATCH ('balances: خانات عشرية', '2100-QA-AUD-D5E6E6-1-USD-TURKEY', '100.000000', 'decimals=2')
+  MISMATCH ('balances: خانات عشرية', '2100-QA-AUD-D5E6E6-1-LYD-TRIPOLI', '1440.000000', 'decimals=3')
+  MISMATCH ('statement: رصيد جارٍ', 'WMD-2026-004508', '1290.000000', '1490.000000')
+  MISMATCH ('statement: رصيد جارٍ', 'WMD-2026-004512', '1240.000000', '1440.000000')
+  MISMATCH ('statement: آخر رصيد جارٍ ≠ account_balances', 'LYD', '1240.000000', '1440.000000')
+  MISMATCH ('statement: مدين/دائن', 'WMD-2026-004514', '100.000000', '0.000000', '105.000000', '0.000000')
+  MISMATCH ('statement: رصيد جارٍ', 'WMD-2026-004514', '300.000000', '295.000000')
+  MISMATCH ('statement: مدين/دائن', 'WMD-2026-004514', '5.000000', '0.000000', '105.000000', '0.000000')
+  MISMATCH ('statement: رصيد جارٍ', 'WMD-2026-004514', '295.000000', '190.000000')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004521', 'debit', '37.500000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004521', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004521', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004521', 'credit', '37.500000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004519', 'debit', '30.000000', 'decimals=3')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004519', 'credit', '0.000000', 'decimals=3')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004519', 'debit', '0.000000', 'decimals=3')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004519', 'credit', '30.000000', 'decimals=3')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'credit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'debit', '1.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'debit', '99.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004517', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004515', 'debit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004515', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004515', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004515', 'credit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '100.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '5.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'debit', '0.000000', 'decimals=2')
+  MISMATCH ('journal/entries: خانات عشرية', 'WMD-2026-004514', 'credit', '5.000000', 'decimals=2')
+AFTER CLEANUP {'qa_clients': 0, 'qa_partners': 0, 'qa_users': 0, 'entries': 0, 'lines': 0, 'qaz': 0, 'qaz_accounts': 0, 'qa_loc': 0, 'qa_accounts': 1, 'audit_rows': 627}
+DIFF vs before: {'account_balances': 1, 'account_number_assignments': -12, 'accounts': -12, 'audit_log': 18, 'client_currency_locations': -1, 'currencies': -1, 'locations': -1, 'periods': -1, 'settings': -1, 'users': -1}
+orphans check (psutil): []

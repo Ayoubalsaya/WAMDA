@@ -1,0 +1,19 @@
+CALL SITES 135 MISSING 1
+  ('frontend/src/screens/clients/ClientsListView.tsx', 27, 'GET', '/clients${q ? ')
+ROUTES 135 with UI caller 119 without 16
+  GET /
+  GET /clients
+  GET /documents/balance-card/{client_id}.pdf
+  GET /documents/reports/{report_key}.png
+  GET /documents/statement/account/{account_code}.pdf
+  GET /documents/statement/account/{account_code}.xlsx
+  GET /documents/statement/client/{client_id}.pdf
+  GET /documents/statement/client/{client_id}.xlsx
+  GET /health
+  POST /operations/exchange/from-lot
+  POST /operations/{entry_id}/edit
+  GET /portal
+  POST /portal/change-password
+  POST /portal/recover/complete
+  POST /portal/recover/start
+  PATCH /users/{user_id}

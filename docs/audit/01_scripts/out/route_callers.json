@@ -1,0 +1,386 @@
+{
+ "GET /reference/accounts": [
+  "frontend/src/components/AccountPicker.tsx:22",
+  "frontend/src/hooks/useReferenceData.ts:19"
+ ],
+ "GET /reference/accounts/for-operation": [
+  "frontend/src/components/AccountPicker.tsx:27",
+  "frontend/src/hooks/useAccountsForOperation.ts:34"
+ ],
+ "PUT /clients/{client_id}/credit-mode": [
+  "frontend/src/components/CreditControls.tsx:42"
+ ],
+ "GET /clients/{client_id}": [
+  "frontend/src/components/CreditControls.tsx:57",
+  "frontend/src/components/EditEntryModal.tsx:30",
+  "frontend/src/screens/clients/ClientDetailView.tsx:37",
+  "frontend/src/screens/clients/CreateClientModal.tsx:35",
+  "frontend/src/screens/journal/ClientPanel.tsx:48",
+  "frontend/src/screens/settings/OpeningBalancesTab.tsx:60"
+ ],
+ "POST /operations/{entry_id}/cancel": [
+  "frontend/src/components/EntryActions.tsx:27"
+ ],
+ "GET /operations/{entry_id}/history": [
+  "frontend/src/components/EntryActions.tsx:128"
+ ],
+ "GET /operations/{entry_id}/comments": [
+  "frontend/src/components/EntryActions.tsx:186"
+ ],
+ "POST /operations/{entry_id}/comments": [
+  "frontend/src/components/EntryActions.tsx:196"
+ ],
+ "GET /dashboard/summary": [
+  "frontend/src/components/NotificationsBell.tsx:20",
+  "frontend/src/screens/DashboardScreen.tsx:43"
+ ],
+ "GET /search": [
+  "frontend/src/components/SearchResultsPanel.tsx:35"
+ ],
+ "GET /auth/me": [
+  "frontend/src/hooks/useAuth.ts:11"
+ ],
+ "POST /auth/login": [
+  "frontend/src/hooks/useAuth.ts:30"
+ ],
+ "POST /auth/logout": [
+  "frontend/src/hooks/useAuth.ts:39"
+ ],
+ "GET /reference/currencies": [
+  "frontend/src/hooks/useReferenceData.ts:16"
+ ],
+ "GET /reference/locations": [
+  "frontend/src/hooks/useReferenceData.ts:17"
+ ],
+ "GET /reference/client-currency-locations": [
+  "frontend/src/hooks/useReferenceData.ts:18"
+ ],
+ "POST /portal/invite/verify": [
+  "frontend/src/portal/PortalAcceptInviteScreen.tsx:30"
+ ],
+ "POST /portal/invite/accept": [
+  "frontend/src/portal/PortalAcceptInviteScreen.tsx:58"
+ ],
+ "GET /portal/currencies": [
+  "frontend/src/portal/PortalHomeScreen.tsx:33"
+ ],
+ "GET /portal/locations": [
+  "frontend/src/portal/PortalHomeScreen.tsx:34"
+ ],
+ "GET /portal/balances": [
+  "frontend/src/portal/PortalHomeScreen.tsx:35"
+ ],
+ "GET /portal/statement": [
+  "frontend/src/portal/PortalHomeScreen.tsx:70"
+ ],
+ "GET /portal/balance-card.png": [
+  "frontend/src/portal/PortalHomeScreen.tsx:169"
+ ],
+ "GET /portal/me": [
+  "frontend/src/portal/usePortalAuth.ts:13"
+ ],
+ "POST /portal/login": [
+  "frontend/src/portal/usePortalAuth.ts:28"
+ ],
+ "POST /portal/logout": [
+  "frontend/src/portal/usePortalAuth.ts:36"
+ ],
+ "GET /accounts/boxes": [
+  "frontend/src/screens/AccountsScreen.tsx:59"
+ ],
+ "GET /accounts/correspondents": [
+  "frontend/src/screens/AccountsScreen.tsx:71"
+ ],
+ "GET /accounts/banks": [
+  "frontend/src/screens/AccountsScreen.tsx:89"
+ ],
+ "GET /reference/swift-movements/pending": [
+  "frontend/src/screens/AccountsScreen.tsx:101",
+  "frontend/src/screens/journal/OperationForm.tsx:360"
+ ],
+ "GET /lots": [
+  "frontend/src/screens/AccountsScreen.tsx:131"
+ ],
+ "GET /lots/{lot_id}": [
+  "frontend/src/screens/AccountsScreen.tsx:137"
+ ],
+ "GET /documents/reports/{report_key}.pdf": [
+  "frontend/src/screens/AccountsScreen.tsx:217",
+  "frontend/src/screens/AccountsScreen.tsx:226",
+  "frontend/src/screens/LiquidityScreen.tsx:25",
+  "frontend/src/screens/ReportsScreen.tsx:455"
+ ],
+ "GET /documents/reports/{report_key}.xlsx": [
+  "frontend/src/screens/AccountsScreen.tsx:223",
+  "frontend/src/screens/LiquidityScreen.tsx:22",
+  "frontend/src/screens/ReportsScreen.tsx:450"
+ ],
+ "POST /auth/change-password": [
+  "frontend/src/screens/ChangePasswordScreen.tsx:31"
+ ],
+ "GET /position/liquidity": [
+  "frontend/src/screens/LiquidityScreen.tsx:14"
+ ],
+ "POST /auth/recover/start": [
+  "frontend/src/screens/LoginScreen.tsx:35"
+ ],
+ "POST /auth/recover/complete": [
+  "frontend/src/screens/LoginScreen.tsx:58"
+ ],
+ "POST /reconciliation/statements": [
+  "frontend/src/screens/ReconciliationScreen.tsx:49"
+ ],
+ "POST /reconciliation/statements/{statement_id}/lines/{line_id}/adjust": [
+  "frontend/src/screens/ReconciliationScreen.tsx:136"
+ ],
+ "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/match": [
+  "frontend/src/screens/ReconciliationScreen.tsx:221"
+ ],
+ "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/resolve": [
+  "frontend/src/screens/ReconciliationScreen.tsx:226"
+ ],
+ "GET /reconciliation/statements/{statement_id}": [
+  "frontend/src/screens/ReconciliationScreen.tsx:240"
+ ],
+ "POST /reconciliation/statements/{statement_id}/auto-match": [
+  "frontend/src/screens/ReconciliationScreen.tsx:248"
+ ],
+ "GET /reconciliation/statements": [
+  "frontend/src/screens/ReconciliationScreen.tsx:339"
+ ],
+ "GET /partners": [
+  "frontend/src/screens/ReconciliationScreen.tsx:373",
+  "frontend/src/screens/SettingsScreen.tsx:298"
+ ],
+ "GET /reports/client-liabilities": [
+  "frontend/src/screens/ReportsScreen.tsx:53"
+ ],
+ "GET /reports/debtors": [
+  "frontend/src/screens/ReportsScreen.tsx:77"
+ ],
+ "GET /reports/profit-by-period": [
+  "frontend/src/screens/ReportsScreen.tsx:104"
+ ],
+ "GET /reports/trial-balance": [
+  "frontend/src/screens/ReportsScreen.tsx:137"
+ ],
+ "GET /reports/income-statement": [
+  "frontend/src/screens/ReportsScreen.tsx:171"
+ ],
+ "GET /reports/client-profitability": [
+  "frontend/src/screens/ReportsScreen.tsx:219"
+ ],
+ "GET /reports/correspondent-activity": [
+  "frontend/src/screens/ReportsScreen.tsx:267"
+ ],
+ "GET /reports/swift-history": [
+  "frontend/src/screens/ReportsScreen.tsx:291"
+ ],
+ "GET /reports/loss-making-operations": [
+  "frontend/src/screens/ReportsScreen.tsx:321"
+ ],
+ "GET /reports/balance-overrides": [
+  "frontend/src/screens/ReportsScreen.tsx:348"
+ ],
+ "GET /reports/emergency-entries": [
+  "frontend/src/screens/ReportsScreen.tsx:372"
+ ],
+ "GET /reports/founding-reconciliation": [
+  "frontend/src/screens/ReportsScreen.tsx:395"
+ ],
+ "GET /reports/activity-by-currency": [
+  "frontend/src/screens/ReportsScreen.tsx:483"
+ ],
+ "GET /reports/activity-by-month": [
+  "frontend/src/screens/ReportsScreen.tsx:484"
+ ],
+ "GET /settings/company": [
+  "frontend/src/screens/SettingsScreen.tsx:43"
+ ],
+ "PUT /settings/company": [
+  "frontend/src/screens/SettingsScreen.tsx:52"
+ ],
+ "POST /users": [
+  "frontend/src/screens/SettingsScreen.tsx:96"
+ ],
+ "GET /users": [
+  "frontend/src/screens/SettingsScreen.tsx:129"
+ ],
+ "POST /partners": [
+  "frontend/src/screens/SettingsScreen.tsx:171"
+ ],
+ "POST /partners/{partner_id}/accounts": [
+  "frontend/src/screens/SettingsScreen.tsx:213"
+ ],
+ "GET /partners/{partner_id}/accounts": [
+  "frontend/src/screens/SettingsScreen.tsx:256"
+ ],
+ "POST /settings/bank-accounts": [
+  "frontend/src/screens/SettingsScreen.tsx:334"
+ ],
+ "GET /settings/bank-accounts": [
+  "frontend/src/screens/SettingsScreen.tsx:370"
+ ],
+ "GET /clients/{client_id}/statement": [
+  "frontend/src/screens/clients/ClientDetailView.tsx:64"
+ ],
+ "PATCH /clients/{client_id}": [
+  "frontend/src/screens/clients/ClientDetailView.tsx:74"
+ ],
+ "PUT /clients/{client_id}/credit-limits/{currency_code}": [
+  "frontend/src/screens/clients/ClientDetailView.tsx:280"
+ ],
+ "GET /documents/balance-card/{client_id}.png": [
+  "frontend/src/screens/clients/ClientDetailView.tsx:102",
+  "frontend/src/screens/clients/ClientDetailView.tsx:105"
+ ],
+ "GET /clients/{client_id}/portal": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:56"
+ ],
+ "POST /clients/{client_id}/portal/enable": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+  "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+ ],
+ "POST /clients/{client_id}/portal/invite": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+  "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+ ],
+ "POST /clients/{client_id}/portal/reset": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+  "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+ ],
+ "POST /clients/{client_id}/portal/disable": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+  "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+ ],
+ "POST /clients/{client_id}/portal/unlock": [
+  "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+  "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+ ],
+ "GET /clients/similar": [
+  "frontend/src/screens/clients/CreateClientModal.tsx:35"
+ ],
+ "POST /clients": [
+  "frontend/src/screens/clients/CreateClientModal.tsx:41"
+ ],
+ "GET /clients/search": [
+  "frontend/src/screens/journal/ClientPanel.tsx:48",
+  "frontend/src/screens/settings/OpeningBalancesTab.tsx:60"
+ ],
+ "GET /clients/{client_id}/balances": [
+  "frontend/src/screens/journal/ClientPanel.tsx:66",
+  "frontend/src/screens/journal/OperationForm.tsx:373"
+ ],
+ "POST /operations/exchange-chain": [
+  "frontend/src/screens/journal/ExchangeWizard.tsx:157"
+ ],
+ "GET /operations/{entry_id}/source-request": [
+  "frontend/src/screens/journal/OperationForm.tsx:261"
+ ],
+ "POST /operations/receipt": [
+  "frontend/src/screens/journal/OperationForm.tsx:535"
+ ],
+ "POST /operations/payment": [
+  "frontend/src/screens/journal/OperationForm.tsx:540"
+ ],
+ "POST /operations/exchange": [
+  "frontend/src/screens/journal/OperationForm.tsx:545"
+ ],
+ "POST /operations/local-move": [
+  "frontend/src/screens/journal/OperationForm.tsx:557"
+ ],
+ "POST /operations/cash-transfer": [
+  "frontend/src/screens/journal/OperationForm.tsx:563"
+ ],
+ "POST /operations/remit-out": [
+  "frontend/src/screens/journal/OperationForm.tsx:575"
+ ],
+ "POST /operations/expense": [
+  "frontend/src/screens/journal/OperationForm.tsx:581"
+ ],
+ "POST /operations/swift-out": [
+  "frontend/src/screens/journal/OperationForm.tsx:586"
+ ],
+ "POST /operations/swift-in": [
+  "frontend/src/screens/journal/OperationForm.tsx:591"
+ ],
+ "POST /operations/swift-return": [
+  "frontend/src/screens/journal/OperationForm.tsx:598"
+ ],
+ "POST /operations/opening": [
+  "frontend/src/screens/journal/OperationForm.tsx:604",
+  "frontend/src/screens/settings/OpeningBalancesTab.tsx:85"
+ ],
+ "POST /operations/adjustment": [
+  "frontend/src/screens/journal/OperationForm.tsx:614"
+ ],
+ "GET /journal/entries": [
+  "frontend/src/screens/journal/OperationsList.tsx:69"
+ ],
+ "GET /documents/receipt/{entry_id}.pdf": [
+  "frontend/src/screens/journal/OperationsList.tsx:206",
+  "frontend/src/screens/journal/OperationsList.tsx:207"
+ ],
+ "GET /documents/receipt/{entry_id}.png": [
+  "frontend/src/screens/journal/OperationsList.tsx:208"
+ ],
+ "GET /documents/chain-summary/{chain_ref}.pdf": [
+  "frontend/src/screens/journal/OperationsList.tsx:213"
+ ],
+ "GET /documents/chain-summary/{chain_ref}.png": [
+  "frontend/src/screens/journal/OperationsList.tsx:214"
+ ],
+ "GET /audit-log": [
+  "frontend/src/screens/settings/AuditLogTab.tsx:22"
+ ],
+ "POST /settings/currencies": [
+  "frontend/src/screens/settings/CurrenciesTab.tsx:20"
+ ],
+ "PATCH /settings/currencies/{code}": [
+  "frontend/src/screens/settings/CurrenciesTab.tsx:114",
+  "frontend/src/screens/settings/CurrenciesTab.tsx:70"
+ ],
+ "GET /settings/currencies": [
+  "frontend/src/screens/settings/CurrenciesTab.tsx:150"
+ ],
+ "POST /settings/locations": [
+  "frontend/src/screens/settings/LocationsTab.tsx:19"
+ ],
+ "PATCH /settings/locations/{code}": [
+  "frontend/src/screens/settings/LocationsTab.tsx:54",
+  "frontend/src/screens/settings/LocationsTab.tsx:88"
+ ],
+ "POST /settings/client-currency-locations": [
+  "frontend/src/screens/settings/LocationsTab.tsx:129"
+ ],
+ "GET /settings/client-currency-locations": [
+  "frontend/src/screens/settings/LocationsTab.tsx:170"
+ ],
+ "GET /settings/locations": [
+  "frontend/src/screens/settings/LocationsTab.tsx:206"
+ ],
+ "GET /periods/opening-balances": [
+  "frontend/src/screens/settings/OpeningBalancesTab.tsx:47"
+ ],
+ "POST /periods/close": [
+  "frontend/src/screens/settings/PeriodsTab.tsx:23"
+ ],
+ "POST /periods/reopen": [
+  "frontend/src/screens/settings/PeriodsTab.tsx:23"
+ ],
+ "GET /periods": [
+  "frontend/src/screens/settings/PeriodsTab.tsx:56"
+ ],
+ "GET /periods/founding": [
+  "frontend/src/screens/settings/PeriodsTab.tsx:94"
+ ],
+ "POST /periods/founding/close": [
+  "frontend/src/screens/settings/PeriodsTab.tsx:104"
+ ],
+ "GET /auth/backup-codes": [
+  "frontend/src/screens/settings/SecurityTab.tsx:19"
+ ],
+ "POST /auth/backup-codes/regenerate": [
+  "frontend/src/screens/settings/SecurityTab.tsx:28"
+ ]
+}

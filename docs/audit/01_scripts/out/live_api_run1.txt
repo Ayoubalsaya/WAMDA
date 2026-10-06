@@ -1,0 +1,31 @@
+Traceback (most recent call last):
+  File "C:\Users\HP\Desktop\wamda 3.0V\wamda\docs\audit\01_scripts\live_api.py", line 150, in run
+    scenario()
+  File "C:\Users\HP\Desktop\wamda 3.0V\wamda\docs\audit\01_scripts\live_api.py", line 187, in scenario
+    pid = js['id']
+          ~~^^^^^^
+KeyError: 'id'
+login 200 cookies: ['wamda_csrf', 'wamda_session']
+[401] GET /settings/company | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] PUT /settings/company | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] PUT /settings/company | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] GET /settings/company | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] POST /settings/currencies | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] PATCH /settings/currencies/QAZ | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] POST /settings/locations | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] PATCH /settings/locations/QA-LOC | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] POST /settings/client-currency-locations | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] POST /settings/bank-accounts | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+[401] POST /partners | tables={} | audit=[] | ERR {"detail": "لا جلسة"}
+AFTER CLEANUP {'qa_clients': 0, 'qa_partners': 0, 'qa_users': 0, 'entries': 0, 'lines': 0, 'qaz': 0, 'qa_loc': 0, 'qa_accounts': 0, 'audit_rows': 592}
+Traceback (most recent call last):
+  File "C:\Users\HP\Desktop\wamda 3.0V\wamda\docs\audit\01_scripts\live_api.py", line 421, in <module>
+    run()
+  File "C:\Users\HP\Desktop\wamda 3.0V\wamda\docs\audit\01_scripts\live_api.py", line 165, in run
+    json.dump(dict(results=results, state=state), open(f'{OUT}/live_api.json', 'w'), ensure_ascii=False, indent=1, default=str)
+  File "C:\Users\HP\AppData\Local\Python\pythoncore-3.12-64\Lib\json\__init__.py", line 180, in dump
+    fp.write(chunk)
+  File "C:\Users\HP\AppData\Local\Python\pythoncore-3.12-64\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode characters in position 14-16: character maps to <undefined>

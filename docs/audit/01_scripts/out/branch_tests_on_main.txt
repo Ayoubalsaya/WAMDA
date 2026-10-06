@@ -1,0 +1,41 @@
+[31mF[0m[32m.[0m[32m.[0m[31m                                                                      [100%][0m
+================================== FAILURES ===================================
+[31m[1m____________ test_every_document_route_is_reachable_from_a_button _____________[0m
+
+    def test_every_document_route_is_reachable_from_a_button() -> None:
+        corpus = _frontend_corpus()
+        failures: list[str] = []
+    
+        single_id_routes = [p for p in _documents_route_paths() if "{report_key}" not in p]
+        for path in single_id_routes:
+            prefix = re.split(r"\{[^}]*\}", path, maxsplit=1)[0]
+            if prefix not in corpus:
+                failures.append(f"لا زر يصل بادئة المسار {prefix!r} (من {path!r}) في أي ملف واجهة")
+    
+        builders = documents_router._REPORT_BUILDERS
+        excel_keys = documents_router._EXCEL_REPORT_KEYS
+        assert builders, "لا تقارير مسجَّلة في _REPORT_BUILDERS — تحقّق من الاستيراد"
+        targets = _report_key_targets(corpus)
+    
+        for key in builders:
+            exts = targets.get(key, set())
+            if "pdf" not in exts:
+                failures.append(f"مفتاح التقرير {key!r} بلا زر PDF حقيقي يصل إليه في الواجهة")
+            if key in excel_keys and "xlsx" not in exts:
+                failures.append(f"مفتاح التقرير {key!r} مسجَّل بصيغة Excel لكن لا زر Excel يصل إليه في الواجهة")
+    
+        if failures:
+>           pytest.fail(
+                f"{len(failures)} مسار مستند بلا زر يصل إليه:\n  " + "\n  ".join(failures)
+            )
+[1m[31mE           Failed: 5 مسار مستند بلا زر يصل إليه:[0m
+[1m[31mE             لا زر يصل بادئة المسار '/documents/statement/account/' (من '/documents/statement/account/{account_code}.pdf') في أي ملف واجهة[0m
+[1m[31mE             لا زر يصل بادئة المسار '/documents/statement/account/' (من '/documents/statement/account/{account_code}.xlsx') في أي ملف واجهة[0m
+[1m[31mE             مفتاح التقرير 'monthly-profit' بلا زر PDF حقيقي يصل إليه في الواجهة[0m
+[1m[31mE             مفتاح التقرير 'monthly-profit' مسجَّل بصيغة Excel لكن لا زر Excel يصل إليه في الواجهة[0m
+[1m[31mE             مفتاح التقرير 'debtors' بلا زر PDF حقيقي يصل إليه في الواجهة[0m
+
+[1m[31mbranch_tests\test_documents_have_buttons.py[0m:97: Failed
+[36m[1m=========================== short test summary info ===========================[0m
+[31mFAILED[0m branch_tests/test_documents_have_buttons.py::[1mtest_every_document_route_is_reachable_from_a_button[0m - Failed: 5 مسار مستند بلا زر يصل إليه:
+[31m[31m[1m1 failed[0m, [32m2 passed[0m[31m in 1.54s[0m[0m

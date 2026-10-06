@@ -1,0 +1,1958 @@
+{
+ "results": [
+  {
+   "label": "GET company (قبل)",
+   "method": "GET",
+   "path": "/settings/company",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PUT company مع شعار",
+   "method": "PUT",
+   "path": "/settings/company",
+   "status": 200,
+   "tables_written": {
+    "settings": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PUT company كما تفعل الواجهة (name_ar فقط)",
+   "method": "PUT",
+   "path": "/settings/company",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "GET company (بعد)",
+   "method": "GET",
+   "path": "/settings/company",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST currency QAZ",
+   "method": "POST",
+   "path": "/settings/currencies",
+   "status": 201,
+   "tables_written": {
+    "account_number_assignments": 12,
+    "accounts": 12,
+    "currencies": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PATCH currency QAZ",
+   "method": "PATCH",
+   "path": "/settings/currencies/QAZ",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST location QA-LOC",
+   "method": "POST",
+   "path": "/settings/locations",
+   "status": 201,
+   "tables_written": {
+    "locations": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PATCH location QA-LOC",
+   "method": "PATCH",
+   "path": "/settings/locations/QA-LOC",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST client-currency-location",
+   "method": "POST",
+   "path": "/settings/client-currency-locations",
+   "status": 201,
+   "tables_written": {
+    "client_currency_locations": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST bank-account",
+   "method": "POST",
+   "path": "/settings/bank-accounts",
+   "status": 201,
+   "tables_written": {
+    "account_number_counters": 1,
+    "accounts": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST partner",
+   "method": "POST",
+   "path": "/partners",
+   "status": 201,
+   "tables_written": {
+    "partners": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST partner account",
+   "method": "POST",
+   "path": "/partners/2815/accounts",
+   "status": 201,
+   "tables_written": {
+    "account_number_counters": 1,
+    "accounts": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST user",
+   "method": "POST",
+   "path": "/users",
+   "status": 201,
+   "tables_written": {
+    "users": 1
+   },
+   "audit_rows": [
+    "USER_CREATED/users#14023"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "PATCH user (تعطيل)",
+   "method": "PATCH",
+   "path": "/users/14023",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [
+    "USER_UPDATED/users#14023"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST client",
+   "method": "POST",
+   "path": "/clients",
+   "status": 201,
+   "tables_written": {
+    "clients": 1
+   },
+   "audit_rows": [
+    "CLIENT_CREATED/clients#11596"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "PATCH client",
+   "method": "PATCH",
+   "path": "/clients/11594",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PUT credit-mode",
+   "method": "PUT",
+   "path": "/clients/11594/credit-mode",
+   "status": 200,
+   "tables_written": {
+    "client_credit_limits": 4
+   },
+   "audit_rows": [
+    "CLIENT_CREDIT_MODE_CHANGED/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "PUT credit-limit",
+   "method": "PUT",
+   "path": "/clients/11594/credit-limits/LYD",
+   "status": 204,
+   "tables_written": {},
+   "audit_rows": [
+    "CLIENT_CREDIT_LIMIT_SET/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST portal enable",
+   "method": "POST",
+   "path": "/clients/11594/portal/enable",
+   "status": 200,
+   "tables_written": {
+    "client_portal_invites": 1
+   },
+   "audit_rows": [
+    "CLIENT_PORTAL_ENABLED/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST portal invite",
+   "method": "POST",
+   "path": "/clients/11594/portal/invite",
+   "status": 200,
+   "tables_written": {
+    "client_portal_invites": 1
+   },
+   "audit_rows": [
+    "CLIENT_PORTAL_INVITED/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST portal unlock",
+   "method": "POST",
+   "path": "/clients/11594/portal/unlock",
+   "status": 204,
+   "tables_written": {},
+   "audit_rows": [
+    "CLIENT_PORTAL_UNLOCKED/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST portal reset",
+   "method": "POST",
+   "path": "/clients/11594/portal/reset",
+   "status": 200,
+   "tables_written": {
+    "client_portal_invites": 1
+   },
+   "audit_rows": [
+    "CLIENT_PORTAL_RESET/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST portal disable",
+   "method": "POST",
+   "path": "/clients/11594/portal/disable",
+   "status": 204,
+   "tables_written": {},
+   "audit_rows": [
+    "CLIENT_PORTAL_DISABLED/clients#11594"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "op receipt LYD",
+   "method": "POST",
+   "path": "/operations/receipt",
+   "status": 201,
+   "tables_written": {
+    "account_balances": 1,
+    "accounts": 1,
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op receipt USD",
+   "method": "POST",
+   "path": "/operations/receipt",
+   "status": 201,
+   "tables_written": {
+    "account_balances": 1,
+    "accounts": 1,
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op payment LYD",
+   "method": "POST",
+   "path": "/operations/payment",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op exchange CLIENT",
+   "method": "POST",
+   "path": "/operations/exchange",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 5
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op exchange TREASURY",
+   "method": "POST",
+   "path": "/operations/exchange",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 4
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op expense",
+   "method": "POST",
+   "path": "/operations/expense",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op local-move + commission",
+   "method": "POST",
+   "path": "/operations/local-move",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 4
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op remit-out",
+   "method": "POST",
+   "path": "/operations/remit-out",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op adjustment",
+   "method": "POST",
+   "path": "/operations/adjustment",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op cash-transfer",
+   "method": "POST",
+   "path": "/operations/cash-transfer",
+   "status": 201,
+   "tables_written": {
+    "account_balances": 2,
+    "accounts": 1,
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 8
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op swift-out",
+   "method": "POST",
+   "path": "/operations/swift-out",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2,
+    "swift_movements": 1
+   },
+   "audit_rows": [
+    "NEGATIVE_BALANCE_OVERRIDE/accounts#15650"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "op opening (client2)",
+   "method": "POST",
+   "path": "/operations/opening",
+   "status": 201,
+   "tables_written": {
+    "account_balances": 1,
+    "accounts": 1,
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2,
+    "opening_balances": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op exchange-chain",
+   "method": "POST",
+   "path": "/operations/exchange-chain",
+   "status": 201,
+   "tables_written": {
+    "account_balances": 1,
+    "accounts": 1,
+    "idempotency_keys": 2,
+    "journal_entries": 2,
+    "journal_lines": 10
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "GET pending swift",
+   "method": "GET",
+   "path": "/reference/swift-movements/pending",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "op swift-in",
+   "method": "POST",
+   "path": "/operations/swift-in",
+   "status": 201,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 3
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST comment",
+   "method": "POST",
+   "path": "/operations/41099/comments",
+   "status": 201,
+   "tables_written": {
+    "entry_comments": 1
+   },
+   "audit_rows": [
+    "ENTRY_COMMENT_ADDED/entry_comments#60"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "GET source-request (للتعديل)",
+   "method": "GET",
+   "path": "/operations/41099/source-request",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST edit receipt",
+   "method": "POST",
+   "path": "/operations/41099/edit",
+   "status": 200,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 2,
+    "journal_lines": 4
+   },
+   "audit_rows": [
+    "ENTRY_EDITED/journal_entries#41099"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST cancel payment",
+   "method": "POST",
+   "path": "/operations/41096/cancel",
+   "status": 200,
+   "tables_written": {
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [
+    "ENTRY_CANCELLED/journal_entries#41096"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST statement",
+   "method": "POST",
+   "path": "/reconciliation/statements",
+   "status": 201,
+   "tables_written": {
+    "partner_statement_lines": 2,
+    "partner_statements": 1
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST auto-match",
+   "method": "POST",
+   "path": "/reconciliation/statements/205/auto-match",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "PATCH resolve",
+   "method": "PATCH",
+   "path": "/reconciliation/statements/205/lines/233/resolve",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST adjust line",
+   "method": "POST",
+   "path": "/reconciliation/statements/205/lines/234/adjust",
+   "status": 200,
+   "tables_written": {
+    "idempotency_keys": 1,
+    "journal_entries": 1,
+    "journal_lines": 2
+   },
+   "audit_rows": [],
+   "audit_count": 0
+  },
+  {
+   "label": "POST period close 2019-01",
+   "method": "POST",
+   "path": "/periods/close",
+   "status": 200,
+   "tables_written": {
+    "periods": 1
+   },
+   "audit_rows": [
+    "PERIOD_CLOSED/periods#None"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST period reopen 2019-01",
+   "method": "POST",
+   "path": "/periods/reopen",
+   "status": 200,
+   "tables_written": {},
+   "audit_rows": [
+    "PERIOD_REOPENED/periods#None"
+   ],
+   "audit_count": 1
+  },
+  {
+   "label": "POST backup-codes/regenerate",
+   "method": "POST",
+   "path": "/auth/backup-codes/regenerate",
+   "status": 200,
+   "tables_written": {
+    "user_backup_codes": 10
+   },
+   "audit_rows": [
+    "BACKUP_CODES_GENERATED/users#14022"
+   ],
+   "audit_count": 1
+  }
+ ],
+ "state": {
+  "counts_before": {
+   "account_balances": 20,
+   "account_number_assignments": 36,
+   "account_number_counters": 12,
+   "accounts": 66,
+   "audit_log": 721,
+   "client_currency_locations": 7,
+   "counters": 3,
+   "currencies": 3,
+   "founding_period": 1,
+   "locations": 5,
+   "settings": 1
+  },
+  "counters_before": {
+   "13": 5,
+   "20": 5,
+   "24": 5,
+   "28": 5,
+   "33": 5,
+   "37": 5,
+   "41": 5,
+   "46": 5,
+   "50": 5,
+   "54": 5,
+   "58": 5,
+   "63": 5
+  },
+  "server_pids": [
+   24252,
+   19524,
+   17204,
+   21948,
+   3004,
+   3568
+  ],
+  "base": "http://127.0.0.1:55539",
+  "jar": {
+   "wamda_csrf": "BGsluHBEB0affL1E_hWSRd2cm5CASDT7DEDc9-jwY3A",
+   "wamda_session": "B1XRBnZHVg0Tq6L6llZwx0fBQYGuaLlUoj4elj5V19Q"
+  },
+  "company_before": {
+   "name_ar": "ومضة",
+   "logo_data_url": null
+  },
+  "logo_survives_ui_put": false,
+  "bank_account": {
+   "id": 15649,
+   "code": "140001",
+   "name_ar": "QA-ACC بنك تدقيق",
+   "currency_code": "USD",
+   "location_code": "TRIPOLI",
+   "form": "BANK",
+   "partner_id": null
+  },
+  "partner": {
+   "id": 2815,
+   "code": "QA-P-AUD-D5ED1C",
+   "name_ar": "QA شريك تدقيق",
+   "name_en": null,
+   "country": "تركيا",
+   "contact_phone": "000",
+   "notes": null,
+   "is_active": true
+  },
+  "partner_account": {
+   "id": 15650,
+   "code": "132001",
+   "name_ar": "QA-ACC حساب شريك",
+   "currency_code": "USD",
+   "location_code": "TURKEY",
+   "form": "CORRESPONDENT",
+   "partner_id": 2815
+  },
+  "user2": 14023,
+  "c1": 11594,
+  "c2": 11595,
+  "entries": {
+   "receipt_lyd": 41094,
+   "receipt_usd": 41095,
+   "payment_lyd": 41096,
+   "exchange_client": 41097,
+   "exchange_treasury": 41098,
+   "expense": 41099,
+   "local_move": 41100,
+   "remit_out": 41101,
+   "adjustment": 41102,
+   "cash_transfer": 41103,
+   "swift_out": 41104,
+   "opening": 41105,
+   "chain": "CHN-2026-000012",
+   "swift_in": 41108
+  },
+  "edit_result": {
+   "reversed_entry_id": 41099,
+   "new_entry": {
+    "id": 41110,
+    "entry_no": "WMD-2026-004629",
+    "status": "POSTED",
+    "profit_amount": null,
+    "profit_currency": null,
+    "chain_ref": null,
+    "chain_seq": null,
+    "chain_total": null
+   }
+  },
+  "statement": {
+   "id": 205,
+   "partner_id": 2815,
+   "partner_name_ar": "QA شريك تدقيق",
+   "period_from": "2026-01-01",
+   "period_to": "2026-12-31",
+   "imported_at": "2026-10-06T03:09:35.410077+08:00",
+   "lines": [
+    {
+     "id": 233,
+     "value_date": "2026-06-01",
+     "description": "QA سطر 1",
+     "amount": "100.000000",
+     "status": "OPEN",
+     "matched_entry_id": null,
+     "matched_entry_no": null
+    },
+    {
+     "id": 234,
+     "value_date": "2026-06-02",
+     "description": "QA سطر 2",
+     "amount": "37.500000",
+     "status": "OPEN",
+     "matched_entry_id": null,
+     "matched_entry_no": null
+    }
+   ],
+   "your_entries": [
+    {
+     "entry_id": 41103,
+     "entry_no": "WMD-2026-004622",
+     "entry_date": "2026-10-05",
+     "operation_type": "CASH_TRANSFER",
+     "description": "تحويل بعمولة USD TRIPOLI→TURKEY",
+     "amount": "-98.000000",
+     "matched_line_id": null
+    },
+    {
+     "entry_id": 41104,
+     "entry_no": "WMD-2026-004623",
+     "entry_date": "2026-10-05",
+     "operation_type": "SWIFT_OUT",
+     "description": "سويفت خروج",
+     "amount": "100.000000",
+     "matched_line_id": null
+    }
+   ],
+   "unmatched_line_count": 2,
+   "unmatched_entry_count": 2
+  },
+  "ui": {
+   "mismatches": [],
+   "sidebar_titles": [
+    "لوحة التحكم (Alt+1)",
+    "دفتر اليومية (Alt+2)",
+    "العملاء (Alt+3)",
+    "مركز السيولة (Alt+4)",
+    "",
+    "",
+    "",
+    "",
+    "عملية جديدة (Ctrl+N)",
+    "الحسابات (Alt+5)",
+    "التقارير (Alt+6)",
+    "المطابقة (Alt+7)",
+    "الإعدادات (Alt+8)",
+    "",
+    "",
+    "",
+    ""
+   ],
+   "shortcuts": {
+    "Alt+3 → شاشة العملاء": true,
+    "Alt+4 → مركز السيولة": true,
+    "Alt+2 → دفتر اليومية": true,
+    "Ctrl+N → فتح عملية جديدة": true,
+    "Ctrl+N ثانية → إغلاق": true,
+    "/ → تركيز البحث": true
+   },
+   "journal_rows_shown": 14,
+   "journal_posted_in_db": 17,
+   "journal_entries_verified_equal": 14,
+   "posted_entries_not_in_day_list": [
+    [
+     "WMD-2026-004613",
+     "RECEIPT",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004614",
+     "RECEIPT",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004616",
+     "EXCHANGE",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004620",
+     "REMIT_OUT",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004622",
+     "CASH_TRANSFER",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004624",
+     "OPENING",
+     "2026-01-01",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004625",
+     "EXCHANGE",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004626",
+     "EXCHANGE",
+     "2026-10-05",
+     null,
+     null
+    ],
+    [
+     "WMD-2026-004628",
+     "EXPENSE",
+     "2026-10-05",
+     41099,
+     null
+    ],
+    [
+     "WMD-2026-004630",
+     "PAYMENT",
+     "2026-10-05",
+     41096,
+     null
+    ]
+   ],
+   "journal_text_sample": "تسوية\nWMD-2026-004631\nمصروف\nWMD-2026-004629\nمعدَّلة\nسويفت وصول\nWMD-2026-004627\nصرافة\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nCHN-2026-000012\nصرافة\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nCHN-2026-000012\nسويفت خروج\nWMD-2026-004623\nتحويل بعمولة\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nتسوية\nWMD-2026-004621\nإرسال خارجي\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nنقل داخلي\nWMD-2026-004619\nصرافة\nWMD-2026-004617\nصرافة\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nقبض\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nقبض\nعميل تدقيق معدّل QA-AUD-D5ED1C-1",
+   "client_page_text": " رجوع لقائمة العملاء\nعميل تدقيق معدّل QA-AUD-D5ED1C-1\nQA-AUD-D5ED1C-1 · 092\nبطاقة الرصيد\nنسخ البطاقة كصورة\nتعديل\nجزئي\nالسماح بائتمان\nإيقاف الائتمان\nبوابة العميل\nمعطّلة\nآخر دخول: لم يدخل بعد\nتفعيل + دعوة جديدة\nدينار ليبي\nدولار أمريكي\nيوان صيني (رمبي)\nQA عملة 2\nدينار ليبي\nدولار أمريكي\nيوان صيني (رمبي)\nQA عملة 2\nالإجمالي\n1340.000\nد.ل LYD\nالائتمان بعملة LYD\nبلا ائتمان\nحد بمبلغ\nبلا سقف\nحد الائتمان بعملة LYD\nحفظ الحد\nبنغازي\n0.000\nمصرفي ليبيا\n0.000\nطرابلس\n1340.000\nكشف الحساب — دينار ليبي\nبنغازي\nمصرفي ليبيا\nطرابلس\nإلى\nإظهار الملغاة\nتصفية\nطباعة PDF\nتنزيل Excel\nالتاريخ\tالقيد\tالعملية\tالبيان\tالسعر\tمدين\tدائن\tالرصيد المتحرك\t\nالرصيد الافتتاحي\t0.000\t\nلا حركة في هذا النطاق",
+   "client_totals": {
+    "LYD": {
+     "shown": "1340.000",
+     "db": "1340.000"
+    },
+    "USD": {
+     "shown": "395.00",
+     "db": "395.00"
+    }
+   },
+   "statement_rows_shown": {
+    "LYD": [
+     [
+      "2026-10-05",
+      "WMD-2026-004613",
+      "RECEIPT",
+      "استلام\nQA قبض",
+      "—",
+      "0.000",
+      "1000.000",
+      "1000.000"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004616",
+      "EXCHANGE",
+      "صرافة USD → LYD\nQA صرافة عميل",
+      "4.9",
+      "0.000",
+      "490.000",
+      "1290.000"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004620",
+      "REMIT_OUT",
+      "إرسال خارجي\nQA إرسال خارجي",
+      "—",
+      "50.000",
+      "0.000",
+      "1240.000"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004625",
+      "EXCHANGE",
+      "صرافة LYD → USD\nQA سلسلة",
+      "5.1",
+      "100.000",
+      "0.000",
+      "1140.000"
+     ]
+    ],
+    "USD": [
+     [
+      "2026-10-05",
+      "WMD-2026-004614",
+      "RECEIPT",
+      "استلام\nQA قبض دولار",
+      "—",
+      "0.00",
+      "500.00",
+      "500.00"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004616",
+      "EXCHANGE",
+      "صرافة USD → LYD\nQA صرافة عميل",
+      "4.9",
+      "100.00",
+      "0.00",
+      "400.00"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004622",
+      "CASH_TRANSFER",
+      "تحويل بعمولة USD TRIPOLI→TURKEY\nQA تحويل بعمولة",
+      "—",
+      "100.00",
+      "0.00",
+      "300.00"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004622",
+      "CASH_TRANSFER",
+      "تحويل بعمولة USD TRIPOLI→TURKEY\nQA تحويل بعمولة",
+      "—",
+      "5.00",
+      "0.00",
+      "295.00"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004625",
+      "EXCHANGE",
+      "صرافة LYD → USD\nQA سلسلة",
+      "5.1",
+      "0.00",
+      "19.60",
+      "314.60"
+     ],
+     [
+      "2026-10-05",
+      "WMD-2026-004626",
+      "EXCHANGE",
+      "صرافة USD → CNY\nQA سلسلة",
+      "6.9",
+      "19.60",
+      "0.00",
+      "295.00"
+     ]
+    ]
+   },
+   "statement_expected_count": {
+    "LYD": 6,
+    "USD": 7
+   },
+   "statement_shown_count": {
+    "LYD": 4,
+    "USD": 6
+   },
+   "operation_type_cell_sample": [
+    "RECEIPT",
+    "EXCHANGE",
+    "REMIT_OUT",
+    "EXCHANGE"
+   ],
+   "liquidity_rows_shown": [
+    [
+     "¥ CNY الصين",
+     "0.00",
+     "135.24",
+     "-135.24 ⚠"
+    ],
+    [
+     "د.ل LYD بنغازي",
+     "100.000",
+     "0.000",
+     "+100.000"
+    ],
+    [
+     "د.ل LYD مصرفي ليبيا",
+     "0.000",
+     "0.000",
+     "+0.000"
+    ],
+    [
+     "د.ل LYD طرابلس",
+     "1083.000",
+     "1640.000",
+     "-557.000 ⚠"
+    ],
+    [
+     "$ USD طرابلس",
+     "0.00",
+     "295.00",
+     "-295.00 ⚠"
+    ],
+    [
+     "$ USD تركيا",
+     "35.50",
+     "100.00",
+     "-64.50 ⚠"
+    ]
+   ],
+   "liquidity_db_groups": [
+    [
+     "CNY",
+     "الصين",
+     "LIABILITY",
+     "135.240000"
+    ],
+    [
+     "LYD",
+     "بنغازي",
+     "ASSET",
+     "100.000000"
+    ],
+    [
+     "LYD",
+     "طرابلس",
+     "LIABILITY",
+     "1640.000000"
+    ],
+    [
+     "LYD",
+     "طرابلس",
+     "ASSET",
+     "1083.000000"
+    ],
+    [
+     "LYD",
+     "مصرفي ليبيا",
+     "ASSET",
+     "0"
+    ],
+    [
+     "USD",
+     "تركيا",
+     "ASSET",
+     "35.500000"
+    ],
+    [
+     "USD",
+     "تركيا",
+     "LIABILITY",
+     "100.000000"
+    ],
+    [
+     "USD",
+     "طرابلس",
+     "LIABILITY",
+     "295.000000"
+    ],
+    [
+     "USD",
+     "طرابلس",
+     "ASSET",
+     "0"
+    ]
+   ],
+   "screens_visited_text_len": {
+    "لوحة التحكم": 1277,
+    "الحسابات": 405,
+    "التقارير": 380,
+    "المطابقة": 145,
+    "الإعدادات": 297
+   },
+   "console_errors": [
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ],
+    [
+     "error",
+     "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    ]
+   ],
+   "http_errors_seen_by_browser": [
+    [
+     401,
+     "GET",
+     "/auth/me"
+    ],
+    [
+     401,
+     "GET",
+     "/reference/currencies"
+    ],
+    [
+     401,
+     "GET",
+     "/reference/locations"
+    ],
+    [
+     401,
+     "GET",
+     "/reference/client-currency-locations"
+    ],
+    [
+     401,
+     "GET",
+     "/reference/accounts"
+    ],
+    [
+     400,
+     "GET",
+     "/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code="
+    ],
+    [
+     400,
+     "GET",
+     "/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code="
+    ],
+    [
+     400,
+     "GET",
+     "/reference/accounts/for-operation?operation_type=RECEIPT&field=receiving&currency_code="
+    ]
+   ],
+   "non_get_requests_seen": [
+    [
+     "POST",
+     "/auth/login"
+    ],
+    [
+     "POST",
+     "/auth/login"
+    ],
+    [
+     "GET",
+     "/journal/entries?include_reversed=false&date=2026-10-05"
+    ],
+    [
+     "GET",
+     "/journal/entries?include_reversed=false&date=2026-10-05"
+    ],
+    [
+     "GET",
+     "/journal/entries?include_reversed=false&date=2026-10-05"
+    ]
+   ]
+  },
+  "statement_dump": {
+   "LYD-TRIPOLI": {
+    "api_all": [
+     [
+      "WMD-2026-004613",
+      "POSTED",
+      "0.000000",
+      "1000.000000",
+      "1000.000000"
+     ],
+     [
+      "WMD-2026-004615",
+      "REVERSED",
+      "200.000000",
+      "0.000000",
+      "800.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "0.000000",
+      "490.000000",
+      "1290.000000"
+     ],
+     [
+      "WMD-2026-004620",
+      "POSTED",
+      "50.000000",
+      "0.000000",
+      "1240.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "1140.000000"
+     ],
+     [
+      "WMD-2026-004630",
+      "POSTED",
+      "0.000000",
+      "200.000000",
+      "1340.000000"
+     ]
+    ],
+    "api_default": [
+     [
+      "WMD-2026-004613",
+      "POSTED",
+      "0.000000",
+      "1000.000000",
+      "1000.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "0.000000",
+      "490.000000",
+      "1290.000000"
+     ],
+     [
+      "WMD-2026-004620",
+      "POSTED",
+      "50.000000",
+      "0.000000",
+      "1240.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "1140.000000"
+     ]
+    ],
+    "db": [
+     [
+      "WMD-2026-004613",
+      "POSTED",
+      "0.000000",
+      "1000.000000"
+     ],
+     [
+      "WMD-2026-004615",
+      "REVERSED",
+      "200.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "0.000000",
+      "490.000000"
+     ],
+     [
+      "WMD-2026-004620",
+      "POSTED",
+      "50.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "100.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004630",
+      "POSTED",
+      "0.000000",
+      "200.000000"
+     ]
+    ],
+    "closing": "1340.000000"
+   },
+   "USD-TRIPOLI": {
+    "api_all": [
+     [
+      "WMD-2026-004614",
+      "POSTED",
+      "0.000000",
+      "500.000000",
+      "500.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "400.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "300.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "5.000000",
+      "0.000000",
+      "295.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "0.000000",
+      "19.600000",
+      "314.600000"
+     ],
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "19.600000",
+      "0.000000",
+      "295.000000"
+     ]
+    ],
+    "api_default": [
+     [
+      "WMD-2026-004614",
+      "POSTED",
+      "0.000000",
+      "500.000000",
+      "500.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "400.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "100.000000",
+      "0.000000",
+      "300.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "5.000000",
+      "0.000000",
+      "295.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "0.000000",
+      "19.600000",
+      "314.600000"
+     ],
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "19.600000",
+      "0.000000",
+      "295.000000"
+     ]
+    ],
+    "db": [
+     [
+      "WMD-2026-004614",
+      "POSTED",
+      "0.000000",
+      "500.000000"
+     ],
+     [
+      "WMD-2026-004616",
+      "POSTED",
+      "100.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "100.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "5.000000",
+      "0.000000"
+     ],
+     [
+      "WMD-2026-004625",
+      "POSTED",
+      "0.000000",
+      "19.600000"
+     ],
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "19.600000",
+      "0.000000"
+     ]
+    ],
+    "closing": "295.000000"
+   },
+   "USD-TURKEY": {
+    "api_all": [
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "0.000000",
+      "100.000000",
+      "100.000000"
+     ]
+    ],
+    "api_default": [
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "0.000000",
+      "100.000000",
+      "100.000000"
+     ]
+    ],
+    "db": [
+     [
+      "WMD-2026-004622",
+      "POSTED",
+      "0.000000",
+      "100.000000"
+     ]
+    ],
+    "closing": "100.000000"
+   },
+   "CNY-CHINA": {
+    "api_all": [
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "0.000000",
+      "135.240000",
+      "135.240000"
+     ]
+    ],
+    "api_default": [
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "0.000000",
+      "135.240000",
+      "135.240000"
+     ]
+    ],
+    "db": [
+     [
+      "WMD-2026-004626",
+      "POSTED",
+      "0.000000",
+      "135.240000"
+     ]
+    ],
+    "closing": "135.240000"
+   }
+  },
+  "journal_entries_http": 200,
+  "balance_sign_convention_sample": [
+   [
+    "1101",
+    "1083.000000",
+    "-1083.000000",
+    "ASSET"
+   ],
+   [
+    "1102",
+    "100.000000",
+    "-100.000000",
+    "ASSET"
+   ],
+   [
+    "1104",
+    "449.000000",
+    "-449.000000",
+    "ASSET"
+   ],
+   [
+    "2100-QA-AUD-D5ED1C-1-CNY-CHINA",
+    "135.240000",
+    "135.240000",
+    "LIABILITY"
+   ],
+   [
+    "2100-QA-AUD-D5ED1C-1-LYD-TRIPOLI",
+    "1340.000000",
+    "1340.000000",
+    "LIABILITY"
+   ],
+   [
+    "2100-QA-AUD-D5ED1C-1-USD-TRIPOLI",
+    "295.000000",
+    "295.000000",
+    "LIABILITY"
+   ],
+   [
+    "2100-QA-AUD-D5ED1C-1-USD-TURKEY",
+    "100.000000",
+    "100.000000",
+    "LIABILITY"
+   ],
+   [
+    "2100-QA-AUD-D5ED1C-2-LYD-TRIPOLI",
+    "300.000000",
+    "300.000000",
+    "LIABILITY"
+   ]
+  ],
+  "compare": {
+   "ok": 22,
+   "mismatches": [
+    [
+     "statement(الافتراضي المعروض): آخر رصيد جارٍ ظاهر ≠ الرصيد الفعلي",
+     "LYD-TRIPOLI",
+     "1140.000000",
+     "1340.000000",
+     "closing_balance غير معروض في الواجهة"
+    ]
+   ],
+   "statement_checks": [
+    [
+     "LYD",
+     "TRIPOLI",
+     6,
+     4
+    ],
+    [
+     "USD",
+     "TRIPOLI",
+     6,
+     6
+    ],
+    [
+     "USD",
+     "TURKEY",
+     1,
+     1
+    ],
+    [
+     "CNY",
+     "CHINA",
+     1,
+     1
+    ]
+   ],
+   "entries_checked": 14
+  },
+  "types_live": [
+   {
+    "type": "AccountOut",
+    "path": "/settings/bank-accounts",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "AccountOut",
+    "path": "/partners/2815/accounts",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "AccountRef",
+    "path": "/reference/accounts",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "AuditLogRow",
+    "path": "/audit-log?limit=5",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "BackupCodesStatus",
+    "path": "/auth/backup-codes",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "BalanceOverrideRow",
+    "path": "/reports/balance-overrides",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "BanksResponse",
+    "path": "/accounts/banks",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "BoxesResponse",
+    "path": "/accounts/boxes",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientBalance",
+    "path": "/clients/11594/balances",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientCurrencyLocationPair",
+    "path": "/reference/client-currency-locations",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientCurrencyLocationRow",
+    "path": "/settings/client-currency-locations",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientDetail",
+    "path": "/clients/11594",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientLiabilitiesRow",
+    "path": "/reports/client-liabilities",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientListRow",
+    "path": "/clients",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientPortalStatusResponse",
+    "path": "/clients/11594/portal",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientProfitabilityRow",
+    "path": "/reports/client-profitability",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ClientSearchResult",
+    "path": "/clients/search?q=QA",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "CommentOut",
+    "path": "/operations/41094/comments",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "CompanyProfile",
+    "path": "/settings/company",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "CorrespondentActivityRow",
+    "path": "/reports/correspondent-activity",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "CorrespondentsResponse",
+    "path": "/accounts/correspondents",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "CurrencyAdminRow",
+    "path": "/settings/currencies",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "Currency",
+    "path": "/reference/currencies",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "CurrentUser",
+    "path": "/auth/me",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "DashboardSummary",
+    "path": "/dashboard/summary",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "DebtorRow",
+    "path": "/reports/debtors",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "EmergencyEntryRow",
+    "path": "/reports/emergency-entries",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "FoundingPeriodStatus",
+    "path": "/periods/founding",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "FoundingReconciliationResponse",
+    "path": "/reports/founding-reconciliation",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "HistoryResponse",
+    "path": "/operations/41094/history",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "IncomeStatementResponse",
+    "path": "/reports/income-statement",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "JournalEntryOut",
+    "path": "/journal/entries?limit=5",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "LiquidityRow",
+    "path": "/position/liquidity",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "LocationAdminRow",
+    "path": "/settings/locations",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "Location",
+    "path": "/reference/locations",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "LossMakingEntryRow",
+    "path": "/reports/loss-making-operations",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "LotRow",
+    "path": "/lots",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "OpeningBalanceRow",
+    "path": "/periods/opening-balances",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "PartnerRow",
+    "path": "/partners",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "PartnerStatementSummary",
+    "path": "/reconciliation/statements",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "PartnerStatementDetail",
+    "path": "/reconciliation/statements/205",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "PendingSwiftMovement",
+    "path": "/reference/swift-movements/pending",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "PeriodRow",
+    "path": "/periods",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "ProfitByPeriodRow",
+    "path": "/reports/profit-by-period?granularity=month",
+    "status": 422,
+    "note": "{\"detail\":\"«التجميع»: الصيغة غير صحيحة\",\"errors\":[{\"loc\":[\"granularity\"],\"field\":\"granularity\",\"labe"
+   },
+   {
+    "type": "SimilarClient",
+    "path": "/clients/similar?name=QA",
+    "status": 200,
+    "note": "قائمة فارغة — لا عيّنة"
+   },
+   {
+    "type": "StatementResponse",
+    "path": "/clients/11594/statement?currency=LYD&location=TRIPOLI",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "SwiftHistoryRow",
+    "path": "/reports/swift-history",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "TrialBalanceResponse",
+    "path": "/reports/trial-balance",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   },
+   {
+    "type": "UserListRow",
+    "path": "/users",
+    "status": 200,
+    "ts_expects_server_lacks": [],
+    "server_sends_ts_lacks": []
+   }
+  ],
+  "purge_blocked": {},
+  "after_cleanup": {
+   "qa_clients": 0,
+   "qa_partners": 0,
+   "qa_users": 0,
+   "entries": 0,
+   "lines": 0,
+   "qaz": 0,
+   "qaz_accounts": 0,
+   "qa_loc": 0,
+   "qa_accounts": 0,
+   "audit_rows": 740
+  },
+  "killed_pids": [
+   24252,
+   19524,
+   17204,
+   21948,
+   3004,
+   3568
+  ],
+  "counts_after": {
+   "account_balances": 20,
+   "account_number_assignments": 36,
+   "account_number_counters": 12,
+   "accounts": 66,
+   "audit_log": 740,
+   "client_currency_locations": 7,
+   "counters": 3,
+   "currencies": 3,
+   "founding_period": 1,
+   "locations": 5,
+   "settings": 1
+  },
+  "count_diff_vs_before": {
+   "audit_log": 19
+  }
+ }
+}

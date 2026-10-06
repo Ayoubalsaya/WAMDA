@@ -1,0 +1,1105 @@
+[
+ {
+  "route": "POST /auth/backup-codes/regenerate",
+  "handler": "app/routers/auth.py:135",
+  "engine": [
+   "audit.log_write",
+   "backup_codes.generate"
+  ],
+  "ui": [
+   "frontend/src/screens/settings/SecurityTab.tsx:28"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "user_backup_codes": 10
+    },
+    "audit": [
+     "BACKUP_CODES_GENERATED/users#14022"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /auth/change-password",
+  "handler": "app/routers/auth.py:174",
+  "engine": [
+   "auth_service.change_password"
+  ],
+  "ui": [
+   "frontend/src/screens/ChangePasswordScreen.tsx:31"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /auth/login",
+  "handler": "app/routers/auth.py:69",
+  "engine": [
+   "auth_service.InvalidCredentialsError",
+   "auth_service.InvalidTwoFactorCodeError",
+   "auth_service.generate_totp_setup_challenge",
+   "auth_service.login_step1",
+   "auth_service.login_step2_backup",
+   "auth_service.login_step2_setup",
+   "auth_service.login_step2_verify"
+  ],
+  "ui": [
+   "frontend/src/hooks/useAuth.ts:30"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /auth/logout",
+  "handler": "app/routers/auth.py:161",
+  "engine": [
+   "sessions.get_valid_session",
+   "sessions.revoke_session"
+  ],
+  "ui": [
+   "frontend/src/hooks/useAuth.ts:39"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /auth/recover/complete",
+  "handler": "app/routers/auth.py:196",
+  "engine": [
+   "auth_service.InvalidCredentialsError",
+   "auth_service.recover_reset_password"
+  ],
+  "ui": [
+   "frontend/src/screens/LoginScreen.tsx:58"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /auth/recover/start",
+  "handler": "app/routers/auth.py:189",
+  "engine": [
+   "auth_service.recover_get_security_question"
+  ],
+  "ui": [
+   "frontend/src/screens/LoginScreen.tsx:35"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /clients",
+  "handler": "app/routers/clients.py:143",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/CreateClientModal.tsx:41"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "clients": 1
+    },
+    "audit": [
+     "CLIENT_CREATED/clients#11596"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "PATCH /clients/{client_id}",
+  "handler": "app/routers/clients.py:171",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/clients/ClientDetailView.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "PUT /clients/{client_id}/credit-limits/{currency_code}",
+  "handler": "app/routers/clients.py:221",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientDetailView.tsx:280"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 204,
+    "tables": {},
+    "audit": [
+     "CLIENT_CREDIT_LIMIT_SET/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "PUT /clients/{client_id}/credit-mode",
+  "handler": "app/routers/clients.py:195",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/components/CreditControls.tsx:42"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "client_credit_limits": 4
+    },
+    "audit": [
+     "CLIENT_CREDIT_MODE_CHANGED/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /clients/{client_id}/portal/disable",
+  "handler": "app/routers/clients.py:423",
+  "engine": [
+   "client_portal_management.ClientNotFoundError",
+   "client_portal_management.disable"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+   "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 204,
+    "tables": {},
+    "audit": [
+     "CLIENT_PORTAL_DISABLED/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /clients/{client_id}/portal/enable",
+  "handler": "app/routers/clients.py:355",
+  "engine": [
+   "client_portal_invites.invite_url",
+   "client_portal_management.ClientNotFoundError",
+   "client_portal_management.enable"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+   "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "client_portal_invites": 1
+    },
+    "audit": [
+     "CLIENT_PORTAL_ENABLED/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /clients/{client_id}/portal/invite",
+  "handler": "app/routers/clients.py:376",
+  "engine": [
+   "client_portal_invites.invite_url",
+   "client_portal_management.ClientNotFoundError",
+   "client_portal_management.PortalNotEnabledError",
+   "client_portal_management.invite"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+   "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "client_portal_invites": 1
+    },
+    "audit": [
+     "CLIENT_PORTAL_INVITED/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /clients/{client_id}/portal/reset",
+  "handler": "app/routers/clients.py:399",
+  "engine": [
+   "client_portal_invites.invite_url",
+   "client_portal_management.ClientNotFoundError",
+   "client_portal_management.PortalNotEnabledError",
+   "client_portal_management.reset"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+   "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "client_portal_invites": 1
+    },
+    "audit": [
+     "CLIENT_PORTAL_RESET/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /clients/{client_id}/portal/unlock",
+  "handler": "app/routers/clients.py:440",
+  "engine": [
+   "client_portal_management.ClientNotFoundError",
+   "client_portal_management.unlock"
+  ],
+  "ui": [
+   "frontend/src/screens/clients/ClientPortalSection.tsx:72",
+   "frontend/src/screens/clients/ClientPortalSection.tsx:74"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 204,
+    "tables": {},
+    "audit": [
+     "CLIENT_PORTAL_UNLOCKED/clients#11594"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/adjustment",
+  "handler": "app/routers/operations.py:531",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:614"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/cash-transfer",
+  "handler": "app/routers/operations.py:346",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:563"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_balances": 2,
+     "accounts": 1,
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 8
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/exchange",
+  "handler": "app/routers/operations.py:195",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:545"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 5
+    },
+    "audit": []
+   },
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 4
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/exchange-chain",
+  "handler": "app/routers/operations.py:239",
+  "engine": [
+   "chain.execute_two_step_chain",
+   "exchange.execute_via_rates"
+  ],
+  "ui": [
+   "frontend/src/screens/journal/ExchangeWizard.tsx:157"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_balances": 1,
+     "accounts": 1,
+     "idempotency_keys": 2,
+     "journal_entries": 2,
+     "journal_lines": 10
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/exchange/from-lot",
+  "handler": "app/routers/operations.py:220",
+  "engine": [],
+  "ui": null,
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /operations/expense",
+  "handler": "app/routers/operations.py:483",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:581"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/local-move",
+  "handler": "app/routers/operations.py:375",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:557"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 4
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/opening",
+  "handler": "app/routers/operations.py:505",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:604",
+   "frontend/src/screens/settings/OpeningBalancesTab.tsx:85"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_balances": 1,
+     "accounts": 1,
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2,
+     "opening_balances": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/payment",
+  "handler": "app/routers/operations.py:172",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:540"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/receipt",
+  "handler": "app/routers/operations.py:152",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:535"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_balances": 1,
+     "accounts": 1,
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   },
+   {
+    "status": 201,
+    "tables": {
+     "account_balances": 1,
+     "accounts": 1,
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/remit-out",
+  "handler": "app/routers/operations.py:399",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:575"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/swift-in",
+  "handler": "app/routers/operations.py:443",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:591"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 3
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/swift-out",
+  "handler": "app/routers/operations.py:422",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:586"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2,
+     "swift_movements": 1
+    },
+    "audit": [
+     "NEGATIVE_BALANCE_OVERRIDE/accounts#15650"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/swift-return",
+  "handler": "app/routers/operations.py:463",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/journal/OperationForm.tsx:598"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /operations/{entry_id}/cancel",
+  "handler": "app/routers/entry_actions.py:354",
+  "engine": [
+   "audit.log_write",
+   "chain.reverse_chain"
+  ],
+  "ui": [
+   "frontend/src/components/EntryActions.tsx:27"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": [
+     "ENTRY_CANCELLED/journal_entries#41096"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/{entry_id}/comments",
+  "handler": "app/routers/entry_actions.py:473",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/components/EntryActions.tsx:196"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "entry_comments": 1
+    },
+    "audit": [
+     "ENTRY_COMMENT_ADDED/entry_comments#60"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /operations/{entry_id}/edit",
+  "handler": "app/routers/entry_actions.py:387",
+  "engine": [
+   "audit.log_write",
+   "chain.py"
+  ],
+  "ui": null,
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 2,
+     "journal_lines": 4
+    },
+    "audit": [
+     "ENTRY_EDITED/journal_entries#41099"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /partners",
+  "handler": "app/routers/partners.py:46",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/SettingsScreen.tsx:171"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "partners": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /partners/{partner_id}/accounts",
+  "handler": "app/routers/partners.py:71",
+  "engine": [
+   "accounts_repo.AccountNotFoundError",
+   "accounts_repo.AccountNumberExhaustedError",
+   "accounts_repo.create_partner_account"
+  ],
+  "ui": [
+   "frontend/src/screens/SettingsScreen.tsx:213"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_number_counters": 1,
+     "accounts": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /periods/close",
+  "handler": "app/routers/periods.py:46",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/screens/settings/PeriodsTab.tsx:23"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "periods": 1
+    },
+    "audit": [
+     "PERIOD_CLOSED/periods#None"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /periods/founding/close",
+  "handler": "app/routers/periods.py:132",
+  "engine": [
+   "audit.log_write",
+   "opening.FoundingPeriodAlreadyClosedError",
+   "opening.SuspenseBalanceAcknowledgmentRequiredError",
+   "opening.close_founding_period",
+   "opening.total_suspense_balance"
+  ],
+  "ui": [
+   "frontend/src/screens/settings/PeriodsTab.tsx:104"
+  ],
+  "static_audit_in_handler": true,
+  "live": []
+ },
+ {
+  "route": "POST /periods/reopen",
+  "handler": "app/routers/periods.py:63",
+  "engine": [
+   "audit.log_write"
+  ],
+  "ui": [
+   "frontend/src/screens/settings/PeriodsTab.tsx:23"
+  ],
+  "static_audit_in_handler": true,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": [
+     "PERIOD_REOPENED/periods#None"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "POST /portal/change-password",
+  "handler": "app/routers/portal.py:121",
+  "engine": [
+   "portal_auth_service.change_password"
+  ],
+  "ui": null,
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/invite/accept",
+  "handler": "app/routers/portal.py:176",
+  "engine": [
+   "client_portal_invites.InvalidInviteError",
+   "client_portal_invites.PortalDisabledError",
+   "client_portal_invites.accept_invite"
+  ],
+  "ui": [
+   "frontend/src/portal/PortalAcceptInviteScreen.tsx:58"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/invite/verify",
+  "handler": "app/routers/portal.py:164",
+  "engine": [
+   "client_portal_invites.verify_invite"
+  ],
+  "ui": [
+   "frontend/src/portal/PortalAcceptInviteScreen.tsx:30"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/login",
+  "handler": "app/routers/portal.py:84",
+  "engine": [
+   "portal_auth_service.InvalidPortalCredentialsError",
+   "portal_auth_service.login"
+  ],
+  "ui": [
+   "frontend/src/portal/usePortalAuth.ts:28"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/logout",
+  "handler": "app/routers/portal.py:108",
+  "engine": [
+   "sessions.get_valid_session",
+   "sessions.revoke_session"
+  ],
+  "ui": [
+   "frontend/src/portal/usePortalAuth.ts:36"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/recover/complete",
+  "handler": "app/routers/portal.py:145",
+  "engine": [
+   "portal_auth_service.InvalidPortalCredentialsError",
+   "portal_auth_service.recover_reset_password"
+  ],
+  "ui": null,
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /portal/recover/start",
+  "handler": "app/routers/portal.py:138",
+  "engine": [
+   "portal_auth_service.recover_get_security_question"
+  ],
+  "ui": null,
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "POST /reconciliation/statements",
+  "handler": "app/routers/reconciliation.py:92",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/ReconciliationScreen.tsx:49"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "partner_statement_lines": 2,
+     "partner_statements": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /reconciliation/statements/{statement_id}/auto-match",
+  "handler": "app/routers/reconciliation.py:146",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/ReconciliationScreen.tsx:248"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /reconciliation/statements/{statement_id}/lines/{line_id}/adjust",
+  "handler": "app/routers/reconciliation.py:241",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/ReconciliationScreen.tsx:136"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "idempotency_keys": 1,
+     "journal_entries": 1,
+     "journal_lines": 2
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/match",
+  "handler": "app/routers/reconciliation.py:200",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/ReconciliationScreen.tsx:221"
+  ],
+  "static_audit_in_handler": false,
+  "live": []
+ },
+ {
+  "route": "PATCH /reconciliation/statements/{statement_id}/lines/{line_id}/resolve",
+  "handler": "app/routers/reconciliation.py:215",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/ReconciliationScreen.tsx:226"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /settings/bank-accounts",
+  "handler": "app/routers/settings.py:76",
+  "engine": [
+   "accounts_repo.AccountNotFoundError",
+   "accounts_repo.AccountNumberExhaustedError",
+   "accounts_repo.create_bank_account"
+  ],
+  "ui": [
+   "frontend/src/screens/SettingsScreen.tsx:334"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_number_counters": 1,
+     "accounts": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /settings/client-currency-locations",
+  "handler": "app/routers/settings.py:264",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/settings/LocationsTab.tsx:129"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "client_currency_locations": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "PUT /settings/company",
+  "handler": "app/routers/settings.py:52",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/SettingsScreen.tsx:52"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {
+     "settings": 1
+    },
+    "audit": []
+   },
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /settings/currencies",
+  "handler": "app/routers/settings.py:128",
+  "engine": [
+   "accounts_repo.AccountNotFoundError",
+   "accounts_repo.create_currency_chart_of_accounts"
+  ],
+  "ui": [
+   "frontend/src/screens/settings/CurrenciesTab.tsx:20"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "account_number_assignments": 12,
+     "accounts": 12,
+     "currencies": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "PATCH /settings/currencies/{code}",
+  "handler": "app/routers/settings.py:153",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/settings/CurrenciesTab.tsx:114",
+   "frontend/src/screens/settings/CurrenciesTab.tsx:70"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /settings/locations",
+  "handler": "app/routers/settings.py:207",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/settings/LocationsTab.tsx:19"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "locations": 1
+    },
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "PATCH /settings/locations/{code}",
+  "handler": "app/routers/settings.py:225",
+  "engine": [],
+  "ui": [
+   "frontend/src/screens/settings/LocationsTab.tsx:54",
+   "frontend/src/screens/settings/LocationsTab.tsx:88"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": []
+   }
+  ]
+ },
+ {
+  "route": "POST /users",
+  "handler": "app/routers/users.py:30",
+  "engine": [
+   "user_management.InvalidRoleError",
+   "user_management.UsernameTakenError",
+   "user_management.create_user"
+  ],
+  "ui": [
+   "frontend/src/screens/SettingsScreen.tsx:96"
+  ],
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 201,
+    "tables": {
+     "users": 1
+    },
+    "audit": [
+     "USER_CREATED/users#14023"
+    ]
+   }
+  ]
+ },
+ {
+  "route": "PATCH /users/{user_id}",
+  "handler": "app/routers/users.py:63",
+  "engine": [
+   "user_management.InvalidRoleError",
+   "user_management.LastAdminError",
+   "user_management.SelfLockoutError",
+   "user_management.UserNotFoundError",
+   "user_management.update_user"
+  ],
+  "ui": null,
+  "static_audit_in_handler": false,
+  "live": [
+   {
+    "status": 200,
+    "tables": {},
+    "audit": [
+     "USER_UPDATED/users#14023"
+    ]
+   }
+  ]
+ }
+]

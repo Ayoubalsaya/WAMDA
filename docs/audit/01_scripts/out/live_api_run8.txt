@@ -1,0 +1,63 @@
+login 200 cookies: ['wamda_csrf', 'wamda_session']
+[200] GET /settings/company | tables={} | audit=[]
+[200] PUT /settings/company | tables={'settings': 1} | audit=[]
+[200] PUT /settings/company | tables={} | audit=[]
+[200] GET /settings/company | tables={} | audit=[]
+[201] POST /settings/currencies | tables={'account_number_assignments': 12, 'accounts': 12, 'currencies': 1} | audit=[]
+[200] PATCH /settings/currencies/QAZ | tables={} | audit=[]
+[201] POST /settings/locations | tables={'locations': 1} | audit=[]
+[200] PATCH /settings/locations/QA-LOC | tables={} | audit=[]
+[201] POST /settings/client-currency-locations | tables={'client_currency_locations': 1} | audit=[]
+[201] POST /settings/bank-accounts | tables={'account_number_counters': 1, 'accounts': 1} | audit=[]
+[201] POST /partners | tables={'partners': 1} | audit=[]
+[201] POST /partners/2814/accounts | tables={'account_number_counters': 1, 'accounts': 1} | audit=[]
+[201] POST /users | tables={'users': 1} | audit=['USER_CREATED/users#14021']
+[200] PATCH /users/14021 | tables={} | audit=['USER_UPDATED/users#14021']
+[201] POST /clients | tables={'clients': 1} | audit=['CLIENT_CREATED/clients#11593']
+[200] PATCH /clients/11591 | tables={} | audit=[]
+[200] PUT /clients/11591/credit-mode | tables={'client_credit_limits': 4} | audit=['CLIENT_CREDIT_MODE_CHANGED/clients#11591']
+[204] PUT /clients/11591/credit-limits/LYD | tables={} | audit=['CLIENT_CREDIT_LIMIT_SET/clients#11591']
+[200] POST /clients/11591/portal/enable | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_ENABLED/clients#11591']
+[200] POST /clients/11591/portal/invite | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_INVITED/clients#11591']
+[204] POST /clients/11591/portal/unlock | tables={} | audit=['CLIENT_PORTAL_UNLOCKED/clients#11591']
+[200] POST /clients/11591/portal/reset | tables={'client_portal_invites': 1} | audit=['CLIENT_PORTAL_RESET/clients#11591']
+[204] POST /clients/11591/portal/disable | tables={} | audit=['CLIENT_PORTAL_DISABLED/clients#11591']
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/receipt | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/payment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/exchange | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 5} | audit=[]
+[201] POST /operations/exchange | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/expense | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/local-move | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 4} | audit=[]
+[201] POST /operations/remit-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/adjustment | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[201] POST /operations/cash-transfer | tables={'account_balances': 2, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 8} | audit=[]
+[201] POST /operations/swift-out | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'swift_movements': 1} | audit=['NEGATIVE_BALANCE_OVERRIDE/accounts#15631']
+[201] POST /operations/opening | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2, 'opening_balances': 1} | audit=[]
+[201] POST /operations/exchange-chain | tables={'account_balances': 1, 'accounts': 1, 'idempotency_keys': 2, 'journal_entries': 2, 'journal_lines': 10} | audit=[]
+[200] GET /reference/swift-movements/pending | tables={} | audit=[]
+[201] POST /operations/swift-in | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 3} | audit=[]
+[201] POST /operations/41080/comments | tables={'entry_comments': 1} | audit=['ENTRY_COMMENT_ADDED/entry_comments#59']
+[200] GET /operations/41080/source-request | tables={} | audit=[]
+[200] POST /operations/41080/edit | tables={'idempotency_keys': 1, 'journal_entries': 2, 'journal_lines': 4} | audit=['ENTRY_EDITED/journal_entries#41080']
+[200] POST /operations/41077/cancel | tables={'journal_entries': 1, 'journal_lines': 2} | audit=['ENTRY_CANCELLED/journal_entries#41077']
+[201] POST /reconciliation/statements | tables={'partner_statement_lines': 2, 'partner_statements': 1} | audit=[]
+[200] POST /reconciliation/statements/204/auto-match | tables={} | audit=[]
+[200] PATCH /reconciliation/statements/204/lines/231/resolve | tables={} | audit=[]
+[200] POST /reconciliation/statements/204/lines/232/adjust | tables={'idempotency_keys': 1, 'journal_entries': 1, 'journal_lines': 2} | audit=[]
+[200] POST /periods/close | tables={'periods': 1} | audit=['PERIOD_CLOSED/periods#None']
+[200] POST /periods/reopen | tables={} | audit=['PERIOD_REOPENED/periods#None']
+[200] POST /auth/backup-codes/regenerate | tables={'user_backup_codes': 10} | audit=['BACKUP_CODES_GENERATED/users#14020']
+COMPARE ok= 22 mismatches= 1
+  MISMATCH ('statement(الافتراضي المعروض): آخر رصيد جارٍ ظاهر ≠ الرصيد الفعلي', 'LYD-TRIPOLI', '1140.000000', '1340.000000', 'closing_balance غير معروض في الواجهة')
+TYPES {"type": "CommentOut", "path": "/operations/41075/comments", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "DebtorRow", "path": "/reports/debtors", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "EmergencyEntryRow", "path": "/reports/emergency-entries", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "LossMakingEntryRow", "path": "/reports/loss-making-operations", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "LotRow", "path": "/lots", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "PendingSwiftMovement", "path": "/reference/swift-movements/pending", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+TYPES {"type": "ProfitByPeriodRow", "path": "/reports/profit-by-period?granularity=month", "status": 422, "note": "{\"detail\":\"«التجميع»: الصيغة غير صحيحة\",\"errors\":[{\"loc\":[\"granularity\"],\"field\":\"granularity\",\"labe"}
+TYPES {"type": "SimilarClient", "path": "/clients/similar?name=QA", "status": 200, "note": "قائمة فارغة — لا عيّنة"}
+AFTER CLEANUP {'qa_clients': 0, 'qa_partners': 0, 'qa_users': 0, 'entries': 0, 'lines': 0, 'qaz': 0, 'qaz_accounts': 0, 'qa_loc': 0, 'qa_accounts': 0, 'audit_rows': 721}
+DIFF vs before: {'audit_log': 18}
+orphans check (psutil): []
