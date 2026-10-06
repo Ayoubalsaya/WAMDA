@@ -53,7 +53,7 @@ from app.engine.profit import NegativeMarginReasonRequiredError
 from app.config import settings
 from app.models import EntryComment, JournalEntry, User
 from app.models.enums import EntryStatus, OperationType, SessionSubjectType
-from app.routers.operations import _entry_response, _get_client, _remember, _run
+from app.routers.operations import _entry_response, _get_client, _remember, _require_override_permission, _run
 from app.schemas.operations import (
     AdjustmentRequest,
     CancelRequest,
@@ -96,13 +96,20 @@ _CLOSED_PERIOD_MESSAGE = "القيد الأصلي في فترة مقفلة — �
 # والثانية تحتاج قراراً منتجياً منفصلاً: أي دفعة تُستهلك بعد التعديل).
 
 
+def _backdate_kwargs(op) -> dict:
+    """تاريخ العملية وسببه كما في مسار الإنشاء (`operations.py` يمرّرهما صراحةً). OPENING بلا هذين الحقلين (لها as_of_date)."""
+    if not hasattr(op, "entry_date"):
+        return {}
+    return {"entry_date": op.entry_date, "backdate_reason": op.backdate_reason}
+
+
 def _create_receipt(db: OrmSession, op: ReceiptRequest, user: User, now: datetime, idem: str) -> JournalEntry:
     client = _get_client(db, op.client_id)
     entry = _run(lambda: receipt_op.execute(
         db, client=client, currency_code=op.currency_code, location_code=op.location_code,
         amount=op.amount, receiving_account_code=op.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, payment_method=op.payment_method, description=op.description,
+        idempotency_key=idem, **_backdate_kwargs(op), payment_method=op.payment_method, description=op.description,
     ))
     _remember(entry, op)
     return entry
@@ -114,7 +121,7 @@ def _create_payment(db: OrmSession, op: PaymentRequest, user: User, now: datetim
         db, client=client, currency_code=op.currency_code, location_code=op.location_code,
         amount=op.amount, paying_account_code=op.paying_account_code,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, description=op.description,
+        idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     _remember(entry, op)
@@ -128,7 +135,7 @@ def _create_exchange(db: OrmSession, op: ExchangeRatesRequest, user: User, now: 
         to_currency=op.to_currency, to_location_code=op.to_location_code, amount=op.amount,
         source_account_code=op.source_account_code, destination_account_code=op.destination_account_code,
         cost_rate=op.cost_rate, client_rate=op.client_rate, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem, description=op.description,
+        created_by=user.id, now=now, idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
         negative_margin_reason=op.negative_margin_reason,
         commission_direction=op.commission_direction, commission_currency=op.commission_currency,
         commission_amount=op.commission_amount, commission_account_code=op.commission_account_code,
@@ -144,12 +151,13 @@ def _create_cash_transfer(db: OrmSession, op: CashTransferRequest, user: User, n
         db, client=client, currency_code=op.currency_code, from_location_code=op.from_location_code,
         to_location_code=op.to_location_code, amount=op.amount,
         source_account_code=op.source_account_code, execution_account_code=op.execution_account_code,
-        collection_account_code=op.collection_account_code, commission_currency=op.commission_currency,
+        collection_account_code=op.collection_account_code,
+        collection_location_code=op.collection_location_code, commission_currency=op.commission_currency,
         client_commission_amount=op.client_commission_amount,
         cost_commission_amount=op.cost_commission_amount,
         cost_correspondent_account_code=op.cost_correspondent_account_code,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, description=op.description,
+        idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     _remember(entry, op)
@@ -160,7 +168,7 @@ def _create_local_move(db: OrmSession, op: LocalMoveRequest, user: User, now: da
     entry = _run(lambda: local_move_op.execute(
         db, currency_code=op.currency_code, from_account_code=op.from_account_code,
         to_account_code=op.to_account_code, amount=op.amount, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem,
+        created_by=user.id, now=now, idempotency_key=idem, **_backdate_kwargs(op),
         description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
         commission_direction=op.commission_direction, commission_currency=op.commission_currency,
@@ -176,7 +184,7 @@ def _create_remit_out(db: OrmSession, op: RemitOutRequest, user: User, now: date
         db, client=client, from_location_code=op.from_location_code,
         sending_account_code=op.sending_account_code, currency_code=op.currency_code,
         amount=op.amount, work_timezone=settings.work_timezone, created_by=user.id,
-        now=now, idempotency_key=idem, description=op.description,
+        now=now, idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     _remember(entry, op)
@@ -187,7 +195,7 @@ def _create_swift_out(db: OrmSession, op: SwiftOutRequest, user: User, now: date
     entry = _run(lambda: swift_out_op.execute(
         db, partner_account_code=op.partner_account_code, amount=op.amount,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, external_ref=op.external_ref, description=op.description,
+        idempotency_key=idem, **_backdate_kwargs(op), external_ref=op.external_ref, description=op.description,
         allow_negative=op.allow_negative, override_reason=op.override_reason,
     ))
     _remember(entry, op)
@@ -199,7 +207,7 @@ def _create_swift_in(db: OrmSession, op: SwiftInRequest, user: User, now: dateti
         db, swift_movement_id=op.swift_movement_id, total_amount=op.total_amount,
         fee_amount=op.fee_amount, receiving_account_code=op.receiving_account_code,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, bank_conversion_rate=op.bank_conversion_rate,
+        idempotency_key=idem, **_backdate_kwargs(op), bank_conversion_rate=op.bank_conversion_rate,
         description=op.description,
     ))
     _remember(entry, op)
@@ -212,7 +220,7 @@ def _create_swift_return(db: OrmSession, op: SwiftReturnRequest, user: User, now
         db, swift_movement_id=op.swift_movement_id, partner_account_code=op.partner_account_code,
         total_amount=op.total_amount, client=client, client_location_code=op.client_location_code,
         return_fee_amount=op.return_fee_amount, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem, description=op.description,
+        created_by=user.id, now=now, idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
     ))
     _remember(entry, op)
     return entry
@@ -223,7 +231,7 @@ def _create_expense(db: OrmSession, op: ExpenseRequest, user: User, now: datetim
         db, expense_account_code=op.expense_account_code, currency_code=op.currency_code,
         paying_account_code=op.paying_account_code, amount=op.amount, description=op.description,
         work_timezone=settings.work_timezone, created_by=user.id, now=now,
-        idempotency_key=idem, allow_negative=op.allow_negative,
+        idempotency_key=idem, **_backdate_kwargs(op), allow_negative=op.allow_negative,
         override_reason=op.override_reason,
     ))
     _remember(entry, op)
@@ -243,7 +251,7 @@ def _create_opening(db: OrmSession, op: OpeningRequest, user: User, now: datetim
         db, account_code=target_code, currency_code=op.currency_code, amount=op.amount,
         is_debit=op.is_debit, as_of_date=op.as_of_date, source_type=op.source_type,
         confidence=op.confidence, approved_by=user.id, created_by=user.id, now=now,
-        idempotency_key=idem, source_note=op.source_note,
+        idempotency_key=idem, **_backdate_kwargs(op), source_note=op.source_note,
     ))
     _remember(entry, op)
     return entry
@@ -253,7 +261,7 @@ def _create_adjustment(db: OrmSession, op: AdjustmentRequest, user: User, now: d
     entry = _run(lambda: adjustment_op.execute(
         db, account_code=op.account_code, currency_code=op.currency_code, amount=op.amount,
         is_debit=op.is_debit, reason=op.reason, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem,
+        created_by=user.id, now=now, idempotency_key=idem, **_backdate_kwargs(op),
         allow_negative=op.allow_negative,
     ))
     _remember(entry, op)
@@ -283,7 +291,7 @@ def _create_exchange_lot(db: OrmSession, op: ExchangeLotRequest, user: User, now
     entry = _run(lambda: exchange_op.execute_via_lot(
         db, client=client, from_location_code=op.from_location_code, to_location_code=op.to_location_code,
         amount=op.amount, client_rate=op.client_rate, work_timezone=settings.work_timezone,
-        created_by=user.id, now=now, idempotency_key=idem, description=op.description,
+        created_by=user.id, now=now, idempotency_key=idem, **_backdate_kwargs(op), description=op.description,
     ))
     _remember(entry, op)
     return entry
@@ -412,6 +420,15 @@ def edit_entry(
         parsed_operation = schema_cls(**payload.operation)
     except ValidationError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+    # الأصل هو المرجع لما لم يُرسله المستخدم: تاريخ القيد وسبب الأثر الرجعي يبقيان إلا إن غُيِّرا صراحةً
+    # (قيد قديم بلا طلب محفوظ، أو نموذج لا يرسلهما، كان يُؤرَّخ باليوم صامتاً).
+    if hasattr(parsed_operation, "entry_date") and parsed_operation.entry_date is None:
+        parsed_operation.entry_date = entry.entry_date
+        if parsed_operation.backdate_reason is None:
+            parsed_operation.backdate_reason = entry.backdate_reason
+    if getattr(parsed_operation, "allow_negative", False):
+        _require_override_permission(current_user)  # حارس مسار الإنشاء نفسه (§٧-١٣)، كامن اليوم لأن التعديل لمدير حصراً
 
     now = system_clock()
     original_entry_no = entry.entry_no

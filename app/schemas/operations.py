@@ -262,6 +262,9 @@ class LocalMoveRequest(BackdateFields, CommissionFields):
     @model_validator(mode="after")
     def _commission_ok(self):
         self._check_commission()
+        if self.commission_location_code:
+            # كان يُقبل ويُتجاهَل بصمت (لا عميل هنا): ٤٢٢ صريح بدل حقل ميّت
+            raise ValueError("لا موقع للعمولة في النقل الداخلي — حساب شركة بعملتها دائماً")
         if self.commission_amount is not None and not self.commission_account_code:
             raise ValueError("العمولة تتطلب حساب شركة تُودَع فيه أو تُخصم منه")
         return self
