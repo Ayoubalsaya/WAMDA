@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "ask": [
+      "Bash(ssh:*)",
+      "Bash(ssh.exe:*)",
+      "Bash(scp:*)",
+      "Bash(scp.exe:*)",
+      "Bash(rsync:*)",
+      "Bash(sftp:*)",
+      "Bash(sftp.exe:*)",
+      "Bash(ssh-keygen:*)",
+      "Bash(ssh-copy-id:*)",
+      "Bash(ssh-add:*)",
+      "PowerShell(ssh:*)",
+      "PowerShell(ssh.exe:*)",
+      "PowerShell(scp:*)",
+      "PowerShell(scp.exe:*)",
+      "PowerShell(rsync:*)",
+      "PowerShell(sftp:*)",
+      "PowerShell(sftp.exe:*)",
+      "PowerShell(ssh-keygen:*)",
+      "PowerShell(ssh-copy-id:*)",
+      "PowerShell(ssh-add:*)"
+    ],
+    "disableBypassPermissionsMode": "disable"
+  }
+}
