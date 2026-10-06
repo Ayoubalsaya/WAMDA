@@ -1,5 +1,11 @@
 {
   "permissions": {
+    "deny": [
+      "Bash(*194.34.232.37*)",
+      "PowerShell(*194.34.232.37*)",
+      "WebFetch(domain:194.34.232.37)",
+      "mcp__plugin_desktop-commander_desktop-commander__start_process"
+    ],
     "ask": [
       "Bash(ssh:*)",
       "Bash(ssh.exe:*)",
