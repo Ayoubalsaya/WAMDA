@@ -164,6 +164,7 @@ def logout(
     session_row = sessions.get_valid_session(db, request.cookies.get(SESSION_COOKIE_NAME, ""), now)
     if session_row is not None:
         sessions.revoke_session(db, session_row)
+        audit.log_write(db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="LOGOUT", entity="users", entity_id=current_user.id)
         db.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
 

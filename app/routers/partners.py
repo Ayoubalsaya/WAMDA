@@ -12,6 +12,7 @@ from app.database import get_db
 from app.engine import accounts_repo
 from app.models import Account, Location, Partner, User
 from app.schemas.settings import AccountOut, CreatePartnerAccountRequest, CreatePartnerRequest, PartnerRow
+from app.security import audit
 from app.security.deps import require_password_changed, require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -56,6 +57,11 @@ def create_partner(
         contact_phone=payload.contact_phone, notes=payload.notes,
     )
     db.add(partner)
+    db.flush()
+    audit.log_user_write(
+        db, current_user, action="PARTNER_CREATED", entity="partners", entity_id=partner.id,
+        after={"code": partner.code, "name_ar": partner.name_ar, "country": partner.country},
+    )
     db.commit()
     db.refresh(partner)
     return PartnerRow(**{c: getattr(partner, c) for c in PartnerRow.model_fields})
@@ -87,5 +93,9 @@ def create_partner_account(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     except accounts_repo.AccountNumberExhaustedError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    audit.log_user_write(
+        db, current_user, action="PARTNER_ACCOUNT_CREATED", entity="accounts", entity_id=account.id,
+        after={"partner_id": partner_id, "code": account.code, "currency_code": payload.currency_code, "location_code": payload.location_code},
+    )
     db.commit()
     return _account_out(db, account)

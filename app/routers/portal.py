@@ -37,7 +37,8 @@ from app.schemas.portal import (
     PortalLoginResponse,
     PortalMeResponse,
 )
-from app.security import client_portal_invites, csrf, passwords, portal_auth_service, portal_lockout, sessions
+from app.models.enums import SessionSubjectType
+from app.security import audit, client_portal_invites, csrf, passwords, portal_auth_service, portal_lockout, sessions
 from app.security.deps import (
     PORTAL_SESSION_COOKIE_NAME,
     enforce_portal_invite_rate_limit,
@@ -111,6 +112,7 @@ def portal_logout(
     session_row = sessions.get_valid_session(db, request.cookies.get(PORTAL_SESSION_COOKIE_NAME, ""), now)
     if session_row is not None:
         sessions.revoke_session(db, session_row)
+        audit.log_write(db, actor_type=SessionSubjectType.CLIENT, actor_id=current_client.id, action="PORTAL_LOGOUT", entity="clients", entity_id=current_client.id)
         db.commit()
     response.delete_cookie(PORTAL_SESSION_COOKIE_NAME, path="/")
 

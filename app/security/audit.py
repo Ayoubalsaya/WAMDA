@@ -45,6 +45,17 @@ def log_write(
     return row
 
 
+def log_user_write(
+    db: Session, user, *, action: str, entity: str, entity_id: Optional[int] = None,
+    before: Optional[dict] = None, after: Optional[dict] = None,
+) -> AuditLog:
+    """`log_write` لمنفِّذ موظف — اختصار لمسارات الإعدادات/الشركاء/المطابقة (§٥-١١)."""
+    return log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=user.id, action=action, entity=entity,
+        entity_id=entity_id, before=before, after=after,
+    )
+
+
 def query_audit_log(
     db: Session,
     *,

@@ -23,6 +23,7 @@ from app.schemas.settings import (
     UpdateCurrencyRequest,
     UpdateLocationRequest,
 )
+from app.security import audit
 from app.security.deps import require_password_changed, require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -41,6 +42,11 @@ def _account_out(db: OrmSession, account: Account) -> AccountOut:
     )
 
 
+def _company_audit_view(value: dict) -> dict:
+    """الشعار صورة base64 كبيرة — يُسجَّل وجوده/غيابه لا محتواه."""
+    return {"name_ar": value.get("name_ar"), "has_logo": bool(value.get("logo_data_url"))}
+
+
 @router.get("/company", response_model=CompanyProfile)
 def get_company_profile(db: OrmSession = Depends(get_db)) -> CompanyProfile:
     row = db.execute(select(Setting).where(Setting.key == _COMPANY_KEY)).scalar_one_or_none()
@@ -55,12 +61,14 @@ def set_company_profile(
     current_user: User = Depends(require_role(Action.MANAGE_USERS)),
 ) -> CompanyProfile:
     row = db.execute(select(Setting).where(Setting.key == _COMPANY_KEY)).scalar_one_or_none()
+    before = _company_audit_view(row.value if row else {})
     # دمج لا استبدال: الحقل غير المُرسَل يبقى كما هو (الواجهة ترسل الاسم وحده فكان الشعار يُمحى)؛ ومحوه صراحةً بإرسال null
     merged = CompanyProfile(**{**(row.value if row else {}), **payload.model_dump(exclude_unset=True)})
     if row is None:
         db.add(Setting(key=_COMPANY_KEY, value=merged.model_dump()))
     else:
         row.value = merged.model_dump()
+    audit.log_user_write(db, current_user, action="COMPANY_PROFILE_UPDATED", entity="settings", before=before, after=_company_audit_view(merged.model_dump()))
     db.commit()
     return merged
 
@@ -91,6 +99,10 @@ def create_bank_account(
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
     except accounts_repo.AccountNumberExhaustedError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    audit.log_user_write(
+        db, current_user, action="BANK_ACCOUNT_CREATED", entity="accounts", entity_id=account.id,
+        after={"code": account.code, "name_ar": account.name_ar, "currency_code": payload.currency_code, "location_code": payload.location_code},
+    )
     db.commit()
     return _account_out(db, account)
 
@@ -147,6 +159,10 @@ def create_currency(
     # بلا هذا، أول قبض/صرافة/مصروف بالعملة الجديدة يفشل بحساب ربح/تكلفة
     # مفقود (accounts_repo.AccountNotFoundError من get_currency_subaccount).
     accounts_repo.create_currency_chart_of_accounts(db, currency=currency)
+    audit.log_user_write(
+        db, current_user, action="CURRENCY_CREATED", entity="currencies",
+        after={**_currency_row(currency).model_dump(), "accounts_created": "الشجرة الفرعية المرجعية للعملة"},
+    )
     db.commit()
     return _currency_row(currency)
 
@@ -159,6 +175,7 @@ def update_currency(
     currency = db.get(Currency, code.upper())
     if currency is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا عملة بالكود {code}")
+    before = _currency_row(currency).model_dump()
     if payload.decimals is not None and payload.decimals != currency.decimals:
         if _currency_ever_used(db, currency.code):
             raise HTTPException(
@@ -178,6 +195,7 @@ def update_currency(
         currency.symbol = payload.symbol
     if payload.sort_order is not None:
         currency.sort_order = payload.sort_order
+    audit.log_user_write(db, current_user, action="CURRENCY_UPDATED", entity="currencies", before=before, after=_currency_row(currency).model_dump())
     db.commit()
     return _currency_row(currency)
 
@@ -219,6 +237,8 @@ def create_location(
         raise HTTPException(status.HTTP_409_CONFLICT, f"الموقع {code} موجود بالفعل")
     location = Location(code=code, name_ar=payload.name_ar, country=payload.country, is_active=True)
     db.add(location)
+    db.flush()
+    audit.log_user_write(db, current_user, action="LOCATION_CREATED", entity="locations", entity_id=location.id, after=_location_row(location).model_dump())
     db.commit()
     return _location_row(location)
 
@@ -231,6 +251,7 @@ def update_location(
     location = db.execute(select(Location).where(Location.code == code.upper())).scalar_one_or_none()
     if location is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا موقع بالكود {code}")
+    before = _location_row(location).model_dump()
     if payload.is_active is False and location.is_active:
         if _location_has_nonzero_balance(db, location.id):
             raise HTTPException(status.HTTP_409_CONFLICT, f"لا يمكن تعطيل {location.code} — له رصيد غير صفري في حساب واحد على الأقل")
@@ -241,6 +262,7 @@ def update_location(
         location.name_ar = payload.name_ar
     if payload.country is not None:
         location.country = payload.country
+    audit.log_user_write(db, current_user, action="LOCATION_UPDATED", entity="locations", entity_id=location.id, before=before, after=_location_row(location).model_dump())
     db.commit()
     return _location_row(location)
 
@@ -281,5 +303,9 @@ def create_client_currency_location(
     if db.get(ClientCurrencyLocation, (currency_code, location.id)) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"التركيبة {currency_code}·{location_code} مسموحة بالفعل")
     db.add(ClientCurrencyLocation(currency_code=currency_code, location_id=location.id))
+    audit.log_user_write(
+        db, current_user, action="CLIENT_CURRENCY_LOCATION_ADDED", entity="client_currency_locations",
+        after={"currency_code": currency_code, "location_code": location_code},
+    )
     db.commit()
     return ClientCurrencyLocationRow(currency_code=currency_code, location_code=location_code)

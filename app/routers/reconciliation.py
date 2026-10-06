@@ -35,6 +35,7 @@ from app.schemas.reconciliation import (
     StatementLineOut,
     YourLedgerEntryOut,
 )
+from app.security import audit
 from app.security.deps import require_role, verify_csrf
 from app.security.permissions import Action
 
@@ -105,6 +106,10 @@ def create_statement(
             statement_id=statement.id, value_date=line.value_date, description=line.description,
             amount=line.amount, status=ReconciliationStatus.OPEN,
         ))
+    audit.log_user_write(
+        db, current_user, action="PARTNER_STATEMENT_CREATED", entity="partner_statements", entity_id=statement.id,
+        after={"partner_id": partner.id, "period_from": str(payload.period_from), "period_to": str(payload.period_to), "lines": len(payload.lines)},
+    )
     db.commit()
     return _detail(db, statement, partner.name_ar)
 
@@ -188,8 +193,16 @@ def auto_match(
             line.status = ReconciliationStatus.RESOLVED
             already_matched_entry_ids.add(eligible[0])
             matched_count += 1
+    audit.log_user_write(
+        db, current_user, action="PARTNER_STATEMENT_AUTO_MATCHED", entity="partner_statements", entity_id=statement.id,
+        after={"matched_count": matched_count},
+    )
     db.commit()
     return AutoMatchResponse(matched_count=matched_count, statement=_detail(db, statement, _partner_name(db, statement.partner_id)))
+
+
+def _line_audit_view(line: PartnerStatementLine) -> dict:
+    return {"status": line.status.value, "matched_entry_id": line.matched_entry_id, "amount": str(line.amount)}
 
 
 def _partner_name(db: OrmSession, partner_id: int) -> str:
@@ -203,11 +216,16 @@ def manual_match(
     current_user: User = Depends(require_role(Action.RECONCILIATION)),
 ) -> StatementLineOut:
     line = _get_line_or_404(db, statement_id, line_id)
+    before = _line_audit_view(line)
     entry = db.get(JournalEntry, payload.entry_id)
     if entry is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا قيد بالمعرّف {payload.entry_id}")
     line.matched_entry_id = entry.id
     line.status = ReconciliationStatus.RESOLVED
+    audit.log_user_write(
+        db, current_user, action="STATEMENT_LINE_MATCHED", entity="partner_statement_lines", entity_id=line.id,
+        before=before, after=_line_audit_view(line),
+    )
     db.commit()
     return _line_out(db, line)
 
@@ -221,12 +239,17 @@ def resolve_line(
     الفرق فعلياً؛ `matched_entry_id` هنا اختياري (قد لا يوجد قيد مطابق
     مباشر، فقط قرار إداري بإغلاق السطر)."""
     line = _get_line_or_404(db, statement_id, line_id)
+    before = _line_audit_view(line)
     if payload.matched_entry_id is not None:
         entry = db.get(JournalEntry, payload.matched_entry_id)
         if entry is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"لا قيد بالمعرّف {payload.matched_entry_id}")
         line.matched_entry_id = entry.id
     line.status = ReconciliationStatus.RESOLVED
+    audit.log_user_write(
+        db, current_user, action="STATEMENT_LINE_RESOLVED", entity="partner_statement_lines", entity_id=line.id,
+        before=before, after=_line_audit_view(line),
+    )
     db.commit()
     return _line_out(db, line)
 
@@ -251,6 +274,7 @@ def adjust_line(
     إلزامي** (§٥-١٢، يُفرَض في المخطّط وفي محرّك `adjustment`). السطر يجب
     أن يكون `OPEN` (فرق غير مسوّى) — تسوية سطر مُسوّى مسبقاً مرفوضة."""
     line = _get_line_or_404(db, statement_id, line_id)
+    before = _line_audit_view(line)
     if line.status != ReconciliationStatus.OPEN:
         raise HTTPException(status.HTTP_409_CONFLICT, "هذا السطر مُسوّى بالفعل")
 
@@ -276,5 +300,9 @@ def adjust_line(
 
     line.matched_entry_id = entry.id
     line.status = ReconciliationStatus.RESOLVED
+    audit.log_user_write(
+        db, current_user, action="STATEMENT_LINE_ADJUSTED", entity="partner_statement_lines", entity_id=line.id,
+        before=before, after=_line_audit_view(line),
+    )
     db.commit()
     return _line_out(db, line)

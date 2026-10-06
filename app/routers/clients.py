@@ -172,8 +172,12 @@ def create_client(
     "/clients/{client_id}", response_model=ClientDetail,
     dependencies=[Depends(verify_csrf), Depends(require_role(Action.POST_ENTRY))],
 )
-def update_client(client_id: int, payload: UpdateClientRequest, db: OrmSession = Depends(get_db)) -> ClientDetail:
+def update_client(
+    client_id: int, payload: UpdateClientRequest, db: OrmSession = Depends(get_db),
+    current_user: User = Depends(require_role(Action.POST_ENTRY)),
+) -> ClientDetail:
     client = _get_client_or_404(db, client_id)
+    before = {"name_ar": client.name_ar, "name_en": client.name_en, "phone": client.phone, "id_number": client.id_number}
     if payload.name_ar is not None:
         client.name_ar = payload.name_ar
         client.search_name = payload.name_ar  # المشغّل (§٣-٩) يعيد تطبيعه فعلياً عند UPDATE OF name_ar
@@ -183,6 +187,10 @@ def update_client(client_id: int, payload: UpdateClientRequest, db: OrmSession =
         client.phone = payload.phone
     if payload.id_number is not None:
         client.id_number = payload.id_number
+    audit.log_write(
+        db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="CLIENT_UPDATED", entity="clients", entity_id=client.id,
+        before=before, after={"name_ar": client.name_ar, "name_en": client.name_en, "phone": client.phone, "id_number": client.id_number},
+    )
     db.commit()
     return ClientDetail(
         id=client.id, code=client.code, name_ar=client.name_ar, name_en=client.name_en, phone=client.phone,
