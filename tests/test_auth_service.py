@@ -1,5 +1,5 @@
 """اختبارات app.security.auth_service — تدفّق الدخول بخطوتين، التسجيل
-الأول لـTOTP، تغيير كلمة المرور، الاستعادة عبر سؤال التحقق."""
+الأول لـTOTP، تغيير كلمة المرور."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pyotp
 import pytest
 
 from app.security import auth_service, passwords, sessions
-from app.security.passwords import hash_password, hash_security_answer
+from app.security.passwords import hash_password
 from tests import factories as f
 
 NOW = datetime(2026, 6, 15, 10, 0, tzinfo=timezone.utc)
@@ -18,8 +18,6 @@ NOW = datetime(2026, 6, 15, 10, 0, tzinfo=timezone.utc)
 def _make_staff_user(db, *, role="ADMIN", password="Sup3rSecret!1", with_totp=False, must_change_password=True):
     user = f.make_user(db, role=role)
     user.password_hash = hash_password(password)
-    user.security_question = "مدينتك المفضلة؟"
-    user.security_answer_hash = hash_security_answer("طرابلس")
     # المصنع المشترك (tests/factories.py) يضبطها False لراحة اختبارات
     # المرحلة ٣ — هنا نختبر المصادقة نفسها فنعيدها للافتراضي الحقيقي (§٧-١).
     user.must_change_password = must_change_password
@@ -116,19 +114,3 @@ def test_change_password_revokes_other_sessions_keeps_current(db):
     assert sessions.get_valid_session(db, result2.raw_token, NOW) is not None  # أُبقيت
     assert passwords.verify_password("NewSecret!2", user.password_hash)
     assert user.must_change_password is False
-
-
-def test_recovery_via_security_question(db):
-    user = _make_staff_user(db)
-    question = auth_service.recover_get_security_question(db, username=user.username)
-    assert question == "مدينتك المفضلة؟"
-
-    with pytest.raises(auth_service.InvalidCredentialsError):
-        auth_service.recover_reset_password(
-            db, username=user.username, security_answer="بنغازي", new_password="Whatever!123", now=NOW
-        )
-
-    auth_service.recover_reset_password(
-        db, username=user.username, security_answer="طرابلس", new_password="Recovered!123", now=NOW
-    )
-    assert passwords.verify_password("Recovered!123", user.password_hash)

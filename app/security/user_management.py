@@ -49,8 +49,6 @@ def create_user(
     role: str,
     initial_password: str,
     now: datetime,
-    security_question: str | None = None,
-    security_answer: str | None = None,
 ) -> User:
     if role not in VALID_ROLES:
         raise InvalidRoleError(f"دور غير صالح: {role}")
@@ -62,8 +60,6 @@ def create_user(
         full_name=full_name,
         password_hash=passwords.hash_password(initial_password),
         role=role,
-        security_question=security_question,
-        security_answer_hash=passwords.hash_security_answer(security_answer) if security_answer else None,
         is_active=True,
         must_change_password=True,
     )

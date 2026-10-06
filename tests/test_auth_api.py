@@ -134,28 +134,3 @@ def test_change_password_requires_csrf_and_current_password(db, client):
         headers=_csrf_headers(client),
     )
     assert resp_ok.status_code == 204
-
-
-def test_recovery_flow_via_security_question(db, client):
-    from app.security.passwords import hash_security_answer
-
-    user = _make_staff_user(db)
-    user.security_question = "مدينتك المفضلة؟"
-    user.security_answer_hash = hash_security_answer("طرابلس")
-    db.flush()
-
-    resp_start = client.post("/auth/recover/start", json={"username": user.username})
-    assert resp_start.status_code == 200
-    assert resp_start.json()["security_question"] == "مدينتك المفضلة؟"
-
-    resp_wrong = client.post(
-        "/auth/recover/complete",
-        json={"username": user.username, "security_answer": "بنغازي", "new_password": "Recovered!123"},
-    )
-    assert resp_wrong.status_code == 401
-
-    resp_ok = client.post(
-        "/auth/recover/complete",
-        json={"username": user.username, "security_answer": "طرابلس", "new_password": "Recovered!123"},
-    )
-    assert resp_ok.status_code == 204

@@ -30,20 +30,6 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=10)
 
 
-class RecoverStartRequest(BaseModel):
-    username: str
-
-
-class RecoverStartResponse(BaseModel):
-    security_question: Optional[str] = None
-
-
-class RecoverCompleteRequest(BaseModel):
-    username: str
-    security_answer: str
-    new_password: str = Field(min_length=10)
-
-
 class CurrentUserResponse(BaseModel):
     id: int
     username: str
@@ -59,8 +45,6 @@ class CreateUserRequest(BaseModel):
     full_name: str
     role: str  # "ADMIN" | "ACCOUNTANT"
     initial_password: str = Field(min_length=10)
-    security_question: Optional[str] = None
-    security_answer: Optional[str] = None
 
 
 class CreateUserResponse(BaseModel):

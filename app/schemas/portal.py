@@ -25,20 +25,6 @@ class PortalChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=10)
 
 
-class PortalRecoverStartRequest(BaseModel):
-    code: str
-
-
-class PortalRecoverStartResponse(BaseModel):
-    security_question: Optional[str] = None
-
-
-class PortalRecoverCompleteRequest(BaseModel):
-    code: str
-    security_answer: str
-    new_password: str = Field(min_length=10)
-
-
 class PortalMeResponse(BaseModel):
     code: str
     name_ar: str

@@ -36,9 +36,6 @@ from app.schemas.portal import (
     PortalLoginRequest,
     PortalLoginResponse,
     PortalMeResponse,
-    PortalRecoverCompleteRequest,
-    PortalRecoverStartRequest,
-    PortalRecoverStartResponse,
 )
 from app.security import client_portal_invites, csrf, passwords, portal_auth_service, portal_lockout, sessions
 from app.security.deps import (
@@ -132,27 +129,6 @@ def portal_change_password(
     portal_auth_service.change_password(
         db, client=current_client, new_password=payload.new_password, now=now, keep_session_id=session_id,
     )
-    db.commit()
-
-
-@router.post("/recover/start", response_model=PortalRecoverStartResponse)
-def portal_recover_start(payload: PortalRecoverStartRequest, db: OrmSession = Depends(get_db)) -> PortalRecoverStartResponse:
-    question = portal_auth_service.recover_get_security_question(db, code=payload.code)
-    # لا نكشف عدم وجود الكود صراحةً — نفس الرد شكلاً في الحالتين (يطابق auth.py)
-    return PortalRecoverStartResponse(security_question=question)
-
-
-@router.post("/recover/complete", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-def portal_recover_complete(payload: PortalRecoverCompleteRequest, db: OrmSession = Depends(get_db)) -> None:
-    now = system_clock()
-    try:
-        portal_auth_service.recover_reset_password(
-            db, code=payload.code, security_answer=payload.security_answer,
-            new_password=payload.new_password, now=now,
-        )
-    except portal_auth_service.InvalidPortalCredentialsError as exc:
-        db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     db.commit()
 
 

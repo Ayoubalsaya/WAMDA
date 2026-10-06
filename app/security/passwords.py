@@ -1,4 +1,4 @@
-"""تجزئة كلمات المرور وإجابات سؤال التحقق — bcrypt حصراً، لا نص صريح
+"""تجزئة كلمات المرور — bcrypt حصراً، لا نص صريح
 يُخزَّن أبداً في أي عمود `*_hash`.
 """
 
@@ -20,16 +20,3 @@ def verify_password(plain: str, hashed: str | None) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except ValueError:
         return False
-
-
-def _normalize_answer(answer: str) -> str:
-    """تطبيع بسيط لإجابة سؤال التحقق — لا حساسية لحالة الأحرف أو المسافات الطرفية."""
-    return answer.strip().lower()
-
-
-def hash_security_answer(answer: str) -> str:
-    return hash_password(_normalize_answer(answer))
-
-
-def verify_security_answer(answer: str, hashed: str | None) -> bool:
-    return verify_password(_normalize_answer(answer), hashed)

@@ -174,26 +174,3 @@ def change_password(
         db, actor_type=SessionSubjectType.USER, actor_id=user.id, action="PASSWORD_CHANGED",
         entity="users", entity_id=user.id,
     )
-
-
-def recover_get_security_question(db: Session, *, username: str) -> Optional[str]:
-    user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
-    if user is None:
-        return None
-    return user.security_question
-
-
-def recover_reset_password(
-    db: Session, *, username: str, security_answer: str, new_password: str, now: datetime
-) -> None:
-    user = db.execute(select(User).where(User.username == username)).scalar_one_or_none()
-    if user is None or not passwords.verify_security_answer(security_answer, user.security_answer_hash):
-        raise InvalidCredentialsError("الاسم أو إجابة سؤال التحقق غير صحيحة")
-    user.password_hash = passwords.hash_password(new_password)
-    user.must_change_password = False
-    lockout.reset_failed_attempts(db, user)
-    db.flush()
-    audit.log_write(
-        db, actor_type=SessionSubjectType.USER, actor_id=user.id, action="PASSWORD_RESET_VIA_SECURITY_QUESTION",
-        entity="users", entity_id=user.id,
-    )

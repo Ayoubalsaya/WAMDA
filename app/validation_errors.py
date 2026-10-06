@@ -49,7 +49,7 @@ FIELD_LABELS_AR: dict[str, str] = {
     "partner_id": "الشريك", "password": "كلمة المرور", "paying_account_code": "الحساب المصروف منه",
     "payment_method": "طريقة الدفع", "period_from": "من تاريخ", "period_to": "إلى تاريخ", "phone": "الهاتف",
     "reason": "السبب", "receiving_account_code": "الحساب المستقبِل", "return_fee_amount": "رسوم الإرجاع",
-    "role": "الدور", "security_answer": "إجابة سؤال التحقق", "security_question": "سؤال التحقق",
+    "role": "الدور",
     "sort_order": "ترتيب العرض", "source_account_code": "الحساب المصدر", "source_note": "ملاحظة المصدر",
     "source_type": "مصدر الرصيد", "step1": "الخطوة ١", "step2": "الخطوة ٢", "swift_movement_id": "حركة السويفت",
     "symbol": "الرمز", "to_account_code": "إلى حساب", "to_currency": "إلى عملة", "to_location_code": "إلى موقع",

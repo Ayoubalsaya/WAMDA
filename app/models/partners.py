@@ -57,8 +57,6 @@ class Client(Base):
     # حالة "كلمة مرور مفروضة يجب تغييرها أول دخول" بعد الآن.
     portal_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     portal_last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
-    portal_security_question: Mapped[Optional[str]] = mapped_column(Text)
-    portal_security_answer_hash: Mapped[Optional[str]] = mapped_column(Text)
     portal_failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     portal_locked_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

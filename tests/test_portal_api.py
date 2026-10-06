@@ -40,10 +40,6 @@ def _make_portal_client(db, *, password: str = "PortalPass!123"):
     c = f.make_client(db)
     c.portal_enabled = True
     c.portal_password_hash = hash_password(password)
-    c.portal_security_question = "ما اسم أول عميل؟"
-    from app.security.passwords import hash_security_answer
-
-    c.portal_security_answer_hash = hash_security_answer("تجربة")
     db.flush()
     return c
 
@@ -193,28 +189,6 @@ def test_portal_responses_never_contain_cost_rate(db, client, now):
 
     leaks = {label: hits for label, body in responses if (hits := _find_key_anywhere(body, "cost_rate"))}
     assert not leaks, f"cost_rate ظهر في رد بوابة لم يُتوقَّع ظهوره فيه: {leaks}"
-
-
-def test_portal_recover_flow(db, client):
-    c = _make_portal_client(db)
-    start = client.post("/portal/recover/start", json={"code": c.code})
-    assert start.status_code == 200
-    assert start.json()["security_question"] == "ما اسم أول عميل؟"
-
-    complete = client.post(
-        "/portal/recover/complete",
-        json={"code": c.code, "security_answer": "تجربة", "new_password": "RecoveredPass!999"},
-    )
-    assert complete.status_code == 204
-
-    result = _portal_login(client, c.code, password="RecoveredPass!999")
-    assert result["status"] == "ok"
-
-
-def test_portal_recover_unknown_code_returns_no_question_not_error(db, client):
-    resp = client.post("/portal/recover/start", json={"code": "NO-SUCH-CODE"})
-    assert resp.status_code == 200
-    assert resp.json()["security_question"] is None
 
 
 def test_portal_write_without_csrf_rejected(db, client):

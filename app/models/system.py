@@ -44,8 +44,6 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(Text, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(Text, nullable=False)
-    security_question: Mapped[Optional[str]] = mapped_column(Text)
-    security_answer_hash: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     totp_secret: Mapped[Optional[str]] = mapped_column(Text)

@@ -53,16 +53,12 @@ def run() -> None:
 
         full_name = input("الاسم الكامل: ").strip() or username
         password = _prompt_password(f"كلمة المرور ({MIN_PASSWORD_LENGTH} أحرف على الأقل)")
-        security_question = input("سؤال تحقق لاستعادة الحساب لاحقاً (اختياري لكن يُنصح به بشدة): ").strip()
-        security_answer = getpass.getpass("إجابة سؤال التحقق: ") if security_question else ""
 
         user = User(
             username=username,
             full_name=full_name,
             password_hash=passwords.hash_password(password),
             role="ADMIN",
-            security_question=security_question or None,
-            security_answer_hash=passwords.hash_security_answer(security_answer) if security_answer else None,
             is_active=True,
             must_change_password=True,
         )

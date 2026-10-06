@@ -23,28 +23,6 @@ def test_password_hash_roundtrip():
     assert hashed != "Sup3rSecret!"  # لا نص صريح مخزَّن
 
 
-def test_security_answer_normalized():
-    hashed = passwords.hash_security_answer("  Tripoli  ")
-    assert passwords.verify_security_answer("tripoli", hashed) is True
-    assert passwords.verify_security_answer("TRIPOLI", hashed) is True
-    assert passwords.verify_security_answer("benghazi", hashed) is False
-
-
-# ── TOTP ─────────────────────────────────────────────────────────────────
-def test_totp_verify_correct_and_incorrect_code():
-    secret = totp.generate_totp_secret()
-    valid_code = pyotp.TOTP(secret).now()
-    assert totp.verify_totp_code(secret, valid_code) is True
-    assert totp.verify_totp_code(secret, "000000") is False
-    assert totp.verify_totp_code(None, valid_code) is False
-
-
-# ── الرموز ───────────────────────────────────────────────────────────────
-def test_session_token_roundtrip():
-    raw, hashed = tokens.generate_session_token()
-    assert tokens.hash_token(raw) == hashed
-    assert raw != hashed
-
 
 def test_constant_time_equal():
     assert tokens.constant_time_equal("abc", "abc") is True

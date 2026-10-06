@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { api, ApiError } from '../api/client'
+import { ApiError } from '../api/client'
 import type { LoginResponse } from '../api/types'
 import { LogoMark } from '../components/LogoMark'
 import { BackupCodesPanel } from '../components/BackupCodesPanel'
@@ -11,125 +11,7 @@ interface LoginScreenProps {
   refresh: () => Promise<void>
 }
 
-type Step = 'credentials' | 'totp_required' | 'totp_setup_required' | 'forgot'
-
-// د: "نسيت كلمة المرور" كانت رابطاً href="#" بلا أي سلوك — نفس صنف علّة
-// الجرس (عنصر يَعِد بلا معالج). تستخدم تدفّق §٩ الحقيقي القائم أصلاً
-// (POST /auth/recover/start ثم /complete) — بلا منطق جديد في الخادم.
-function ForgotPasswordForm({ onDone }: { onDone: () => void }) {
-  const [stage, setStage] = useState<'start' | 'answer' | 'no-question'>('start')
-  const [username, setUsername] = useState('')
-  const [question, setQuestion] = useState('')
-  const [answer, setAnswer] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-
-  async function submitUsername(e: React.FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError(null)
-    try {
-      const res = await api.post<{ security_question: string | null }>('/auth/recover/start', { username })
-      if (res.security_question) {
-        setQuestion(res.security_question)
-        setStage('answer')
-      } else {
-        setStage('no-question')
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر بدء الاستعادة')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function submitReset(e: React.FormEvent) {
-    e.preventDefault()
-    if (newPassword !== confirmPassword) {
-      setError('كلمتا المرور غير متطابقتين')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      await api.post('/auth/recover/complete', { username, security_answer: answer, new_password: newPassword })
-      setDone(true)
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّرت استعادة كلمة المرور')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  if (done) {
-    return (
-      <div className="login-form">
-        <h2 className="screen-title">تم بنجاح</h2>
-        <div className="alert alert-info">تم تغيير كلمة المرور — يمكنك تسجيل الدخول بها الآن.</div>
-        <button type="button" className="btn btn-primary btn-lg" style={{ width: '100%' }} onClick={onDone}>
-          العودة لتسجيل الدخول
-        </button>
-      </div>
-    )
-  }
-
-  if (stage === 'no-question') {
-    return (
-      <div className="login-form">
-        <h2 className="screen-title">تعذّرت الاستعادة</h2>
-        <div className="alert alert-warning">
-          لا سؤال تحقق مسجَّل لهذا الحساب — تواصل مع المدير لإعادة تعيين كلمة المرور يدوياً.
-        </div>
-        <button type="button" className="btn btn-secondary btn-lg" style={{ width: '100%' }} onClick={onDone}>
-          رجوع لتسجيل الدخول
-        </button>
-      </div>
-    )
-  }
-
-  if (stage === 'answer') {
-    return (
-      <form className="login-form" onSubmit={submitReset}>
-        <h2 className="screen-title">استعادة كلمة المرور</h2>
-        <div className="field">
-          <label className="field-label">{question}</label>
-          <input value={answer} onChange={(e) => setAnswer(e.target.value)} required autoFocus />
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="new-password">كلمة مرور جديدة (١٠ أحرف على الأقل)</label>
-          <input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={10} required />
-        </div>
-        <div className="field">
-          <label className="field-label" htmlFor="confirm-password">تأكيد كلمة المرور</label>
-          <input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={10} required />
-        </div>
-        {error && <div className="alert alert-critical">{error}</div>}
-        <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
-          تعيين كلمة المرور
-        </button>
-        <button type="button" className="btn-text login-forgot" onClick={onDone}>رجوع لتسجيل الدخول</button>
-      </form>
-    )
-  }
-
-  return (
-    <form className="login-form" onSubmit={submitUsername}>
-      <h2 className="screen-title">نسيت كلمة المرور</h2>
-      <div className="field">
-        <label className="field-label" htmlFor="forgot-username">اسم المستخدم</label>
-        <input id="forgot-username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
-      </div>
-      {error && <div className="alert alert-critical">{error}</div>}
-      <button type="submit" className="btn btn-primary btn-lg" disabled={busy || !username.trim()} style={{ width: '100%' }}>
-        متابعة
-      </button>
-      <button type="button" className="btn-text login-forgot" onClick={onDone}>رجوع لتسجيل الدخول</button>
-    </form>
-  )
-}
+type Step = 'credentials' | 'totp_required' | 'totp_setup_required'
 
 export function LoginScreen({ login, refresh }: LoginScreenProps) {
   const [username, setUsername] = useState('')
@@ -246,13 +128,9 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
             <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
               دخول
             </button>
-            <button type="button" className="btn-text login-forgot" onClick={() => setStep('forgot')}>
-              نسيت كلمة المرور
-            </button>
+            <p className="login-forgot">نسيت كلمة المرور؟ اطلب من المدير إعادة تعيينها.</p>
           </form>
         )}
-
-        {step === 'forgot' && <ForgotPasswordForm onDone={() => setStep('credentials')} />}
 
         {(step === 'totp_required' || step === 'totp_setup_required') && (
           <form className="login-form" onSubmit={submitTotp}>

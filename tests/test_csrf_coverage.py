@@ -23,11 +23,7 @@ from tests.test_permission_matrix import ADMIN, PORTAL, POST_ENTRY, ROUTE_AUTH, 
 # مسارات ما-قبل-الجلسة — CSRF لا ينطبق (لا جلسة سابقة لحمايتها)
 CSRF_EXEMPT = {
     "POST /auth/login",
-    "POST /auth/recover/start",
-    "POST /auth/recover/complete",
     "POST /portal/login",
-    "POST /portal/recover/start",
-    "POST /portal/recover/complete",
     "POST /portal/invite/verify",
     "POST /portal/invite/accept",
 }

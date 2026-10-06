@@ -24,9 +24,6 @@ from app.schemas.auth import (
     CurrentUserResponse,
     LoginRequest,
     LoginResponse,
-    RecoverCompleteRequest,
-    RecoverStartRequest,
-    RecoverStartResponse,
     RegenerateBackupCodesRequest,
 )
 from app.security import audit, auth_service, backup_codes, csrf, lockout, passwords, sessions
@@ -183,27 +180,6 @@ def change_password(
     auth_service.change_password(
         db, user=current_user, new_password=payload.new_password, now=now, keep_session_id=session_id
     )
-    db.commit()
-
-
-@router.post("/recover/start", response_model=RecoverStartResponse)
-def recover_start(payload: RecoverStartRequest, db: OrmSession = Depends(get_db)) -> RecoverStartResponse:
-    question = auth_service.recover_get_security_question(db, username=payload.username)
-    # لا نكشف عدم وجود المستخدم صراحةً — نفس الرد شكلاً في الحالتين
-    return RecoverStartResponse(security_question=question)
-
-
-@router.post("/recover/complete", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
-def recover_complete(payload: RecoverCompleteRequest, db: OrmSession = Depends(get_db)) -> None:
-    now = system_clock()
-    try:
-        auth_service.recover_reset_password(
-            db, username=payload.username, security_answer=payload.security_answer,
-            new_password=payload.new_password, now=now,
-        )
-    except auth_service.InvalidCredentialsError as exc:
-        db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     db.commit()
 
 

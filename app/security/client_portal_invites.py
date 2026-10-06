@@ -91,7 +91,7 @@ def create_invite(db: Session, *, client_id: int, created_by: int, now: datetime
 def verify_invite(db: Session, *, token: str, now: datetime) -> Optional[Client]:
     """قراءة فقط — لا تغيير حالة. `None` في كل حالات الرفض (غير موجود/
     مُستخدَم/مُبطَل/منتهٍ/بوابة معطّلة) بلا تمييز، نفس مبدأ عدم كشف وجود
-    الكود في `recover/start`."""
+    الكود."""
     row = db.execute(
         select(ClientPortalInvite).where(ClientPortalInvite.token_hash == tokens.hash_token(token))
     ).scalar_one_or_none()

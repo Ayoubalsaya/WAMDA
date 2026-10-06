@@ -77,23 +77,3 @@ def change_password(
         db, actor_type=SessionSubjectType.CLIENT, actor_id=client.id, action="PORTAL_PASSWORD_CHANGED",
         entity="clients", entity_id=client.id,
     )
-
-
-def recover_get_security_question(db: Session, *, code: str) -> Optional[str]:
-    client = db.execute(select(Client).where(Client.code == code)).scalar_one_or_none()
-    if client is None:
-        return None
-    return client.portal_security_question
-
-
-def recover_reset_password(db: Session, *, code: str, security_answer: str, new_password: str, now: datetime) -> None:
-    client = db.execute(select(Client).where(Client.code == code)).scalar_one_or_none()
-    if client is None or not passwords.verify_security_answer(security_answer, client.portal_security_answer_hash):
-        raise InvalidPortalCredentialsError("الكود أو إجابة سؤال التحقق غير صحيحة")
-    client.portal_password_hash = passwords.hash_password(new_password)
-    portal_lockout.reset_failed_attempts(db, client)
-    db.flush()
-    audit.log_write(
-        db, actor_type=SessionSubjectType.CLIENT, actor_id=client.id, action="PORTAL_PASSWORD_RESET_VIA_SECURITY_QUESTION",
-        entity="clients", entity_id=client.id,
-    )

@@ -40,11 +40,7 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /docs/oauth2-redirect": PUBLIC,
     "GET /redoc": PUBLIC,
     "POST /auth/login": PUBLIC,
-    "POST /auth/recover/start": PUBLIC,
-    "POST /auth/recover/complete": PUBLIC,
     "POST /portal/login": PUBLIC,
-    "POST /portal/recover/start": PUBLIC,
-    "POST /portal/recover/complete": PUBLIC,
     "POST /portal/invite/verify": PUBLIC,
     "POST /portal/invite/accept": PUBLIC,
     # موظف موثَّق (مدير أو محاسب)

@@ -46,8 +46,6 @@ def create_user(
             role=payload.role,
             initial_password=payload.initial_password,
             now=now,
-            security_question=payload.security_question,
-            security_answer=payload.security_answer,
         )
     except user_management.UsernameTakenError as exc:
         db.commit()
