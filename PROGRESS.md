@@ -4251,3 +4251,7 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - `pytest-timeout`: ٣٠٠ث لكل اختبار (`pytest.ini`, `timeout_method = thread` لأن signal غير متاح على ويندوز؛ عند التجاوز تُطبع أكداس الخيوط باسم الاختبار وتنتهي العملية). `psutil` أُضيف لـrequirements.
 - فحص `pg_stat_activity` (wamda_db وwamda_test): صفر اتصالات، صفر أقفال معلّقة، صفر prepared xacts.
 - المجموعة الكاملة: ٨٥٨ ناجحاً.
+
+## المستودع البعيد (٢٠٢٦-١٠-٠٦)
+- المستودع البعيد خاص على GitHub: https://github.com/Ayoubalsaya/WAMDA.git (remote `origin`، الفرع `main`).
+- بعد كل التزام مهم يدفع المالك بنفسه؛ لا يدفع Claude أبداً.
