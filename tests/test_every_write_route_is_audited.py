@@ -13,6 +13,7 @@ import inspect
 import textwrap
 
 from app.main import app
+from tests.route_utils import all_routes
 
 WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -31,7 +32,7 @@ NO_BUSINESS_WRITE: set[str] = {
 
 
 def _write_routes():
-    for r in app.routes:
+    for r in all_routes(app):
         methods = getattr(r, "methods", None) or set()
         for m in sorted(methods & WRITE):
             yield f"{m} {r.path}", r.endpoint

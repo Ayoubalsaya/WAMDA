@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import app
+from tests.route_utils import all_routes
 from app.security.passwords import hash_password
 from tests import factories as f
 from tests.test_permission_matrix import ADMIN, PORTAL, POST_ENTRY, ROUTE_AUTH, STAFF, _concrete
@@ -82,7 +83,7 @@ _MUTATING_ROUTES = [
 def test_all_mutating_routes_are_covered():
     """كل مسار كتابة إمّا مُعفى صراحةً أو مُختبَر — لا ثالث."""
     live_mutating = set()
-    for r in app.routes:
+    for r in all_routes(app):
         for m in getattr(r, "methods", None) or []:
             if m in _MUTATING:
                 live_mutating.add(f"{m} {r.path}")

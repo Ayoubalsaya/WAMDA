@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import app
+from tests.route_utils import all_routes
 from app.security.passwords import hash_password
 from tests import factories as f
 
@@ -265,7 +266,7 @@ def _route_required_actions(path: str, method: str) -> set:
     """كل `Action` يفرضها أي `require_role` في سلسلة تبعيات المسار."""
     from app.security.permissions import Action as _A
 
-    for r in app.routes:
+    for r in all_routes(app):
         if getattr(r, "path", None) == path and method in (getattr(r, "methods", None) or []):
             found = set()
             stack = list(getattr(r.dependant, "dependencies", []))
@@ -302,7 +303,7 @@ def test_client_financial_reads_all_require_post_entry():
 def test_every_route_is_classified():
     """أي مسار في التطبيق بلا تصنيف صريح هنا = ثغرة محتملة، يفشل فوراً."""
     live = set()
-    for r in app.routes:
+    for r in all_routes(app):
         methods = getattr(r, "methods", None) or []
         for m in methods:
             if m in ("HEAD", "OPTIONS"):

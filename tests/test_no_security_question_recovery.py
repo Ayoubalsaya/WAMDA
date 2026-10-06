@@ -8,11 +8,12 @@ import pytest
 from sqlalchemy import text
 
 from app.main import app
+from tests.route_utils import all_routes
 from tests.test_edit_prefill_api import client  # noqa: F401
 
 
 def test_no_recover_route_exists():
-    paths = [r.path for r in app.routes if hasattr(r, "path")]
+    paths = [r.path for r in all_routes(app)]
     assert not [p for p in paths if "recover" in p], [p for p in paths if "recover" in p]
 
 
