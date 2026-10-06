@@ -47,6 +47,7 @@ export function PortalLoginScreen({ login }: PortalLoginScreenProps) {
         <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
           دخول
         </button>
+        <p className="text-muted" style={{ textAlign: 'center', fontSize: 'var(--fs-xs)' }}>تواصل مع المدير إن احتجت مساعدة في الدخول.</p>
       </form>
     </div>
   )

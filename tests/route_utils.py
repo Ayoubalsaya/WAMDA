@@ -4,6 +4,9 @@
 from __future__ import annotations
 
 
+MIN_ROUTES = 100
+
+
 def all_routes(app) -> list:
     out: list = []
 
@@ -15,5 +18,5 @@ def all_routes(app) -> list:
                 out.append(r)
 
     walk(app.routes)
-    assert len(out) > 100, f"عدد المسارات المعدودة {len(out)} — المُعدِّد لا يرى مسارات الموجّهات"
+    assert len(out) >= MIN_ROUTES, f"عدد المسارات المعدودة {len(out)} (الحد الأدنى {MIN_ROUTES}) — المُعدِّد لا يرى مسارات الموجّهات"
     return out
