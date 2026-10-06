@@ -55,13 +55,14 @@ def set_company_profile(
     current_user: User = Depends(require_role(Action.MANAGE_USERS)),
 ) -> CompanyProfile:
     row = db.execute(select(Setting).where(Setting.key == _COMPANY_KEY)).scalar_one_or_none()
+    # دمج لا استبدال: الحقل غير المُرسَل يبقى كما هو (الواجهة ترسل الاسم وحده فكان الشعار يُمحى)؛ ومحوه صراحةً بإرسال null
+    merged = CompanyProfile(**{**(row.value if row else {}), **payload.model_dump(exclude_unset=True)})
     if row is None:
-        row = Setting(key=_COMPANY_KEY, value=payload.model_dump())
-        db.add(row)
+        db.add(Setting(key=_COMPANY_KEY, value=merged.model_dump()))
     else:
-        row.value = payload.model_dump()
+        row.value = merged.model_dump()
     db.commit()
-    return payload
+    return merged
 
 
 @router.get("/bank-accounts", response_model=list[AccountOut])
