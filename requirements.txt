@@ -6,6 +6,7 @@ pydantic>=2.9,<3.0
 pydantic-settings>=2.6,<3.0
 psycopg[binary]>=3.2,<3.3
 python-dotenv>=1.0,<2.0
+cryptography>=50.0,<51  # النسخ الاحتياطي: تشفير Fernet (app/cli/backup.py) — كانت تأتي عرَضاً عبر paramiko وحدها فتغيب على سيرفر نظيف
 
 # المرحلة ٣ — اختبارات محرك القيود
 pytest>=8.3,<8.4
