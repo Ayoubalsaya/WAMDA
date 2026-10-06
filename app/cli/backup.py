@@ -22,6 +22,7 @@ pg_dump -Fc → تشفير Fernet → حذف النسخة غير المُشفَ�
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shutil
 import time
@@ -62,6 +63,14 @@ def decrypt_file(*, input_path: Path, output_path: Path) -> Path:
     return output_path
 
 
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def upload_offsite(*, file_path: Path) -> dict:
     """status: "ok" (رُفعت فعلاً) · "not_configured" (لا وجهة مضبوطة —
     معلومة لا خطأ) · "failed" (وجهة مضبوطة لكن تعذَّر الوصول إليها — تحذير
@@ -84,28 +93,25 @@ def upload_offsite(*, file_path: Path) -> dict:
         if not os.access(dest_dir, os.W_OK):
             return {"status": "failed", "detail": f"مجلد الرفع الخارجي غير قابل للكتابة: {dest_dir}"}
         dest = dest_dir / file_path.name
-        shutil.copy2(file_path, dest)
+        try:
+            shutil.copy2(file_path, dest)
+        except OSError as exc:  # قرص ممتلئ/صلاحيات/انقطاع مجلد مركَّب — فشل صريح لا استثناء خام بعد أن أُنشئت النسخة المحلية
+            dest.unlink(missing_ok=True)
+            return {"status": "failed", "detail": f"فشل النسخ إلى المجلد الخارجي: {exc}"}
+        # تحقق من الوصول: الملف موجود بالحجم نفسه وبالمحتوى نفسه (SHA-256). نسخة مبتورة/تالفة في مجلد المزامنة
+        # تُرفَع للسحابة كأنها سليمة — تُحذَف فوراً ويُعلَن الفشل. (وصول الملف للسحابة نفسها لا يُرى من هنا: انظر check_offsite_freshness.)
+        try:
+            arrived = dest.exists() and dest.stat().st_size == file_path.stat().st_size and _sha256(dest) == _sha256(file_path)
+        except OSError as exc:
+            dest.unlink(missing_ok=True)
+            return {"status": "failed", "detail": f"تعذّر التحقق من وصول الملف: {exc}"}
+        if not arrived:
+            dest.unlink(missing_ok=True)
+            return {"status": "failed", "detail": f"الملف لم يصل كاملاً إلى {dest_dir} (حجم/تجزئة مختلفان) — حُذفت النسخة المعطوبة"}
         return {"status": "ok", "detail": f"offsite-dir:{dest}"}
     if settings.backup_sftp_host:
-        import paramiko
-
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        try:
-            ssh.connect(
-                settings.backup_sftp_host, port=settings.backup_sftp_port, username=settings.backup_sftp_user,
-                key_filename=settings.backup_sftp_key_path,
-            )
-            sftp = ssh.open_sftp()
-            remote_dir = (settings.backup_sftp_remote_dir or ".").rstrip("/")
-            remote_path = f"{remote_dir}/{file_path.name}"
-            sftp.put(str(file_path), remote_path)
-            sftp.close()
-        except Exception as exc:  # noqa: BLE001 — أي فشل شبكة/مصادقة SFTP تحذير لا استثناء غير مُعالَج
-            return {"status": "failed", "detail": f"فشل رفع SFTP: {exc}"}
-        finally:
-            ssh.close()
-        return {"status": "ok", "detail": f"sftp:{settings.backup_sftp_host}:{remote_path}"}
+        # SFTP أُلغي (قرار المالك: مجلد المزامنة فقط) — كان مساراً غير مستخدَم باعتماد غير مُعلَن (paramiko) وقبول مفاتيح مضيف تلقائياً
+        return {"status": "failed", "detail": "BACKUP_SFTP_HOST لم يعد مدعوماً — اضبط BACKUP_OFFSITE_DIR (مجلد أداة المزامنة)"}
     return {"status": "not_configured", "detail": None}
 
 
@@ -176,14 +182,17 @@ def cli_run() -> None:
     print(f"نسخة احتياطية مُشفَّرة: {result['local_path']} ({result['size_bytes']} بايت)")
     if result["upload_status"] == "ok":
         print(f"رُفعت إلى: {result['upload_detail']}")
-    elif result["upload_status"] == "failed":
-        print(f"⚠ تحذير — تعذَّر الرفع الخارجي: {result['upload_detail']}")
+        return
+    # exit ≠ 0 حتى يرى المجدول/المشغّل الفشل (كان يخرج ٠ بتحذير مطبوع فقط). النسخة المحلية تبقى سليمة على القرص.
+    if result["upload_status"] == "failed":
+        print(f"✗ فشل الرفع الخارجي: {result['upload_detail']}")
         print("النسخة محلية فقط على هذا السيرفر — راجع الوجهة المضبوطة فوراً.")
-    else:
-        print(
-            "تحذير: لا وجهة رفع خارجية مضبوطة (BACKUP_OFFSITE_DIR/BACKUP_SFTP_*) — "
-            "النسخة محلية فقط على هذا السيرفر."
-        )
+        sys.exit(2)
+    msg = "لا وجهة رفع خارجية مضبوطة (BACKUP_OFFSITE_DIR) — النسخة محلية فقط على هذا السيرفر."
+    if settings.app_env == "production":
+        print(f"✗ {msg}")
+        sys.exit(2)
+    print(f"تحذير: {msg}")
 
 
 BACKUP_FRESHNESS_SETTING_KEY = "last_backup_freshness_check"
