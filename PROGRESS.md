@@ -4392,3 +4392,12 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`ubuntu` مقفل (نُفِّذ بموافقة المالك، `lock_ubuntu.sh`):** shell=`/usr/sbin/nologin` · `usermod -e 1` · أُزيل من `sudo` · حُذف `sudoers.d/90-cloud-init-users` (كان سطر `ubuntu ALL=(ALL) NOPASSWD:ALL` وحده؛ `visudo -c` ناجح قبل وبعد؛ نسخة احتياطية `/root/90-cloud-init-users.bak`). المستخدم نفسه لم يُحذف.
   - ملاحظة: ما زال في مجموعتي `adm` و`lxd` (الأخيرة معادلة لـroot نظرياً)؛ الحساب منتهٍ وبلا مفتاح فالأثر معدوم، ويمكن إزالتهما عند الرغبة.
 - **التالي:** `sshlock` — يتوقف عنده Claude ليفتح المالك جلسة احتياطية بنفسه. لم يُنفَّذ بعد.
+
+### تحديث ٢٠٢٦-١٠-١١ (٣) — `sshlock` منفَّذ ✅
+
+- **نُفِّذ `sshlock --confirmed-second-session`** بعد فتح المالك جلسة احتياطية من PowerShell. الإعداد الفعّال لـroot (`sshd -T -C …`): `passwordauthentication no` · `kbdinteractiveauthentication no` · `permitrootlogin without-password` (= prohibit-password) · `pubkeyauthentication yes`. لم يلزم التراجع.
+- **اختبار المفتاح من جلسة جديدة:** `ssh -o BatchMode=yes … 'echo ok'` ← `ok`.
+- **اختبار رفض كلمة المرور:** `ssh -o BatchMode=yes -o PubkeyAuthentication=no …` ← `Permission denied (publickey).` — القائمة `(publickey)` وحدها، لا `password`.
+- **`ubuntu`:** أُزيل أيضاً من `lxd` و`adm` (مجموعاته الآن `ubuntu,cdrom,dip`)؛ انتهاء الحساب مؤكَّد (`Account expires: Jan 02, 1970`).
+- ⚠ **باقٍ:** `bootcmd` المزوّد يعيد كتابة `PermitRootLogin yes` في `sshd_config` عند كل إقلاع — يُتحقَّق من `sshd -T` (مرحلة `report`) بعد أول reboot.
+- **التالي حسب الترتيب:** `fail2ban`.
