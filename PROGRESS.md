@@ -4494,3 +4494,10 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **المجموعة الكاملة:** نجحت (انظر الرقم في رسالة الالتزام/الرد).
 - **bootstrap_root.sh — مرحلتان جديدتان (لم تُشغَّلا):** `chromium-plan` (يشغّل `playwright install-deps --dry-run chromium` بصفة `wamda`، يعرض الناتج الخام والحزم الجديدة/المثبّتة وبصمة sha256 للقائمة ثم **يتوقف**) و`chromium-install --list-sha256 <بصمة>` (يرفض إن تغيّرت القائمة عن المعتمدة، يثبّت الحزم بـroot ثم يُنزّل Chromium بصفة `wamda` ثم يولّد PDF وPNG فعلياً عبر `app.documents.render` — المسار الإنتاجي نفسه). تتطلبان clone + venv أولاً.
 - **تنبيه تعارض محتمل:** نمط `| grep -q` مع `pipefail` في `harden_root.sh` (مرحلة swap) لم يُصحَّح بعد (لم يؤثر).
+
+### تحديث ٢٠٢٦-١٠-١٢ (٢) — الكود على السيرفر + venv ✅ (توقّف قبل `.env`)
+
+- **`git clone` بصفة `wamda` (لا root) إلى `/srv/wamda/app`** عبر مفتاح deploy: `HEAD` على السيرفر = `5a8819c1178e508451bf9b5fb851b5fef5bc22d7` = `HEAD` المحلي = `origin/main` (مطابقة كاملة). المجلد `wamda:wamda` وصُلِّح إلى 750.
+- **`/srv/wamda/venv` + `pip install -r requirements.txt`:** ٣٧ حزمة مثبَّتة بدقة (+pip)، `pip check`: لا اعتماديات مكسورة، **لا أدوات اختبار** (pytest/httpx/pypdf/psutil غائبة). psycopg بالتنفيذ `binary`.
+- **فحص على لينكس بلا قاعدة ولا `.env`** (DATABASE_URL وهمي): ١١٧ وحدة من `app` تُستورد بلا فشل، `qr_data_uri` يولّد PNG فعلياً (أي أن إضافة Pillow كانت ضرورية)، `ZoneInfo("Africa/Tripoli")` يعمل، `alembic 1.13.3`.
+- **لا `.env` بعد** — الخطوة التالية بقرار المالك: `.env` (0600) ← `alembic upgrade head` ← `seed` ← `create-admin`، ثم `chromium-plan` (يحتاج venv: متوفر الآن).
