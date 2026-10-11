@@ -1,0 +1,51 @@
+# ومضة — خدمة التطبيق (FastAPI/uvicorn). تُنسَخ إلى /etc/systemd/system/ بـbootstrap_root.sh (مرحلة systemd-install).
+# تستمع على 127.0.0.1 فقط (لا منفذ في الجدار الناري؛ الوصول بنفق SSH حتى HTTPS). عامل واحد وبلا --reload عمداً:
+# عدّاد حدّ الدخول في الذاكرة. الإعدادات من /srv/wamda/app/.env (تقرؤه pydantic من مجلد العمل).
+[Unit]
+Description=Wamda (FastAPI / uvicorn)
+After=network-online.target postgresql@18-main.service
+Wants=network-online.target postgresql@18-main.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=wamda
+Group=wamda
+WorkingDirectory=/srv/wamda/app
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/wamda/venv/bin/uvicorn app.main:app --no-server-header --proxy-headers --forwarded-allow-ips=127.0.0.1 --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+SyslogIdentifier=wamda
+
+# ── تقوية ──
+# ملاحظة Chromium (يعمل داخل هذه العملية): بلا MemoryDenyWriteExecute (V8 يحتاج صفحات قابلة للتنفيذ+الكتابة) ولا
+# RestrictNamespaces/SystemCallFilter/PrivateDevices (قد تعطّل Chromium أو /dev/shm). الأمر المحسوم: اختبار توليد
+# PDF/PNG فعلياً بعد التشغيل (مرحلة systemd-enable تفعله).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/wamda/backups /srv/wamda/.cache
+ReadWritePaths=-/srv/wamda/.config
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+UMask=0077
+
+# ── حدود الموارد (تشمل Chromium: عملية ابنة داخل الخدمة). السيرفر 11GB/6 أنوية لومضة وحدها ──
+MemoryHigh=3G
+MemoryMax=4G
+CPUQuota=300%
+TasksMax=2048
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

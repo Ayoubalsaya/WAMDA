@@ -123,7 +123,7 @@ def run(*, dest_dir: Optional[Path] = None) -> dict:
         # تُكتَب على القرص حتى لحظياً
         raise BackupError("BACKUP_ENCRYPTION_KEY غير مضبوط — التشفير إلزامي، لا نسخة غير مُشفَّرة تُكتَب أبداً")
 
-    dest_dir = dest_dir or Path("backups")
+    dest_dir = dest_dir or Path(settings.backup_dir)
     dest_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     plain_path = dest_dir / f"wamda-{stamp}.dump"

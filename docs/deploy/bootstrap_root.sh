@@ -14,6 +14,8 @@
 #   ٨) report          عرض الحالة (قراءة فقط)
 #   ٩) chromium-plan   (بعد clone + venv) playwright install-deps --dry-run chromium: يعرض الحزم وبصمة القائمة ثم يتوقف
 #  ١٠) chromium-install --list-sha256 <بصمة>  تثبيت القائمة المعتمدة + تنزيل Chromium + اختبار PDF/PNG فعلي
+#  ١١) systemd-install  ينسخ وحدات systemd ويتحقق منها — لا يُفعِّل شيئاً
+#  ١٢) systemd-enable   يُفعِّل ويشغّل wamda.service + مؤقّت integrity فقط ويتحقق (backup/restore-test/backup-fresh معطَّلة)
 #
 # لا nginx ولا certbot (النطاق الفرعي لم يُحدَّد). لا مساس بـsshd/ufw/fail2ban.
 #
@@ -55,6 +57,22 @@ DEPLOY_KEY=$WAMDA_HOME/.ssh/id_ed25519_deploy
 REPO_PATH='Ayoubalsaya/WAMDA.git'
 APP_DIR=$WAMDA_HOME/app
 VENV=$WAMDA_HOME/venv
+# اختبار توليد PDF/PNG عبر app.documents.render (المسار الإنتاجي نفسه) — يستخدمه chromium-install وsystemd-enable
+RENDER_SMOKE_PY='
+import sys
+from app.documents import render
+html = ("<html dir=\"rtl\"><head><meta charset=\"utf-8\"><style>@page{size:A4}body{font-family:sans-serif}</style></head>"
+        "<body><h1>ومضة — اختبار توليد المستند</h1><p>١٢٣٤٥ — 12345</p></body></html>")
+render.start()
+try:
+    pdf = render.render_pdf(html)
+    png = render.render_png(html, width=400)
+finally:
+    render.stop()
+assert pdf[:5] == b"%PDF-" and len(pdf) > 1500, ("pdf", len(pdf))
+assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 1500, ("png", len(png))
+print("RENDER_OK pdf=%d png=%d" % (len(pdf), len(png)))
+'
 # بصمة ed25519 المنشورة لـgithub.com (docs.github.com ← GitHub's SSH key fingerprints) — راجعها عند المراجعة
 GITHUB_ED25519_FP='SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
 LOG=/var/log/wamda-bootstrap.log
@@ -497,27 +515,107 @@ phase_chromium_install() {
   as_wamda "$VENV/bin/playwright" install chromium
 
   say "اختبار توليد PDF وPNG عبر app.documents.render"
-  local code
-  code='
-import sys
-from app.documents import render
-html = ("<html dir=\"rtl\"><head><meta charset=\"utf-8\"><style>@page{size:A4}body{font-family:sans-serif}</style></head>"
-        "<body><h1>ومضة — اختبار توليد المستند</h1><p>١٢٣٤٥ — 12345</p></body></html>")
-render.start()
-try:
-    pdf = render.render_pdf(html)
-    png = render.render_png(html, width=400)
-finally:
-    render.stop()
-assert pdf[:5] == b"%PDF-" and len(pdf) > 1500, ("pdf", len(pdf))
-assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 1500, ("png", len(png))
-print("RENDER_OK pdf=%d png=%d" % (len(pdf), len(png)))
-'
   local out
   out="$(runuser -u "$WAMDA_USER" -- env HOME="$WAMDA_HOME" DATABASE_URL=postgresql+psycopg://x:x@127.0.0.1:5432/x \
-      bash -c 'cd "$1" && exec "$2" -c "$3"' _ "$APP_DIR" "$VENV/bin/python" "$code" 2>&1)" \
+      bash -c 'cd "$1" && exec "$2" -c "$3"' _ "$APP_DIR" "$VENV/bin/python" "$RENDER_SMOKE_PY" 2>&1)" \
     || { printf '%s\n' "$out" | tail -25 >&2; die "فشل اختبار التوليد (الناتج أعلاه)"; }
   echo "  ✔ $(printf '%s\n' "$out" | tail -1)"
+}
+
+# ───────────────────────── ١١) systemd-install ─────────────────────────
+# ينسخ وحدات systemd من الكود المسحوب (docs/deploy/systemd/) إلى /etc/systemd/system ويتحقق منها (systemd-analyze verify)
+# ويُظهر مواعيد المؤقّتات بتوقيتها الصريح. **لا يُفعِّل ولا يُشغِّل شيئاً.**
+phase_systemd_install() {
+  need_wamda
+  local src="$APP_DIR/docs/deploy/systemd" f
+  [ -d "$src" ] || die "لا $src — اسحب الكود أولاً (git pull)"
+  [ -f "$APP_DIR/.env" ] || die "لا $APP_DIR/.env"
+
+  # الخدمة تعمل من مجلد الكود: مجلد النسخ يجب أن يُضبَط صراحةً (BACKUP_DIR) وإلا ذهبت النسخ إلى $APP_DIR/backups
+  if ! grep -q '^BACKUP_DIR=' "$APP_DIR/.env"; then
+    say "إضافة BACKUP_DIR=$WAMDA_HOME/backups إلى .env"
+    as_wamda bash -c 'printf "BACKUP_DIR=%s\n" "$2" >> "$1"' _ "$APP_DIR/.env" "$WAMDA_HOME/backups"
+  fi
+
+  say "نسخ الوحدات إلى /etc/systemd/system"
+  for f in "$src"/*.service "$src"/*.timer; do
+    install -o root -g root -m 0644 "$f" "/etc/systemd/system/$(basename "$f")"
+    echo "  + $(basename "$f")"
+  done
+  systemctl daemon-reload
+
+  say "تحقق"
+  chk "systemd-analyze verify لكل الوحدات" systemd-analyze verify /etc/systemd/system/wamda.service \
+      /etc/systemd/system/wamda-backup.service /etc/systemd/system/wamda-integrity.service \
+      /etc/systemd/system/wamda-backup-fresh.service /etc/systemd/system/wamda-restore-test.service \
+      /etc/systemd/system/wamda-backup.timer /etc/systemd/system/wamda-integrity.timer \
+      /etc/systemd/system/wamda-backup-fresh.timer /etc/systemd/system/wamda-restore-test.timer
+  chk "BACKUP_DIR في .env" grep -q "^BACKUP_DIR=$WAMDA_HOME/backups\$" "$APP_DIR/.env"
+  echo "  مواعيد المؤقّتات (توقيت صريح):"
+  for f in 'Fri *-*-* 04:00:00 Africa/Tripoli' '*-*-* 02:00:00 Africa/Tripoli' '*-*-* 02:30:00 Africa/Tripoli' '*-*-* 03:00:00 Africa/Tripoli'; do
+    systemd-analyze calendar "$f" | grep -E 'Normalized form|Next elapse|\(in UTC\)' | sed 's/^/    /' | head -3
+  done
+  echo "  لم يُفعَّل ولم يُشغَّل شيء. التفعيل: مرحلة systemd-enable (الخدمة + مؤقّت integrity فقط)."
+}
+
+# ───────────────────────── ١٢) systemd-enable ─────────────────────────
+# يُفعِّل ويشغّل wamda.service + مؤقّت integrity فقط (backup / backup-fresh / restore-test تبقى معطَّلة حتى يُعدّ النسخ
+# السحابي: بدونه تفشل عمداً كل يوم). يتحقق: تستمع 127.0.0.1:8000 فقط · /health يُرجع رقم الالتزام الحالي · لا /docs ولا /openapi.json ·
+# Chromium يعمل بالقيود نفسها (systemd-run بالخصائص نفسها) · مهمة integrity تعمل وتُسجَّل نجاحاً.
+phase_systemd_enable() {
+  need_wamda
+  [ -f /etc/systemd/system/wamda.service ] || die "نفّذ systemd-install أولاً"
+  local head url=http://127.0.0.1:8000 i body="" out
+  head="$(as_wamda git -C "$APP_DIR" rev-parse --short HEAD)"
+
+  # الواجهة المبنية (app/static/app) مُتجاهَلة في git فلا تصل بـgit pull — تُشحن من جهاز المالك (RUNBOOK §١٢).
+  # والتطبيق يركّب /static/app عند الإقلاع فقط إن كان المجلد موجوداً: شحنها بعد التشغيل يتطلب إعادة التشغيل.
+  if [ ! -f "$APP_DIR/app/static/app/index.html" ]; then
+    echo "  ⚠ الواجهة المبنية غير مشحونة بعد ($APP_DIR/app/static/app) — الخدمة ستعمل كـAPI فقط (/ و/portal = 404)."
+  fi
+
+  say "تفعيل وتشغيل wamda.service"
+  systemctl enable --now wamda.service
+  for i in $(seq 1 40); do
+    body="$(curl -fsS --max-time 2 "$url/health" 2>/dev/null || true)"
+    [ -n "$body" ] && break
+    sleep 1
+  done
+  [ -n "$body" ] || { journalctl -u wamda -n 40 --no-pager >&2; die "الخدمة لم تُجب على /health خلال ٤٠ث"; }
+  echo "  /health: $body"
+
+  say "تحقق"
+  chk "wamda.service active" systemctl is-active --quiet wamda
+  chk "/health يُرجع commit الحالي ($head)" bash -c "curl -fsS $url/health | grep -q '\"commit\":\"$head\"'"
+  chk "تستمع على 127.0.0.1:8000 فقط" bash -c "[ \"\$(ss -H -tln 'sport = :8000' | awk '{print \$4}' | sort -u)\" = '127.0.0.1:8000' ]"
+  chk "/environment = production وكوكي wamda_prod_csrf" bash -c "curl -fsS $url/environment | grep -q production && curl -fsS $url/environment | grep -q wamda_prod_csrf"
+  for p in /docs /redoc /openapi.json; do
+    chk "$p معطَّل (404)" bash -c "[ \"\$(curl -s -o /dev/null -w '%{http_code}' $url$p)\" = 404 ]"
+  done
+  chk "لا Traceback في سجل الخدمة منذ التشغيل" bash -c "! journalctl -u wamda --since '-2min' --no-pager | grep -q Traceback"
+  chk "المنفذ 8000 غير مفتوح في ufw" bash -c "! ufw status | grep -qE '(^|[[:space:]])8000(/|[[:space:]])'"
+
+  say "Chromium بالقيود نفسها (systemd-run بخصائص الخدمة)"
+  out="$(systemd-run --quiet --wait --collect --pipe --uid="$WAMDA_USER" --gid="$WAMDA_USER" \
+      -p WorkingDirectory="$APP_DIR" -p NoNewPrivileges=yes -p PrivateTmp=yes -p ProtectSystem=strict -p ProtectHome=yes \
+      -p ReadWritePaths="$WAMDA_HOME/backups $WAMDA_HOME/.cache" -p MemoryMax=4G -p CPUQuota=300% -p TasksMax=2048 \
+      -p ProtectKernelTunables=yes -p ProtectControlGroups=yes -p LockPersonality=yes -p RestrictSUIDSGID=yes -p UMask=0077 \
+      -E HOME="$WAMDA_HOME" -E DATABASE_URL=postgresql+psycopg://x:x@127.0.0.1:5432/x \
+      "$VENV/bin/python" -c "$RENDER_SMOKE_PY" 2>&1)" \
+    || { printf '%s\n' "$out" | tail -25 >&2; die "التوليد فشل بقيود الخدمة — خفّف التقوية أو راجع الناتج"; }
+  echo "  ✔ $(printf '%s\n' "$out" | tail -1)"
+
+  say "مؤقّت integrity (يُفعَّل مع الخدمة) + تشغيل يدوي واحد للتحقق"
+  systemctl enable --now wamda-integrity.timer
+  systemctl start wamda-integrity.service
+  chk "wamda-integrity.service نجحت" bash -c "[ \"\$(systemctl show -p Result --value wamda-integrity.service)\" = success ]"
+  chk "حالة المهمة سُجّلت OK في الإعدادات" bash -c "PGPASSWORD=\"\$(cat $SECRETS_DIR/db_password)\" psql -X -At -h 127.0.0.1 -U $DB_ROLE -d $DB_NAME -c \"select value->>'ok' from settings where key='job_status:integrity'\" | grep -qx true"
+  systemctl list-timers 'wamda-*' --no-pager | sed 's/^/  /'
+  echo
+  echo "  معطَّلة عمداً (تحتاج النسخ السحابي): wamda-backup · wamda-backup-fresh · wamda-restore-test"
+  for i in wamda-backup.timer wamda-backup-fresh.timer wamda-restore-test.timer; do
+    echo "    $i: $(systemctl is-enabled "$i" 2>&1 | head -1)"
+  done
 }
 
 main() {
@@ -541,7 +639,9 @@ main() {
     report)           phase_report ;;
     chromium-plan)    phase_chromium_plan ;;
     chromium-install) phase_chromium_install "$@" ;;
-    *) die "مرحلة غير معروفة: '$phase' (packages|user|postgres|dbrole|sudoers|deploykey|verify-deploykey|report|chromium-plan|chromium-install)" ;;
+    systemd-install)  phase_systemd_install ;;
+    systemd-enable)   phase_systemd_enable ;;
+    *) die "مرحلة غير معروفة: '$phase' (packages|user|postgres|dbrole|sudoers|deploykey|verify-deploykey|report|chromium-plan|chromium-install|systemd-install|systemd-enable)" ;;
   esac
 }
 

@@ -1,6 +1,8 @@
 // عميل HTTP رقيق — كوكي الجلسة/CSRF عبر credentials:'include'، لا تخزين
 // رمز الجلسة في JS أبداً (HttpOnly من الخادم). §٩.
 
+import { getEnvironment } from './environment'
+
 // خطأ تحقق واحد من الخادم (٤٢٢) بعد ترجمته إلى العربية — انظر app/validation_errors.py.
 // `loc` مسار الحقل داخل الجسم (بلا «body»)، `label` اسمه الافتراضي (تتجاوزه كل شاشة
 // بما يظهر عندها)، `message` نص عربي بلا اسم الحقل.
@@ -41,7 +43,8 @@ function fieldErrorsOf(data: unknown): FieldError[] {
 }
 
 function readCsrfCookie(): string | null {
-  const match = document.cookie.match(/(?:^|; )wamda_csrf=([^;]*)/)
+  const name = getEnvironment().csrfCookieName.replace(/[^A-Za-z0-9_]/g, '')
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`))
   return match ? decodeURIComponent(match[1]) : null
 }
 

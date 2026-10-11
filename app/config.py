@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # (بلا ضبط = بلا رفع خارجي فعلي، يُطبَع تحذير صريح لا فشل صامت).
     backup_encryption_key: Optional[str] = None  # Fernet — مطلوب فعلياً وقت التشغيل لا وقت الإقلاع
     backup_offsite_dir: Optional[str] = None
+    # مجلد النسخ المحلية المُشفَّرة (نسبي لمجلد التشغيل افتراضياً). على السيرفر `/srv/wamda/backups` (0700 wamda) —
+    # يجب ضبطه صراحةً هناك: مجلد عمل الخدمة هو مجلد الكود لا مجلد النسخ.
+    backup_dir: str = "backups"
     backup_sftp_host: Optional[str] = None
     backup_sftp_port: int = 22
     backup_sftp_user: Optional[str] = None

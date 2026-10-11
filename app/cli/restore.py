@@ -117,6 +117,14 @@ def cli_restore(backup_file: str, target_db: Optional[str], confirm_text: Option
     print(f"اكتملت الاستعادة إلى \"{target_db}\" — شغّل recompute-balances --verify للتأكد.")
 
 
+def latest_local_backup() -> Optional[Path]:
+    """أحدث نسخة محلية مُشفَّرة في `BACKUP_DIR` (حسب وقت التعديل)، أو None."""
+    from app.config import settings
+
+    files = sorted(Path(settings.backup_dir).glob("wamda-*.dump.enc"), key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0] if files else None
+
+
 def cli_restore_test(backup_file: str) -> None:
     import signal
 

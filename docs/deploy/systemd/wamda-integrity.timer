@@ -1,0 +1,13 @@
+# ومضة — مؤقّت: daily integrity check. التوقيت صريح (Africa/Tripoli) لا توقيت السيرفر الضمني (Europe/Berlin).
+# يُفعَّل مع الخدمة.
+[Unit]
+Description=Wamda timer: daily integrity check
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Africa/Tripoli
+Persistent=true
+AccuracySec=1min
+Unit=wamda-integrity.service
+
+[Install]
+WantedBy=timers.target

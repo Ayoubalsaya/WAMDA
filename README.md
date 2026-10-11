@@ -60,7 +60,8 @@ uvicorn app.main:app          # بلا --reload عمداً — انظر أدنا
 **بلا `--reload` إطلاقاً** (قرار المرحلة ٧، ساري): مُراقِب `--reload` يعيد
 تشغيل العملية بمفسّر Python مختلف عن المقصود فتنكسر البيئة بصمت. أعِد
 التشغيل يدوياً بعد أي تعديل خلفي، وتحقّق دائماً بـ
-`curl http://127.0.0.1:<port>/openapi.json` قبل أي اختبار حيّ.
+`curl http://127.0.0.1:<port>/openapi.json` قبل أي اختبار حيّ (محلياً؛ في الإنتاج `/openapi.json` معطَّل —
+استخدم `curl .../health`: يُرجع `commit` للكود المُحمَّل فعلاً في العملية).
 
 ## النسخ الاحتياطي والجدولة (§٩)
 
@@ -125,8 +126,9 @@ DENY` (+ `frame-ancestors 'none'`)، `X-Content-Type-Options`،
 ### إعداد النشر الإلزامي
 
 - **`APP_ENV=production`** في `.env` على الخادم: يُفعّل `Strict-Transport-Security`
-  (HSTS، سنة + النطاقات الفرعية) ويُعطّل `/docs` و`/redoc` (تبقى
-  `/openapi.json` للتحقق الآلي).
+  (HSTS، سنة + النطاقات الفرعية) ويُعطّل `/docs` و`/redoc` و`/openapi.json`
+  (التحقق من الكود المُشغَّل عبر `/health` → `commit`). وأسماء الكوكيز بلاحقة
+  `wamda_prod_` فلا تتصادم مع التطوير.
 - **`TRUST_PROXY_HEADERS=true`** في `.env`: يجعل تحديد المعدل يقرأ عنوان
   العميل من `X-Real-IP`/`X-Forwarded-For` (انظر قسم تحديد المعدل أدناه).
 - **uvicorn بـ`--no-server-header`**: يمنع كشف نسخة uvicorn في `Server`.

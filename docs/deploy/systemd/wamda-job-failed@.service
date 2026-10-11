@@ -1,0 +1,17 @@
+# يُشغَّل بـOnFailure= من وحدات المهام المجدولة: يسجّل الفشل في الإعدادات ليظهر تنبيهاً critical في لوحة التحكم
+# (إلى أن يُعدّ البريد). %i = اسم المهمة (backup · integrity · backup-fresh · restore-test).
+[Unit]
+Description=Record failure of scheduled job wamda-%i in the dashboard
+
+[Service]
+Type=oneshot
+User=wamda
+Group=wamda
+WorkingDirectory=/srv/wamda/app
+ExecStart=/srv/wamda/venv/bin/python -m app.cli job-status %i --failed
+SyslogIdentifier=wamda-job-failed
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077

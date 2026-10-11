@@ -5,7 +5,12 @@ from __future__ import annotations
 
 from app.security.tokens import constant_time_equal, generate_raw_token
 
-CSRF_COOKIE_NAME = "wamda_csrf"
+from app.config import settings
+
+# أسماء الكوكيز تتبع البيئة (٢٠٢٦-١٠-١٢): الكوكيز لا تفصل المنافذ، فنفق الإنتاج (127.0.0.1:18000) وخادم التطوير
+# (127.0.0.1:8000) يتشاركان خزنة الكوكيز — اسم مختلف في الإنتاج يمنع كتابة جلسة بيئة فوق جلسة الأخرى.
+COOKIE_PREFIX = "wamda_prod" if settings.app_env == "production" else "wamda"
+CSRF_COOKIE_NAME = f"{COOKIE_PREFIX}_csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 
 

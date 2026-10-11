@@ -80,9 +80,18 @@ def _cmd_restore(backup_file: str, target_db: str | None) -> None:
     cli_restore(backup_file, target_db, confirm_text=None)
 
 
-def _cmd_restore_test(backup_file: str) -> None:
-    from app.cli.restore import cli_restore_test
+def _cmd_restore_test(backup_file: str | None, *, latest: bool = False) -> None:
+    from app.cli.restore import cli_restore_test, latest_local_backup
 
+    if bool(backup_file) == bool(latest):
+        print("حدّد ملفاً واحداً أو --latest (لا الاثنين ولا لا شيء)")
+        sys.exit(2)
+    if latest:
+        found = latest_local_backup()
+        if found is None:
+            print("لا نسخة محلية لاختبارها في BACKUP_DIR")
+            sys.exit(1)
+        backup_file = str(found)
     cli_restore_test(backup_file)
 
 
@@ -124,11 +133,24 @@ def main() -> None:
     restore_test_parser = sub.add_parser(
         "restore-test", help="استعادة إلى قاعدة مؤقتة تُحذَف تلقائياً + recompute-balances --verify — آمن للتشغيل الدوري"
     )
-    restore_test_parser.add_argument("backup_file", help="مسار ملف .dump.enc")
+    restore_test_parser.add_argument("backup_file", nargs="?", help="مسار ملف .dump.enc (أو --latest)")
+    restore_test_parser.add_argument(
+        "--latest", action="store_true", help="أحدث نسخة محلية في BACKUP_DIR (للمؤقّت الأسبوعي — بلا صدفة shell)"
+    )
     sub.add_parser(
         "daily-integrity-check",
         help="recompute-balances --verify + حفظ النتيجة (Setting) لعرضها كتنبيه فوري في لوحة التحكم عند أي اختلاف",
     )
+    job_status_parser = sub.add_parser(
+        "job-status",
+        help="يسجّل نجاح/فشل مهمة مجدولة في الإعدادات لتظهر في لوحة التحكم (يستدعيه systemd: OnFailure/ExecStartPost)",
+    )
+    from app.cli.job_status import JOB_LABELS_AR as _JOBS
+
+    job_status_parser.add_argument("job", choices=sorted(_JOBS))
+    job_status_group = job_status_parser.add_mutually_exclusive_group(required=True)
+    job_status_group.add_argument("--failed", action="store_true")
+    job_status_group.add_argument("--ok", action="store_true")
     sub.add_parser(
         "check-backup-freshness",
         help="يتحقق أن آخر نسخة احتياطية وصلت مجلد الرفع الخارجي فعلياً خلال ٤٨ ساعة — تنبيه فوري إن لم تصل",
@@ -153,9 +175,13 @@ def main() -> None:
     elif args.command == "restore":
         _cmd_restore(args.backup_file, args.target_db)
     elif args.command == "restore-test":
-        _cmd_restore_test(args.backup_file)
+        _cmd_restore_test(args.backup_file, latest=args.latest)
     elif args.command == "daily-integrity-check":
         _cmd_daily_integrity_check()
+    elif args.command == "job-status":
+        from app.cli.job_status import run as _job_status_run
+
+        _job_status_run(args.job, ok=bool(args.ok))
     elif args.command == "check-backup-freshness":
         _cmd_check_backup_freshness()
     else:  # pragma: no cover

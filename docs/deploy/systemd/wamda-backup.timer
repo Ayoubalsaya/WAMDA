@@ -1,0 +1,13 @@
+# ومضة — مؤقّت: daily backup. التوقيت صريح (Africa/Tripoli) لا توقيت السيرفر الضمني (Europe/Berlin).
+# ⚠ لا يُفعَّل قبل إعداد النسخ السحابي (B2/rclone): بدونه يفشل عمداً كل يوم (exit≠0 في الإنتاج).
+[Unit]
+Description=Wamda timer: daily backup
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 Africa/Tripoli
+Persistent=true
+AccuracySec=1min
+Unit=wamda-backup.service
+
+[Install]
+WantedBy=timers.target

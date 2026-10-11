@@ -43,6 +43,8 @@
 في بداية أي جلسة اختبار حيّ**، قبل أول طلب:
 1. `curl http://127.0.0.1:<port>/openapi.json` وتحقَّق أن آخر مسار
    أضفتَه في هذه الجلسة (أو مسار عدَّلته) موجود فعلاً في الرد.
+   **(محلياً فقط — `/openapi.json` معطَّل في الإنتاج منذ ٢٠٢٦-١٠-١٢؛ هناك: `curl .../health` يُرجع `commit`
+   = رقم الالتزام المختصر للكود المُحمَّل في العملية، يُقارَن بـ`git rev-parse --short HEAD`.)**
 2. أو قارن وقت بدء عملية `uvicorn` (`Get-Process -Id <pid> | Select
    StartTime` على ويندوز) بوقت آخر تعديل حقيقي على كود الخادم.
 3. أي عدم تطابق → أنهِ شجرة العملية القديمة كاملة (قد تحمل عمليات ابنة/
@@ -4529,3 +4531,15 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **اختبار التوليد عبر `app.documents.render` (المسار الإنتاجي نفسه، بصفة `wamda`):** `RENDER_OK pdf=42665 png=6589` — PDF يبدأ بـ`%PDF-` وPNG ببصمته الصحيحة. أي أن **«بند الخطر» في الخطة (§٢-٢: Chromium داخل الخدمة) تحقّق**، دون مشكلة sandbox (Playwright يطلق Chromium بلا sandbox افتراضياً).
 - **ما لم يُختبَر بعد:** Chromium داخل وحدة systemd بحدودها (`ProtectSystem`/`MemoryMax`/`MemoryDenyWriteExecute` — قد يتعارض، انظر DEPLOY_PLAN §٣) — يُجرَّب عند كتابة `wamda.service`.
 - **التالي:** `create-admin` (المالك) ← `wamda.service` + مؤقّتات ← nginx/TLS بعد تحديد النطاق.
+
+### تحديث ٢٠٢٦-١٠-١٢ (٦) — علامة البيئة + `/health` commit + حالة المهام المجدولة + وحدات systemd (مكتوبة، لم تُشغَّل)
+
+- **علامة البيئة (قرار المالك: البنود الأربعة):** (١) `GET /environment` عام يُرجع `{environment, csrf_cookie_name}`؛ (٢) الإنتاج: شريط أحمر علوي + شارة «الإنتاج — بيانات حقيقية» + عنوان `[إنتاج]`؛ (٣) التطوير: كهرماني «تطوير — بيانات تجريبية» + `[تطوير]` — `position: fixed` و`pointer-events: none` فلا إزاحة ولا اعتراض نقر، وبوابة العميل لا تعرضها في الإنتاج؛ (٤) **أسماء الكوكيز بلاحقة `wamda_prod_` في الإنتاج** (الكوكيز لا تفصل المنافذ: `127.0.0.1:8000` و`:18000` يتشاركان خزنة الكوكيز). الواجهة تقرأ اسم كوكي CSRF من `/environment` قبل الرسم. **الواجهة المبنية أُعيد بناؤها.**
+- **`/openapi.json` معطَّل في الإنتاج** (`openapi_url=None`) و`/health` يُرجع `{"status":"ok","commit":"<قصير>"}` — الالتزام يُقرأ مرة عند إقلاع العملية (فيعرض الكود المُحمَّل فعلاً لا المسحوب)؛ حُدِّثت قاعدة التحقق في PROGRESS/README/DEPLOY_PLAN.
+- **قرار `TRUST_PROXY_HEADERS=true` يبقى.**
+- **حالة المهام المجدولة في لوحة التحكم:** `python -m app.cli job-status <job> --failed|--ok` (يستدعيه systemd `OnFailure=`/`ExecStartPost=`) يحفظ `Setting job_status:<job>`؛ تنبيه `critical` `job_failed_<job>` يظهر في لوحة التحكم ويزول بأول نجاح لاحق — القناة الوحيدة إلى أن يُعدّ البريد.
+- **`BACKUP_DIR` (إعداد جديد):** كانت النسخ تُكتب في `backups/` **نسبةً لمجلد التشغيل** (فعلياً `/srv/wamda/app/backups` تحت systemd لا `/srv/wamda/backups`)؛ صار `BACKUP_DIR` ويُضاف لـ`.env` في مرحلة `systemd-install`. و`restore-test --latest` يحلّ أحدث نسخة محلية بلا shell في الوحدة.
+- **اكتشاف:** `app/static/app/` **مُتجاهَل في git** — `git pull` لا يجلب الواجهة؛ تُشحن يدوياً (RUNBOOK §١٢) وإعادة تشغيل الخدمة لازمة بعدها (التركيب عند الإقلاع فقط). الخادم الآن بلا واجهة مبنية.
+- **وحدات systemd (`docs/deploy/systemd/`):** `wamda.service` (127.0.0.1:8000، عامل واحد، تقوية، `MemoryMax=4G`/`CPUQuota=300%`) · `wamda-job-failed@.service` · مهام `backup`/`integrity`/`backup-fresh`/`restore-test` ومؤقّتاتها بـ`OnCalendar=… Africa/Tripoli` صريح (backup 02:00 · integrity 02:30 · backup-fresh 03:00 · restore-test الجمعة 04:00). **`systemd-enable` يُفعِّل الخدمة + مؤقّت integrity فقط**؛ backup وrestore-test وbackup-fresh تبقى معطَّلة حتى يُعدّ النسخ السحابي (B2).
+- **مرحلتان جديدتان في `bootstrap_root.sh` (لم تُشغَّلا):** `systemd-install` (نسخ + `systemd-analyze verify` + مواعيد المؤقّتات، بلا تفعيل) و`systemd-enable` (تفعيل + تحقق: يستمع 127.0.0.1:8000 فقط · `/health` commit الحالي · `/docs`,`/redoc`,`/openapi.json` = 404 · لا منفذ 8000 في ufw · **Chromium بخصائص الخدمة نفسها عبر `systemd-run`** · تشغيل integrity مرة وتسجيل OK).
+- **الاختبارات:** المجموعة الكاملة `950 passed` (٦٨٣ث) — منها ٢١ جديداً (علامة البيئة، job-status، `--latest`، `BACKUP_DIR`، علامة الواجهة في متصفح حقيقي).

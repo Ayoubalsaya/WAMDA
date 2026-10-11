@@ -1,0 +1,13 @@
+# ومضة — مؤقّت: backup freshness check. التوقيت صريح (Africa/Tripoli) لا توقيت السيرفر الضمني (Europe/Berlin).
+# ⚠ لا يُفعَّل قبل إعداد النسخ السحابي: بدون BACKUP_OFFSITE_DIR يُبلغ stale/فشل يومياً. (بعد backup + مهلة المزامنة)
+[Unit]
+Description=Wamda timer: backup freshness check
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 Africa/Tripoli
+Persistent=true
+AccuracySec=1min
+Unit=wamda-backup-fresh.service
+
+[Install]
+WantedBy=timers.target

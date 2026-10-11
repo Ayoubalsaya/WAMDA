@@ -10,6 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from app import build_info
 from app.config import settings as app_settings
 from app.validation_errors import validation_exception_handler
 from app.documents import render as doc_render
@@ -73,10 +74,11 @@ app = FastAPI(
     title="ومضة",
     lifespan=_lifespan,
     # §٩: واجهات التوثيق التفاعلية تُعطَّل في الإنتاج (تحمّل أصول من CDN
-    # خارجي وتكشف سطح الـAPI كاملاً) — `/openapi.json` يبقى للتحقق الآلي
-    # (`curl /openapi.json` قبل أي اختبار حيّ، قرار المرحلة ٧).
+    # خارجي وتكشف سطح الـAPI كاملاً). **`/openapi.json` يُعطَّل أيضاً في الإنتاج** (٢٠٢٦-١٠-١٢، قرار مالك): هو السطح الكامل
+    # نفسه. التحقق من أن الخادم يشغّل أحدث كود صار عبر `/health` (رقم الالتزام المختصر). محلياً يبقى كما كان.
     docs_url=None if _IS_PRODUCTION else "/docs",
     redoc_url=None if _IS_PRODUCTION else "/redoc",
+    openapi_url=None if _IS_PRODUCTION else "/openapi.json",
 )
 
 # ٢٠٢٦-١٠-٠٢: كل ٤٢٢ تحقق يُترجَم إلى العربية باسم الحقل — لا قائمة Pydantic خام
@@ -162,4 +164,16 @@ async def security_headers(request: Request, call_next):
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    """`commit`: رقم الالتزام المختصر للكود المُحمَّل في هذه العملية فقط (انظر app/build_info.py) — للتحقق من أن الخادم
+    يشغّل أحدث كود بعد النشر. لا إصدارات مكتبات ولا مسارات ولا أي معلومة أخرى."""
+    return {"status": "ok", "commit": build_info.COMMIT}
+
+
+@app.get("/environment")
+def environment() -> dict:
+    """بيئة التشغيل واسم كوكي CSRF لها — عام بلا مصادقة عمداً: الواجهة تعرض علامة «إنتاج/تطوير» حتى على شاشة الدخول،
+    وتحتاج اسم كوكي CSRF (يختلف في الإنتاج) قبل أول طلب كتابة. لا سرّ فيه."""
+    return {
+        "environment": "production" if _IS_PRODUCTION else "local",
+        "csrf_cookie_name": csrf.CSRF_COOKIE_NAME,
+    }

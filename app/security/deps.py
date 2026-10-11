@@ -16,8 +16,8 @@ from app.security import csrf, sessions
 from app.security.permissions import CLIENT_ROLE, Action, PermissionDeniedError, require_permission
 from app.security.rate_limit import RateLimitedError, RateLimiter
 
-SESSION_COOKIE_NAME = "wamda_session"
-PORTAL_SESSION_COOKIE_NAME = "wamda_portal_session"
+SESSION_COOKIE_NAME = f"{csrf.COOKIE_PREFIX}_session"
+PORTAL_SESSION_COOKIE_NAME = f"{csrf.COOKIE_PREFIX}_portal_session"
 
 # §٩ المرحلة ١٢ — عدّادات تحديد المعدل، واحد لكل سطح دخول (حالة على مستوى
 # الوحدة عمداً — تُصفَّر بين الاختبارات عبر تجهيزة conftest).
@@ -100,7 +100,7 @@ def _touch_unless_background(request: Request, db: OrmSession, session_row, now)
 def get_current_user(
     request: Request,
     db: OrmSession = Depends(get_db),
-    wamda_session: Optional[str] = Cookie(default=None),
+    wamda_session: Optional[str] = Cookie(default=None, alias=SESSION_COOKIE_NAME),
 ) -> User:
     if not wamda_session:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "لا جلسة")
@@ -127,7 +127,7 @@ def require_password_changed(current_user: User = Depends(get_current_user)) -> 
 def get_current_client(
     request: Request,
     db: OrmSession = Depends(get_db),
-    wamda_portal_session: Optional[str] = Cookie(default=None),
+    wamda_portal_session: Optional[str] = Cookie(default=None, alias=PORTAL_SESSION_COOKIE_NAME),
 ) -> Client:
     """مطابق لـ`get_current_user` لكن لجلسات `SessionSubjectType.CLIENT`
     حصراً — كوكي منفصل تماماً (`wamda_portal_session`) عن جلسة الموظف، فلا
@@ -164,7 +164,7 @@ def require_portal_access(current_client: Client = Depends(get_current_client)) 
 
 
 def verify_csrf(
-    wamda_csrf: Optional[str] = Cookie(default=None),
+    wamda_csrf: Optional[str] = Cookie(default=None, alias=csrf.CSRF_COOKIE_NAME),
     x_csrf_token: Optional[str] = Header(default=None),
 ) -> None:
     """§٩: CSRF على كل طلب كتابة — يُستخدم كتبعية على كل مسار POST/PUT/PATCH/DELETE

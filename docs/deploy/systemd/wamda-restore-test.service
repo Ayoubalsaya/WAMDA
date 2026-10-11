@@ -1,0 +1,29 @@
+# ومضة — مهمة مجدولة: weekly restore test of the newest local backup. تُشغَّل بـwamda-restore-test.timer. الفشل ← OnFailure ← تنبيه في لوحة التحكم؛ النجاح يمسح التنبيه.
+[Unit]
+Description=Wamda scheduled job: weekly restore test of the newest local backup
+After=postgresql@18-main.service
+Wants=postgresql@18-main.service
+OnFailure=wamda-job-failed@restore-test.service
+
+[Service]
+Type=oneshot
+User=wamda
+Group=wamda
+WorkingDirectory=/srv/wamda/app
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/srv/wamda/venv/bin/python -m app.cli restore-test --latest
+ExecStartPost=/srv/wamda/venv/bin/python -m app.cli job-status restore-test --ok
+TimeoutStartSec=3600
+SyslogIdentifier=wamda-restore-test
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/wamda/backups
+
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+LockPersonality=yes
+RestrictSUIDSGID=yes
+UMask=0077
+Nice=10

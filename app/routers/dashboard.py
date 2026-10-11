@@ -238,6 +238,21 @@ def _compute_alerts(db: OrmSession, *, leaves: list[Account], balances: dict[int
             message_ar=f"النسخة الاحتياطية: {freshness.value.get('reason', 'لم تصل الوجهة الخارجية خلال المهلة')} — يستحق فحصاً فورياً",
         ))
 
+    # ٠-ج) فشل مهمة مجدولة (systemd `OnFailure=` → `job-status <job> --failed`) — يزول بأول نجاح لاحق للمهمة نفسها.
+    # قناة التنبيه الوحيدة قبل إعداد البريد (قرار مالك ٢٠٢٦-١٠-١٢).
+    from app.cli.job_status import JOB_LABELS_AR, setting_key
+
+    for job, label in JOB_LABELS_AR.items():
+        st = db.execute(select(Setting).where(Setting.key == setting_key(job))).scalar_one_or_none()
+        if st is not None and not st.value.get("ok", True):
+            alerts.append(AlertRow(
+                severity="critical", code=f"job_failed_{job}",
+                message_ar=(
+                    f"فشلت المهمة المجدولة «{label}» ({str(st.value.get('failed_at', ''))[:16]}) — "
+                    f"السجل: journalctl -u wamda-{job} — يزول التنبيه بأول نجاح لاحق"
+                ),
+            ))
+
     # ١) أرصدة سالبة — أصول الشركة/الشركاء غير حسابات المقاصة (§٥ قاعدة ٨:
     # قد تُصبح سالبة فعلياً بتجاوز مُصرَّح مُسجَّل، ليست علّة بالضرورة لكن
     # تستحق تنبيهاً دائماً).

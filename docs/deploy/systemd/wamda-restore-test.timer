@@ -1,0 +1,13 @@
+# ومضة — مؤقّت: weekly restore test. التوقيت صريح (Africa/Tripoli) لا توقيت السيرفر الضمني (Europe/Berlin).
+# ⚠ لا يُفعَّل قبل إعداد النسخ السحابي: شرط البوابة — استعادة حقيقية من وجهة خارجية قبل أي رصيد حقيقي.
+[Unit]
+Description=Wamda timer: weekly restore test
+
+[Timer]
+OnCalendar=Fri *-*-* 04:00:00 Africa/Tripoli
+Persistent=true
+AccuracySec=1min
+Unit=wamda-restore-test.service
+
+[Install]
+WantedBy=timers.target

@@ -36,6 +36,7 @@ ROUTE_AUTH: dict[str, str] = {
     "GET /": PUBLIC,
     "GET /portal": PUBLIC,
     "GET /health": PUBLIC,
+    "GET /environment": PUBLIC,
     "GET /openapi.json": PUBLIC,
     "GET /docs": PUBLIC,
     "GET /docs/oauth2-redirect": PUBLIC,
