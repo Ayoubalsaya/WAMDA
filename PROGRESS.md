@@ -4401,3 +4401,10 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`ubuntu`:** أُزيل أيضاً من `lxd` و`adm` (مجموعاته الآن `ubuntu,cdrom,dip`)؛ انتهاء الحساب مؤكَّد (`Account expires: Jan 02, 1970`).
 - ⚠ **باقٍ:** `bootcmd` المزوّد يعيد كتابة `PermitRootLogin yes` في `sshd_config` عند كل إقلاع — يُتحقَّق من `sshd -T` (مرحلة `report`) بعد أول reboot.
 - **التالي حسب الترتيب:** `fail2ban`.
+
+### تحديث ٢٠٢٦-١٠-١١ (٤) — `fail2ban` و`upgrade` منفَّذان؛ بانتظار موافقة reboot
+
+- **`fail2ban` ✅:** حمّام `sshd` يعمل (`backend=systemd`، `maxretry=5`، `findtime=10m`، `bantime=1h`، `ADMIN_IP` فارغ). **التحقق الفعلي:** بعد دقيقتين التقط الحمّام محاولة فاشلة حقيقية (`Found 14.225.23.94`) و`Currently failed: 1` — أي أن الكشف يعمل لا الإعداد وحده. لا حظر بعد (لم يبلغ العتبة).
+- **`upgrade` ✅ (بلا reboot):** `apt update && full-upgrade` بلا أخطاء (`E:` = ٠). النواة العاملة `6.8.0-139`، والمثبَّتة الجديدة `6.8.0-146` (initrd مولَّد، `/boot` ١٥٪). `reboot-required` موجود (`linux-image-6.8.0-146-generic`، `linux-base`). خدمات مؤجَّلة إعادة تشغيلها: `systemd-logind`، `unattended-upgrades`، `dbus` — تُحسم بالـreboot.
+- `systemctl is-system-running` = `degraded` (بسبب `cloud-init` و`networkd-wait-online` الفاشلتين المعروفتين، لا جديد).
+- **التالي:** reboot (بموافقة المالك) ← اختبار المفتاح ← `report` + اختبار رفض كلمة المرور (للتأكد أن `bootcmd` لم يُبطل `sshlock`) ← `firewall` ← `autoupdate` ← `swap` ← `report`.
