@@ -4382,3 +4382,13 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 ### ملاحظة تعرّض (قرار للمالك)
 
 مع ~١٤٥٠ محاولة/يوم على كلمة مرور root، يطول زمن التعرّض بين الآن وإغلاق `sshlock` (آخر مرحلة). المفتاح مُختبَر الآن، وإعادة التشغيل لا تمسّ `authorized_keys`، فيمكن تقديم `sshlock` قبل `upgrade` عند رغبة المالك — الخطة الحالية تُبقيه أخيراً كما اعتُمد؛ التغيير يحتاج قرارك.
+
+### تحديث ٢٠٢٦-١٠-١١ (٢) — مراجعة المالك لـ`harden_root.sh` + قفل `ubuntu` + قراءة `bootcmd`
+
+- **موافقة المالك على `harden_root.sh`** بتعديلين نُفِّذا: `tee --output-error=warn-nopipe` مع `trap '' HUP` قبل أي تشغيل (يُورَّث للعمليات الفرعية)، و**ترتيب جديد** بسبب التخمين القائم: `sshlock` ← `fail2ban` ← `upgrade` (ثم reboot بموافقة) ← `firewall` ← `autoupdate` ← `swap` ← `report`. حُدِّثت ترويسة السكربت و`DEPLOY_PLAN.md` §٠/§٧/§٨ (التزام `1d2821d`).
+- **`bootcmd` (مقروء مع إخفاء الأسرار):** ثلاثة أسطر من المزوّد تُنفَّذ **كل إقلاع**: `sed` يفرض `PermitRootLogin yes` في `/etc/ssh/sshd_config`، و`grep … || echo PermitRootLogin yes >>`، ثم `pkill -HUP sshd`. وإعداد `99-ssh.cfg`: `disable_root: 0` · `ssh_pwauth: 1`.
+  - **الأثر على الخطة:** لا يكسر الشبكة (سبب فشل cloud-init هو هذا السكربت لا الشبكة) — لكنه **يعيد كتابة `sshd_config` الرئيسي كل إقلاع**. ملف `00-wamda-hardening.conf` في `sshd_config.d` يُقرأ عبر `Include` في أعلى الملف فتبقى قيمته الأولى هي النافذة، لكن **يجب التحقق بعد أول reboot** من `sshd -T` (مرحلة `report`) أن `passwordauthentication no` و`permitrootlogin without-password/prohibit-password` ما زالا فعّالين.
+  - خيار مؤجَّل (لم يُنفَّذ): تعطيل cloud-init كلياً (`/etc/cloud/cloud-init.disabled`) — لا يُفعَل قبل اختبار أن الشبكة تقوم من netplan وحده.
+- **`ubuntu` مقفل (نُفِّذ بموافقة المالك، `lock_ubuntu.sh`):** shell=`/usr/sbin/nologin` · `usermod -e 1` · أُزيل من `sudo` · حُذف `sudoers.d/90-cloud-init-users` (كان سطر `ubuntu ALL=(ALL) NOPASSWD:ALL` وحده؛ `visudo -c` ناجح قبل وبعد؛ نسخة احتياطية `/root/90-cloud-init-users.bak`). المستخدم نفسه لم يُحذف.
+  - ملاحظة: ما زال في مجموعتي `adm` و`lxd` (الأخيرة معادلة لـroot نظرياً)؛ الحساب منتهٍ وبلا مفتاح فالأثر معدوم، ويمكن إزالتهما عند الرغبة.
+- **التالي:** `sshlock` — يتوقف عنده Claude ليفتح المالك جلسة احتياطية بنفسه. لم يُنفَّذ بعد.
