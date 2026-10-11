@@ -3,10 +3,12 @@
 # ⚠ لا يُشغَّل قبل مراجعة مستقلة. كل مرحلة أمر منفصل، تنتهي بتحقق يوقف السكربت عند أول فشل.
 #
 #   ١) packages        python3-venv · git · مكتبات نظام Chromium/Playwright (best-effort)
-#   ٢) user            مستخدم wamda (بلا sudo، كلمة مروره مقفلة، بلا مفتاح SSH) و/srv/wamda بصلاحيات 750
+#   ٢) user            مستخدم wamda (بلا sudo، كلمة مروره مقفلة، دخول SSH بمفتاح المالك نفسه) و/srv/wamda بصلاحيات 750
 #   ٣) postgres        PostgreSQL 18 من مستودع PGDG الرسمي · يستمع على localhost فقط
-#   ٤) dbrole          الدور wamda_app (بلا أي صلاحية إدارية) + القاعدة wamda_db + كلمة مرور مولَّدة لا تُطبع
-#   ٥) sudoers         wamda يتحكم بخدمته فقط: systemctl start|stop|restart|status wamda
+#   ٤) dbrole          الدوران wamda_app (بلا أي صلاحية إدارية) وwamda_restore (CREATEDB فقط، لـrestore-test وحده)
+#                      + القاعدة wamda_db (ICU عربي، منطقة UTC) + كلمتا مرور مولَّدتان لا تُطبعان
+#   ٥) sudoers         wamda يتحكم بخدمته فقط: systemctl start|stop|restart wamda و systemctl --no-pager status wamda
+#                      + عضوية systemd-journal لقراءة السجلات (لا sudo لـjournalctl)
 #   ٦) deploykey       مفتاح deploy لـwamda — يطبع العام فقط + خطوات إضافته في GitHub (قراءة فقط)
 #   ٧) verify-deploykey بعد إضافة المفتاح في GitHub: اتصال + ls-remote + التأكد أنه للقراءة فقط
 #   ٨) report          عرض الحالة (قراءة فقط)
@@ -16,7 +18,7 @@
 # التشغيل من جهازك (السكربت يصل عبر stdin، لا نسخ ملف للسيرفر):
 #   ssh root@HOST 'bash -s -- packages'         < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- user'             < docs/deploy/bootstrap_root.sh
-#   ssh root@HOST 'bash -s -- postgres'         < docs/deploy/bootstrap_root.sh   # PG_LOCALE=… اختياري
+#   ssh root@HOST 'bash -s -- postgres'         < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- dbrole'           < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- sudoers'          < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- deploykey'        < docs/deploy/bootstrap_root.sh
@@ -24,10 +26,13 @@
 #   ssh root@HOST 'bash -s -- report'           < docs/deploy/bootstrap_root.sh
 #
 # الضمانات:
-#   · كلمة مرور wamda_app تُولَّد على السيرفر (openssl)، تُحفظ في /srv/wamda/secrets/db_password (0600 wamda)،
-#     ولا تُطبع ولا تدخل السجل ولا الـargv. لا تُعاد توليدها إن وُجد الدور (يتطلب قراراً صريحاً).
+#   · كلمتا مرور wamda_app وwamda_restore تُولَّدان على السيرفر (openssl)، وتُحفظان في /srv/wamda/secrets/
+#     (db_password · restore_password، 0600 wamda)، ولا تُطبعان ولا تدخلان السجل ولا الـargv ولا سجل PostgreSQL
+#     (SET log_min_error_statement = panic في الجلسة نفسها قبل CREATE ROLE). لا تُعاد توليدهما إن وُجد الدور.
 #   · المفتاح الخاص للـdeploy لا يُطبع أبداً؛ يُطبع العام فقط. بصمة github.com تُثبَّت من بصمتها المنشورة.
 #   · الدور wamda_app لا يستطيع إنشاء أدوار/قواعد ولا الاتصال بـpostgres/template1 (يُختبَر فعلاً).
+#   · الدور wamda_restore يستطيع إنشاء قاعدة مؤقتة وحذفها واستعادة نسخة فيها بالأعلام نفسها التي يستخدمها
+#     restore-test، ولا يستطيع الاتصال بـwamda_db (يُختبَر فعلاً بما فيه جولة pg_dump ← pg_restore كاملة).
 #   · السجل: /var/log/wamda-bootstrap.log (لا أسرار فيه).
 
 set -euo pipefail
@@ -37,9 +42,10 @@ WAMDA_HOME=/srv/wamda
 SECRETS_DIR=$WAMDA_HOME/secrets
 DB_PW_FILE=$SECRETS_DIR/db_password
 PG_MAJOR=18
-PG_LOCALE="${PG_LOCALE:-C.UTF-8}"      # يُحدَّد عند إنشاء العنقود ولا يتغيّر لاحقاً
 DB_NAME=wamda_db
 DB_ROLE=wamda_app
+RESTORE_ROLE=wamda_restore
+RESTORE_PW_FILE=$SECRETS_DIR/restore_password
 SUDOERS_FILE=/etc/sudoers.d/wamda-systemctl
 DEPLOY_KEY=$WAMDA_HOME/.ssh/id_ed25519_deploy
 REPO_PATH='Ayoubalsaya/WAMDA.git'
@@ -62,6 +68,9 @@ as_wamda() { runuser -u "$WAMDA_USER" -- env HOME="$WAMDA_HOME" "$@"; }
 pgq() { runuser -u postgres -- psql -X -q -At -v ON_ERROR_STOP=1 "$@"; }
 # اتصال wamda_app عبر TCP؛ كلمة المرور تُقرأ من الملف لهذا الأمر وحده (لا تُطبع)
 app_psql() { PGPASSWORD="$(cat "$DB_PW_FILE")" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U "$DB_ROLE" "$@"; }
+
+# اتصال wamda_restore (الدور الوحيد الذي يستخدمه restore-test عبر BACKUP_ADMIN_DATABASE_URL)
+restore_psql() { PGPASSWORD="$(cat "$RESTORE_PW_FILE")" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -p 5432 -U "$RESTORE_ROLE" "$@"; }
 
 pg_scalar() { pgq -d postgres -c "$1"; }
 # 5432 يستمع على loopback فقط (v4 أو v6) وبلا أي عنوان آخر
@@ -108,10 +117,17 @@ phase_user() {
     say "إنشاء المستخدم $WAMDA_USER (home=$WAMDA_HOME)"
     useradd --create-home --home-dir "$WAMDA_HOME" --shell /bin/bash --user-group "$WAMDA_USER"
   fi
-  passwd -l "$WAMDA_USER" >/dev/null           # لا دخول بكلمة مرور؛ ولا مفتاح SSH مُضاف (لا دخول إطلاقاً حتى يقرر المالك)
+  passwd -l "$WAMDA_USER" >/dev/null           # لا دخول بكلمة مرور؛ الدخول بمفتاح المالك فقط (قرار ٢٠٢٦-١٠-١١)
   chown "$WAMDA_USER:$WAMDA_USER" "$WAMDA_HOME"
   chmod 750 "$WAMDA_HOME"
   install -d -o "$WAMDA_USER" -g "$WAMDA_USER" -m 0700 "$WAMDA_HOME/backups" "$SECRETS_DIR" "$WAMDA_HOME/.ssh"
+
+  # مفتاح جهاز المالك نفسه الذي يدخل به root — يُنسخ كما هو (بعد التأكد أنه صالح)
+  local rk=/root/.ssh/authorized_keys
+  [ -s "$rk" ] && ssh-keygen -lf "$rk" >/dev/null 2>&1 || die "$rk غير موجود أو لا يحوي مفتاحاً صالحاً"
+  install -o "$WAMDA_USER" -g "$WAMDA_USER" -m 0600 "$rk" "$WAMDA_HOME/.ssh/authorized_keys"
+  say "المفاتيح المنسوخة إلى wamda (بصمات فقط — راجع أنها مفتاحك وحده)"
+  ssh-keygen -lf "$WAMDA_HOME/.ssh/authorized_keys"
 
   say "تحقق"
   chk "uid عادي (≥1000)" bash -c "[ \"\$(id -u $WAMDA_USER)\" -ge 1000 ]"
@@ -119,7 +135,9 @@ phase_user() {
   chk "كلمة المرور مقفلة" bash -c "passwd -S $WAMDA_USER | awk '{print \$2}' | grep -qx L"
   chk "/srv/wamda بصلاحيات 750 ومالكه wamda" bash -c "[ \"\$(stat -c '%a %U:%G' $WAMDA_HOME)\" = '750 $WAMDA_USER:$WAMDA_USER' ]"
   chk "backups وsecrets و.ssh بصلاحيات 700" bash -c "[ \"\$(stat -c %a $WAMDA_HOME/backups $SECRETS_DIR $WAMDA_HOME/.ssh | sort -u)\" = 700 ]"
-  chk "لا authorized_keys لـwamda (لا دخول SSH)" bash -c "[ ! -e $WAMDA_HOME/.ssh/authorized_keys ]"
+  chk "authorized_keys بصلاحيات 600 ومالكه wamda" bash -c "[ \"\$(stat -c '%a %U' $WAMDA_HOME/.ssh/authorized_keys)\" = '600 $WAMDA_USER' ]"
+  chk "بصمات مفاتيح wamda = بصمات root" bash -c "[ \"\$(ssh-keygen -lf $WAMDA_HOME/.ssh/authorized_keys | awk '{print \$2}')\" = \"\$(ssh-keygen -lf /root/.ssh/authorized_keys | awk '{print \$2}')\" ]"
+  chk "sshd يسمح لـwamda بالمفتاح (لا AllowUsers/AllowGroups تستثنيه)" bash -c "sshd -T -C user=$WAMDA_USER,host=localhost,addr=127.0.0.1 | grep -qi '^pubkeyauthentication yes' && ! sshd -T -C user=$WAMDA_USER,host=localhost,addr=127.0.0.1 | grep -qiE '^(allowusers|allowgroups) '"
   chk "لا sudo لـwamda بعد (قبل مرحلة sudoers)" bash -c "sudo -l -U $WAMDA_USER 2>&1 | grep -qiE 'not allowed|may not run'"
 }
 
@@ -137,17 +155,6 @@ phase_postgres() {
   # الخادم الافتراضي في Ubuntu (16) لا يجوز أن يُثبَّت عرَضاً
   if pg_lsclusters --no-header | awk '{print $1}' | grep -qvx "$PG_MAJOR"; then
     die "وُجد عنقود بإصدار آخر غير $PG_MAJOR — توقفت: $(pg_lsclusters --no-header | awk '{print $1"/"$2}' | paste -sd' ')"
-  fi
-
-  # لغة العنقود تُحدَّد عند الإنشاء: إن لم تطابق PG_LOCALE ولا قواعد مستخدم بعد ← يُعاد إنشاؤه
-  local cur dbs
-  cur="$(pgq -d postgres -c 'SHOW lc_collate')"
-  if [ "$cur" != "$PG_LOCALE" ]; then
-    dbs="$(pgq -d postgres -c "SELECT count(*) FROM pg_database WHERE datname NOT IN ('postgres','template0','template1')")"
-    [ "$dbs" = 0 ] || die "لغة العنقود '$cur' لا تطابق '$PG_LOCALE' وفيه قواعد مستخدم — لن أعيد إنشاءه"
-    say "إعادة إنشاء العنقود الفارغ بلغة $PG_LOCALE (كانت: $cur)"
-    pg_dropcluster --stop "$PG_MAJOR" main
-    pg_createcluster "$PG_MAJOR" main --locale="$PG_LOCALE" --encoding=UTF8 --start
   fi
 
   say "listen_addresses=localhost في ملف جديد"
@@ -168,42 +175,83 @@ EOF
   chk "listen_addresses = localhost" test "$(pg_scalar 'SHOW listen_addresses')" = localhost
   chk "المنفذ 5432 على loopback فقط" pg_loopback_only
   chk "pg_hba بلا host مفتوح للجميع" bash -c "! grep -E '^host.*(0\.0\.0\.0/0|::/0)' /etc/postgresql/$PG_MAJOR/main/pg_hba.conf"
-  echo "  لغة العنقود: $(pgq -d postgres -c 'SHOW lc_collate') · المنطقة الزمنية: $(pgq -d postgres -c 'SHOW timezone')"
+  echo "  ترتيب قالب template1 (datcollate | provider | datlocale): $(pgq -d postgres -c "SELECT datcollate, datlocprovider, datlocale FROM pg_database WHERE datname='template1'")"
+  echo "  المنطقة الزمنية للعنقود (لا تهم: wamda_db مضبوطة على UTC): $(pgq -d postgres -c 'SHOW timezone')"
 }
 
 # ───────────────────────── ٤) dbrole ─────────────────────────
+# make_role <role> <pw-file> <attrs>  — يولّد كلمة مرور (hex) ويُنشئ الدور؛ لا يمسّ دوراً موجوداً.
+make_role() {
+  local role="$1" pwfile="$2" attrs="$3" exists pw
+  exists="$(pgq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='$role'")"
+  if [ -n "$exists" ]; then
+    [ -s "$pwfile" ] || die "الدور $role موجود ولا ملف كلمة مرور في $pwfile — لن أعيد ضبطها بلا قرار صريح"
+    say "الدور $role موجود وملف كلمة المرور موجود — لا تغيير"
+    return 0
+  fi
+  say "توليد كلمة مرور لـ$role (تُحفظ في $pwfile، لا تُطبع)"
+  pw="$(openssl rand -hex 24)"
+  ( umask 077; printf '%s' "$pw" > "$pwfile" )
+  chown "$WAMDA_USER:$WAMDA_USER" "$pwfile"; chmod 600 "$pwfile"
+  say "إنشاء الدور $role"
+  # عبر stdin (لا argv ولا env)؛ hex فقط فلا حاجة لهروب.
+  # SET في الجلسة نفسها قبل CREATE ROLE: لو فشلت الجملة لا يُكتب نصها (وفيه كلمة المرور) في سجل PostgreSQL.
+  {
+    printf 'SET log_min_error_statement = panic;\n'
+    printf "CREATE ROLE %s LOGIN %s PASSWORD '%s';\n" "$role" "$attrs" "$pw"
+  } | pgq -d postgres
+  unset pw
+}
+
+# جولة مصغَّرة تطابق restore-test: pg_dump بـwamda_app ← قاعدة مؤقتة بـwamda_restore ← pg_restore بالأعلام نفسها
+# (--clean --if-exists --no-owner، ويُعدّ ظهور ERROR في stderr فشلاً كما في app/cli/pg_tools.py) ← حذفها.
+restore_roundtrip_probe() {
+  local dump tmpdb out rc=0
+  dump="$(mktemp)"
+  tmpdb="wamda_restore_test_bootstrap_probe"       # بادئة مكنوسة تلقائياً من restore-test إن بقيت
+  PGPASSWORD="$(cat "$DB_PW_FILE")" pg_dump -Fc --no-password -h 127.0.0.1 -p 5432 -U "$DB_ROLE" -f "$dump" "$DB_NAME" || rc=$?
+  if [ "$rc" -eq 0 ]; then restore_psql -d postgres -c "DROP DATABASE IF EXISTS \"$tmpdb\" WITH (FORCE)" || rc=$?; fi
+  if [ "$rc" -eq 0 ]; then restore_psql -d postgres -c "CREATE DATABASE \"$tmpdb\"" || rc=$?; fi
+  if [ "$rc" -eq 0 ]; then
+    out="$(PGPASSWORD="$(cat "$RESTORE_PW_FILE")" pg_restore --no-password --clean --if-exists --no-owner \
+            -h 127.0.0.1 -p 5432 -U "$RESTORE_ROLE" -d "$tmpdb" "$dump" 2>&1)" || true
+    if grep -q 'ERROR' <<<"$out"; then echo "$out" | head -20 >&2; rc=1; fi
+  fi
+  restore_psql -d postgres -c "DROP DATABASE IF EXISTS \"$tmpdb\" WITH (FORCE)" >/dev/null 2>&1 || true
+  rm -f "$dump"
+  return "$rc"
+}
+
+# ينشئ قاعدة مؤقتة بـwamda_restore ثم يحذفها
+restore_create_drop_probe() {
+  restore_psql -d postgres -c 'CREATE DATABASE _zz_restore_probe' \
+    && restore_psql -d postgres -c 'DROP DATABASE _zz_restore_probe WITH (FORCE)'
+}
+
 phase_dbrole() {
   need_wamda
-  local role_exists db_exists pw
-  role_exists="$(pgq -d postgres -c "SELECT 1 FROM pg_roles WHERE rolname='$DB_ROLE'")"
-  if [ -n "$role_exists" ]; then
-    [ -s "$DB_PW_FILE" ] || die "الدور $DB_ROLE موجود ولا ملف كلمة مرور في $DB_PW_FILE — لن أعيد ضبطها بلا قرار صريح"
-    say "الدور موجود وملف كلمة المرور موجود — لا تغيير"
-  else
-    say "توليد كلمة مرور (تُحفظ في $DB_PW_FILE، لا تُطبع)"
-    pw="$(openssl rand -hex 24)"
-    ( umask 077; printf '%s' "$pw" > "$DB_PW_FILE" )
-    chown "$WAMDA_USER:$WAMDA_USER" "$DB_PW_FILE"; chmod 600 "$DB_PW_FILE"
-    say "إنشاء الدور $DB_ROLE"
-    # عبر stdin (لا argv ولا env)؛ hex فقط فلا حاجة لهروب
-    printf "CREATE ROLE %s LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '%s';\n" \
-      "$DB_ROLE" "$pw" | pgq -d postgres
-    unset pw
-  fi
+  local db_exists
+  make_role "$DB_ROLE"      "$DB_PW_FILE"      "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+  make_role "$RESTORE_ROLE" "$RESTORE_PW_FILE" "NOSUPERUSER CREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
 
   db_exists="$(pgq -d postgres -c "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'")"
   if [ -z "$db_exists" ]; then
-    say "إنشاء القاعدة $DB_NAME"
-    pgq -d postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_ROLE ENCODING 'UTF8'"
+    say "إنشاء القاعدة $DB_NAME (ICU عربي)"
+    pgq -d postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_ROLE ENCODING 'UTF8' TEMPLATE template0 LOCALE_PROVIDER icu ICU_LOCALE 'ar' LOCALE 'C.UTF-8'"
   fi
-  say "سحب CONNECT من PUBLIC (لا اتصال بقواعد أخرى)"
+  say "المنطقة الزمنية UTC على مستوى القاعدة (تاريخ العمل من work_timezone في التطبيق وحده)"
+  pgq -d postgres -c "ALTER DATABASE $DB_NAME SET timezone TO 'UTC'"
+
+  say "الصلاحيات: لا اتصال عام بالقواعد"
   pgq -d postgres <<SQL
 REVOKE ALL ON DATABASE $DB_NAME FROM PUBLIC;
 REVOKE CONNECT ON DATABASE postgres FROM PUBLIC;
 REVOKE CONNECT ON DATABASE template1 FROM PUBLIC;
+GRANT CONNECT ON DATABASE postgres TO $RESTORE_ROLE;
 SQL
+  # (GRANT على postgres لـwamda_restore: restore-test يتصل بقاعدة postgres ليُنشئ القاعدة المؤقتة ويسردها ويحذفها)
 
-  say "تحقق"
+  say "تحقق — wamda_app"
   chk "ملف كلمة المرور 0600 ومالكه wamda" bash -c "[ \"\$(stat -c '%a %U' $DB_PW_FILE)\" = '600 $WAMDA_USER' ]"
   chk "الدور بلا أي صلاحية إدارية" test "$(pg_scalar "SELECT NOT (rolsuper OR rolcreatedb OR rolcreaterole OR rolreplication OR rolbypassrls) FROM pg_roles WHERE rolname='$DB_ROLE'")" = t
   chk "الاتصال بـ$DB_NAME عبر TCP بكلمة المرور" app_psql -d "$DB_NAME" -c 'SELECT 1'
@@ -213,7 +261,32 @@ SQL
   chk_not "إنشاء قاعدة مرفوض" app_psql -d "$DB_NAME" -c 'CREATE DATABASE _zz_probe'
   chk_not "الاتصال بقاعدة postgres مرفوض" app_psql -d postgres -c 'SELECT 1'
   chk_not "الاتصال بقاعدة template1 مرفوض" app_psql -d template1 -c 'SELECT 1'
-  echo "  DATABASE_URL (بلا كلمة المرور): postgresql+psycopg://$DB_ROLE:<من $DB_PW_FILE>@127.0.0.1:5432/$DB_NAME"
+
+  say "تحقق — ترتيب عربي (ICU) ومنطقة زمنية"
+  chk "مزوّد الترتيب icu واللغة ar" test "$(pg_scalar "SELECT datlocprovider || ':' || datlocale FROM pg_database WHERE datname='$DB_NAME'")" = "i:ar"
+  chk "ORDER BY: إبراهيم، أحمد، احمد، باسم، ثامر (ترتيب أبجدي عربي)" \
+      test "$(app_psql -d "$DB_NAME" -c "SELECT string_agg(n, ' ' ORDER BY n) FROM (VALUES ('إبراهيم'),('أحمد'),('احمد'),('باسم'),('ثامر')) v(n)")" = "إبراهيم أحمد احمد باسم ثامر"
+  echo "  datcollate | provider | datlocale: $(pg_scalar "SELECT datcollate, datlocprovider, datlocale FROM pg_database WHERE datname='$DB_NAME'")"
+  chk "منطقة الجلسة UTC" test "$(app_psql -d "$DB_NAME" -c 'SHOW timezone')" = UTC
+
+  say "تحقق — wamda_restore (restore-test)"
+  chk "ملف كلمة المرور 0600 ومالكه wamda" bash -c "[ \"\$(stat -c '%a %U' $RESTORE_PW_FILE)\" = '600 $WAMDA_USER' ]"
+  chk "CREATEDB فقط، بلا أي صلاحية أخرى" test "$(pg_scalar "SELECT rolcreatedb AND NOT (rolsuper OR rolcreaterole OR rolreplication OR rolbypassrls) FROM pg_roles WHERE rolname='$RESTORE_ROLE'")" = t
+  chk "يتصل بـpostgres (كما يفعل restore-test)" restore_psql -d postgres -c 'SELECT 1'
+  chk "ينشئ قاعدة ويحذفها" restore_create_drop_probe
+  chk_not "لا يتصل بـ$DB_NAME" restore_psql -d "$DB_NAME" -c 'SELECT 1'
+  chk_not "لا ينشئ أدواراً" restore_psql -d postgres -c 'CREATE ROLE _zz_probe2'
+  chk "جولة pg_dump ← pg_restore (أعلام restore-test) تنجح بلا ERROR" restore_roundtrip_probe
+  chk "لا قواعد wamda_restore_test_* متبقية" test -z "$(pg_scalar "SELECT datname FROM pg_database WHERE datname LIKE 'wamda\_restore\_test\_%'")"
+
+  cat <<EOF
+
+  لملف .env (القيم السرّية تُقرأ من الملفات، لا تُنسخ هنا):
+    DATABASE_URL=postgresql+psycopg://$DB_ROLE:<من $DB_PW_FILE>@127.0.0.1:5432/$DB_NAME
+    BACKUP_ADMIN_DATABASE_URL=postgresql+psycopg://$RESTORE_ROLE:<من $RESTORE_PW_FILE>@127.0.0.1:5432/postgres
+  تنبيه: restore --target-db (استعادة حقيقية يدوية إلى $DB_NAME) يستخدم BACKUP_ADMIN_DATABASE_URL أيضاً
+  ولا يستطيع $RESTORE_ROLE الاتصال بـ$DB_NAME — تُنفَّذ بعد تفريغ هذا المتغيّر من بيئة الأمر.
+EOF
 }
 
 # ───────────────────────── ٥) sudoers ─────────────────────────
@@ -224,18 +297,27 @@ phase_sudoers() {
   tmp="$(mktemp)"
   cat > "$tmp" <<EOF
 # ومضة: wamda يتحكم بخدمته فقط — لا sudo عام.
-$WAMDA_USER ALL=(root) NOPASSWD: $sc start wamda, $sc stop wamda, $sc restart wamda, $sc status wamda
+# status بـ--no-pager حصراً: بدونه يفتح systemctl عارض صفحات (less) ومنه سطر أوامر root (GTFOBins).
+# قراءة السجلات عبر عضوية systemd-journal لا sudo.
+$WAMDA_USER ALL=(root) NOPASSWD: $sc start wamda, $sc stop wamda, $sc restart wamda, $sc --no-pager status wamda
 EOF
   visudo -cf "$tmp" >/dev/null || { rm -f "$tmp"; die "visudo رفض الملف المقترح"; }
   install -o root -g root -m 0440 "$tmp" "$SUDOERS_FILE"
   rm -f "$tmp"
+  usermod -aG systemd-journal "$WAMDA_USER"
 
   say "تحقق"
   chk "visudo -c للنظام كله" visudo -c
-  chk "الأوامر المسموحة أربعة بالضبط" bash -c "[ \"\$(sudo -l -U $WAMDA_USER | grep -oE '$sc (start|stop|restart|status) wamda' | sort -u | wc -l)\" = 4 ]"
+  chk "الأوامر المسموحة أربعة بالضبط" bash -c "[ \"\$(sudo -l -U $WAMDA_USER | grep -oE '$sc (start|stop|restart|--no-pager status) wamda' | sort -u | wc -l)\" = 4 ]"
   chk "لا (ALL) ALL عامة" bash -c "! sudo -l -U $WAMDA_USER | grep -qE 'NOPASSWD: ALL|\\(ALL\\) ALL|\\(ALL : ALL\\) ALL'"
+  chk "المسموح: systemctl --no-pager status wamda" runuser -u "$WAMDA_USER" -- sudo -n -l "$sc" --no-pager status wamda
+  chk "المسموح: systemctl restart wamda" runuser -u "$WAMDA_USER" -- sudo -n -l "$sc" restart wamda
+  chk_not "الصيغة بلا --no-pager مرفوضة (عارض الصفحات)" runuser -u "$WAMDA_USER" -- sudo -n -l "$sc" status wamda
+  chk_not "status لوحدة أخرى مرفوض" runuser -u "$WAMDA_USER" -- sudo -n -l "$sc" --no-pager status ssh
   chk_not "wamda لا يستطيع sudo عام" runuser -u "$WAMDA_USER" -- sudo -n /bin/true
-  chk_not "wamda لا يستطيع systemctl لوحدة أخرى" runuser -u "$WAMDA_USER" -- sudo -n "$sc" status ssh
+  chk_not "wamda لا يستطيع sudo journalctl" runuser -u "$WAMDA_USER" -- sudo -n -l /usr/bin/journalctl
+  chk "wamda عضو systemd-journal" bash -c "id -nG $WAMDA_USER | tr ' ' '\n' | grep -qx systemd-journal"
+  chk "wamda يقرأ السجلات بلا sudo" runuser -u "$WAMDA_USER" -- journalctl -n 1 --no-pager
 }
 
 # ───────────────────────── ٦) deploykey ─────────────────────────
@@ -323,8 +405,9 @@ phase_report() {
   say "PostgreSQL"
   pg_lsclusters || true
   ss -tlnp 2>/dev/null | grep -E ':5432\b' || echo "(لا شيء على 5432)"
-  pgq -d postgres -c "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolreplication FROM pg_roles WHERE rolname='$DB_ROLE'" || true
-  pgq -d postgres -c "SELECT datname FROM pg_database WHERE datname NOT LIKE 'template%'" || true
+  pgq -d postgres -c "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole, rolreplication FROM pg_roles WHERE rolname IN ('$DB_ROLE','$RESTORE_ROLE') ORDER BY 1" || true
+  pgq -d postgres -c "SELECT datname, datcollate, datlocprovider, datlocale FROM pg_database WHERE datname IN ('template1','$DB_NAME') ORDER BY 1" || true
+  pgq -d "$DB_NAME" -c "SHOW timezone" || true
   say "مفتاح deploy (بصمة فقط)"
   ssh-keygen -lf "$DEPLOY_KEY.pub" 2>&1 || true
   say "الجدار الناري (لم يُمسّ)"

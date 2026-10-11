@@ -35,15 +35,15 @@
 ## ١. المستخدم والصلاحيات (بلا عزل عن نظام آخر — السيرفر مخصَّص لومضة)
 | العنصر | الاسم |
 |---|---|
-| مستخدم لينكس | `wamda` (بلا shell تسجيل دخول للخدمة، home = `/srv/wamda`) — **الخدمة لا تعمل بـ`root` أبداً** |
-| قاعدة بيانات + دور | `wamda_db` / `wamda_app` (`NOSUPERUSER NOCREATEDB NOCREATEROLE`؛ `CREATEDB` فقط إن لزم `restore-test` وبقرار صريح) |
+| مستخدم لينكس | `wamda` (home = `/srv/wamda`، كلمة مروره مقفلة، **دخول SSH بمفتاح جهاز المالك نفسه** — مُنسَخ من `/root/.ssh/authorized_keys`، بلا sudo عام) — **الخدمة لا تعمل بـ`root` أبداً**. العمل اليومي بـ`wamda`؛ و`root` لسكربتات التأسيس المراجَعة فقط |
+| قاعدة بيانات + أدوار | `wamda_db` / `wamda_app` (`NOSUPERUSER NOCREATEDB NOCREATEROLE` — بلا أي صلاحية إضافية) · `wamda_restore` (`CREATEDB` فقط، لـ`restore-test` وحده عبر `BACKUP_ADMIN_DATABASE_URL`؛ لا يتصل بـ`wamda_db`؛ كلمة مروره في `secrets/restore_password` بـ0600). PostgreSQL **18** من PGDG (مطابق للتطوير)، `localhost` فقط. القاعدة: ترتيب **ICU عربي** (`ar`) و`timezone=UTC` على مستوى القاعدة — تاريخ العمل من `work_timezone` في التطبيق وحده |
 | خدمة systemd | `wamda.service` (+ مؤقّتات `wamda-*.timer`) |
 | نطاق فرعي + nginx vhost | ملف `wamda.conf`، شهادة Let's Encrypt |
 | منفذ uvicorn | `127.0.0.1:<منفذ>` (يُحدَّد بعد الفحص؛ لا يُفتح في الجدار الناري) |
 | مجلد النسخ | `/srv/wamda/backups` (ملكية `wamda` فقط، 0700) |
 | صلاحيات مجلدات ومضة | **750** (`wamda:wamda`) |
 | حدود الموارد (ممارسة جيدة) | `MemoryMax` و`CPUQuota` في وحدة systemd، **تشمل Chromium** (عملية ابنة داخل الخدمة)؛ القيم تُحدَّد بعد فحص السيرفر (لم تعد مقيَّدة بالمشاركة) |
-| sudoers | يسمح لـ`wamda` فقط بـ`systemctl start/stop/restart/status wamda` — لا sudo عام |
+| sudoers | يسمح لـ`wamda` فقط بـ`systemctl start/stop/restart wamda` و`systemctl --no-pager status wamda` (بلا `--no-pager` يفتح عارض صفحات ومنه سطر أوامر root) — لا sudo عام. السجلات: عضوية `systemd-journal` بدل أي sudo لـ`journalctl` |
 | الوصول للكود | deploy key **للقراءة فقط** على GitHub الخاص (لا مفتاح شخصي على السيرفر) |
 
 **اختبارات بعد كل مرحلة (تُسجَّل في PROGRESS.md):** (أ) `wamda` ليس في مجموعة `sudo` ولا يستطيع `sudo` غير أوامر `systemctl … wamda` المسموحة · (ب) ملف `.env` بصلاحية 0600 ومالكه `wamda` ولا يقرؤه غيره ·
@@ -59,7 +59,7 @@
 4. الواجهة: **قرار: تُبنى محلياً (`npm run build`) وتُشحن `app/static/app`** — لا Node ولا npm على السيرفر.
 5. `.env` الإنتاج (0600): `APP_ENV=production`، `TRUST_PROXY_HEADERS=true`،
    `LOGIN_RATE_LIMIT_MAX<=5`، `PORTAL_LOGIN_RATE_LIMIT_MAX<=5`، `LOGIN_RATE_LIMIT_WINDOW_SECONDS>=900`
-   (وإلا يرفض الإقلاع)، `BACKUP_OFFSITE_DIR`، `BACKUP_ENCRYPTION_KEY`، **`TOTP_ENCRYPTION_KEY` (إلزامي في الإنتاج — يرفض الإقلاع بدونه)**، `DATABASE_URL`،
+   (وإلا يرفض الإقلاع)، `BACKUP_OFFSITE_DIR`، `BACKUP_ENCRYPTION_KEY`، **`TOTP_ENCRYPTION_KEY` (إلزامي في الإنتاج — يرفض الإقلاع بدونه)**، `DATABASE_URL` (`wamda_app`)، **`BACKUP_ADMIN_DATABASE_URL` (`wamda_restore`، قاعدة `postgres`)** — وهو ما يستخدمه `restore-test` لإنشاء القاعدة المؤقتة؛ و`restore --target-db` اليدوي إلى `wamda_db` يتطلب تفريغه من بيئة الأمر (فيعود إلى `DATABASE_URL`)،
    ومهلتا الخمول (`STAFF_IDLE_TIMEOUT_MINUTES=30`، `PORTAL_IDLE_TIMEOUT_MINUTES=15` افتراضياً).
    المفتاحان `BACKUP_ENCRYPTION_KEY` و`TOTP_ENCRYPTION_KEY` **يحفظهما المالك بنفسه — لا في git ولا مع النسخ السحابية**.
 6. قاعدة البيانات: إنشاء الدور والقاعدة → `alembic upgrade head` (قاعدة جديدة فلا أسرار قديمة لتشفيرها) → `seed` → `create-admin`
@@ -116,7 +116,7 @@
 ٤) **`inspect_readonly.sh` يبقى كما هو** للسيرفر الجديد (مع إخفاء أسرار cron قبل أول تشغيل — طلب ٢٠٢٦-١٠-٠٦).
 
 **محسومة سابقاً (٢٠٢٦-١٠-٠٦) وما زالت سارية:**
-- Claude ينفّذ أوامر السيرفر **بموافقة المالك على كل اتصال** (`ask` على `ssh`/`scp`/`rsync`/`sftp`، تعمل حتى في الوضع التلقائي). `root` لسكربتات التأسيس/التحصين/nginx فقط، **كل سكربت يُعرض كاملاً ويُراجَع مستقلاً قبل تشغيله**؛ بعدها العمل اليومي بـ`wamda` عبر مفتاح SSH خاص به.
+- Claude ينفّذ أوامر السيرفر **بموافقة المالك على كل اتصال** (`ask` على `ssh`/`scp`/`rsync`/`sftp`، تعمل حتى في الوضع التلقائي). `root` لسكربتات التأسيس/التحصين/nginx فقط، **كل سكربت يُعرض كاملاً ويُراجَع مستقلاً قبل تشغيله**؛ بعدها العمل اليومي بـ`wamda` عبر مفتاح جهاز المالك نفسه (قرار ٢٠٢٦-١٠-١١).
 - **الواجهة** تُبنى محلياً وتُشحن `app/static/app`. **المفتاحان** `BACKUP_ENCRYPTION_KEY` و`TOTP_ENCRYPTION_KEY` يحفظهما المالك بنفسه، لا في git ولا مع النسخ السحابية. **التنبيه:** بريد + لوحة التحكم.
 - حدود systemd (`MemoryMax`/`CPUQuota`) تشمل Chromium — كممارسة جيدة.
 
