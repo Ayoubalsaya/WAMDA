@@ -146,14 +146,16 @@ phase_postgres() {
   say "مستودع PGDG الرسمي (سكربت postgresql-common)"
   apt_get install postgresql-common
   /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
-  apt-cache policy "postgresql-$PG_MAJOR" | grep -q 'apt.postgresql.org' \
-    || die "postgresql-$PG_MAJOR غير متاحة من apt.postgresql.org"
+  # (يُحفظ الناتج أولاً: مع pipefail يُنهي grep -q الأنبوب مبكراً فيموت المنتِج بـSIGPIPE ويبدو الأنبوب فاشلاً)
+  local pol; pol="$(apt-cache policy "postgresql-$PG_MAJOR")"
+  grep -q 'apt.postgresql.org' <<<"$pol" || die "postgresql-$PG_MAJOR غير متاحة من apt.postgresql.org"
 
   say "تثبيت postgresql-$PG_MAJOR"
   apt_get install "postgresql-$PG_MAJOR"
 
   # الخادم الافتراضي في Ubuntu (16) لا يجوز أن يُثبَّت عرَضاً
-  if pg_lsclusters --no-header | awk '{print $1}' | grep -qvx "$PG_MAJOR"; then
+  local majors; majors="$(pg_lsclusters --no-header | awk '{print $1}')"
+  if [ -n "$majors" ] && grep -qvx "$PG_MAJOR" <<<"$majors"; then
     die "وُجد عنقود بإصدار آخر غير $PG_MAJOR — توقفت: $(pg_lsclusters --no-header | awk '{print $1"/"$2}' | paste -sd' ')"
   fi
 

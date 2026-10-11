@@ -4452,3 +4452,20 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **٦) sudoers:** `systemctl --no-pager status wamda` بدل `status` (GTFOBins/less). التحقق: الصيغة بلا `--no-pager` مرفوضة، و`status` لوحدة أخرى مرفوض. و`wamda` عضو `systemd-journal` ويقرأ السجلات بلا sudo (ومرفوض له `sudo journalctl`).
 - **٧) دخول `wamda`:** نسخ `/root/.ssh/authorized_keys` إلى `/srv/wamda/.ssh/authorized_keys` (0600، ملك wamda) مع طباعة البصمات للمراجعة، والتحقق صار: صلاحيات 600 · بصمات مطابقة لبصمات root · `sshd -T -C user=wamda` يسمح بالمفتاح بلا `AllowUsers/AllowGroups` تستثنيه. `DEPLOY_PLAN.md` محدَّث: العمل اليومي بـ`wamda`، و`root` لسكربتات التأسيس المراجَعة فقط.
 - **٨) الامتدادات:** لا `CREATE EXTENSION` في أي ترحيل ولا في الكود (فقط plpgsql المدمج). لا حاجة لإنشاء امتداد بحساب postgres.
+
+### تحديث ٢٠٢٦-١٠-١١ (٩) — تشغيل `bootstrap_root.sh` بدأ: packages ✅ · user ✅ · postgres ❌ (إصلاح سكربت، بانتظار موافقة)
+
+- **`packages` ✅:** كل حزم Chromium وُجدت (لا ⚠)، `python3 -m venv` يعمل.
+- **`user` ✅:** `wamda` أُنشئ بلا sudo وكلمة مروره مقفلة. **بصمة المفتاح المنسوخ إلى `wamda`:** `SHA256:KyMpT9qJgFxGhJRY3CeWuzy6U0IVFCW0byePIIt8IQ4` (ED25519، `HP@DESKTOP-ISD4LUO`) — مفتاح واحد فقط، **تطابق بصمة `~/.ssh/id_ed25519.pub` على جهاز المالك**.
+- **`postgres` ❌ (توقّف عند حارس السكربت لا عند PostgreSQL):** أُضيف مستودع PGDG بنجاح و`apt update` ناجح، ثم رفض الحارس `apt-cache policy postgresql-18 | grep -q apt.postgresql.org` رغم أن الحزمة متاحة فعلاً (المرشَّح `18.6-1.pgdg24.04+2` من `apt.postgresql.org`، تحقق بقراءة فقط). **السبب الأرجح:** `set -o pipefail` + `grep -q` — يخرج `grep` عند أول تطابق فيموت `apt-cache` بـSIGPIPE ويُحسب الأنبوب فاشلاً. **الإصلاح (محلي، لم يُشغَّل):** حفظ الناتج في متغيّر ثم `grep -q <<<"$var"`، وكذلك فحص «عنقود بإصدار آخر». لم يُمسّ شيء آخر على السيرفر: ما بقي منه `postgresql-common` ومستودع PGDG فقط، ولا عنقود ولا حزمة `postgresql-*`.
+- **ملاحظة:** نمط `| grep -q` مع `pipefail` موجود أيضاً في `harden_root.sh` (مرحلة `swap`: `swapon --show | grep -q .`) — لم يؤثر (السيرفر بلا swap وقتها، وحارس `[ ! -e /swapfile ]` يحمي)، يُصحَّح بالطريقة نفسها عند أي تعديل لاحق.
+- **`RUNBOOK.md` §١٠:** أمر الاستعادة اليدوية الطارئة إلى `wamda_db` مع إفراغ `BACKUP_ADMIN_DATABASE_URL`. جُرِّب محلياً أن **الإفراغ (`VAR=`) هو الذي يعمل لا `env -u`** لأن `.env` يُقرأ بعد البيئة.
+
+### للعمل لاحقاً (لا الآن): توحيد ترتيب القوائم مع الترتيب العربي
+
+- ترتيب بعض القوائم في بايثون بنقاط الترميز (`sorted(..., key=...)`) بينما `ORDER BY` في SQL يتبع ICU `ar` في الإنتاج. يُوحَّد:
+  - `app/routers/reports.py:250` — `sorted(rows, key=lambda r: r.client_name_ar)`
+  - `app/routers/reports.py:306` — `sorted(rows, key=lambda r: r.partner_name_ar)`
+  - `app/routers/dashboard.py:423` — `groups.sort(key=lambda g: g.partner_name_ar)`
+- الخيارات: ترتيب في SQL (`ORDER BY name_ar`) بدل بايثون حيث أمكن، أو `locale`/`PyICU` collator في بايثون. مجموعة الاختبارات كاملة نجحت (921) على ICU `ar` فلا اختبار يعتمد على الترتيب الحالي.
+- الرموز (`Account.code`/`Location.code`/`Currency.code`) تُرتَّب بالجهتين؛ فروق ICU/نقاط الترميز فيها قد تظهر مع رموز مختلطة الحالة (لا ثابتة الآن: أحرف كبيرة وأرقام).

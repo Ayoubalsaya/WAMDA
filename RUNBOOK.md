@@ -242,3 +242,49 @@ LOGIN_RATE_LIMIT_WINDOW_SECONDS>=900
 | **إن اختلف** | «لا مستخدم بهذا الاسم» ← راجع `SELECT username FROM users;`. إن فقد **كل** المديرين أجهزتهم فالأمر نفسه يعمل لأي مستخدم (لا يشترط وجود مدير مسجَّل الدخول). |
 
 ملاحظة: `reset-2fa` و`reset-admin-password` يُبطلان أيضاً كل الرموز الاحتياطية؛ تُصدَر رموز جديدة عند الإعداد التالي.
+
+## ١٠. استعادة طارئة حقيقية إلى `wamda_db` من نسخة احتياطية (٢٠٢٦-١٠-١١)
+
+> ⚠ **تُدمِّر كل بيانات `wamda_db` الحالية** وتستبدلها بمحتوى النسخة. للطوارئ فقط. تُنفَّذ بالمستخدم `wamda` على السيرفر
+> (ليس `root`)، من `/srv/wamda/app`. الأمر نفسه يعمل كما هو — لا تعدّله ولا تفكّر في المتغيّرات لحظة الضغط.
+
+**الخطوات بالترتيب (انسخها كما هي، بدّل `<FILE>` فقط):**
+
+```bash
+cd /srv/wamda/app
+
+# ١) اختر الملف (الأحدث أولاً). إن كان في الوجهة الخارجية فانسخه أولاً إلى /srv/wamda/backups
+ls -t /srv/wamda/backups/*.dump.enc | head -5
+
+# ٢) أوقف الخدمة (اتصالاتها المفتوحة تعيق --clean)
+sudo systemctl stop wamda
+
+# ٣) إن كانت القاعدة ما زالت تُقرأ: نسخة أخيرة قبل الهدم (قد تفشل إن كانت القاعدة تالفة — تجاوزها حينئذ)
+/srv/wamda/venv/bin/python -m app.cli backup
+
+# ٤) الاستعادة — تفريغ BACKUP_ADMIN_DATABASE_URL إلزامي (انظر الشرح أدناه). سيطلب كتابة RESTORE.
+BACKUP_ADMIN_DATABASE_URL= /srv/wamda/venv/bin/python -m app.cli restore /srv/wamda/backups/<FILE>.dump.enc --target-db wamda_db
+
+# ٥) تحقق من الأرصدة والترحيل
+/srv/wamda/venv/bin/python -m app.cli recompute-balances --verify
+/srv/wamda/venv/bin/alembic current && /srv/wamda/venv/bin/alembic heads
+
+# ٦) شغّل الخدمة وتأكد
+sudo systemctl restart wamda
+sudo systemctl --no-pager status wamda
+
+# ٧) نسخة جديدة فوراً من الحالة المستعادة
+/srv/wamda/venv/bin/python -m app.cli backup
+```
+
+| | |
+|---|---|
+| **أتوقع أن أرى** | بعد ٤: `اكتملت الاستعادة إلى "wamda_db"`. بعد ٥: `صفر اختلاف` ورمز خروج `0`، و`alembic current` يساوي `alembic heads`. بعد ٦: `active (running)`. |
+| **كيف أتحقق** | سجّل الدخول من الواجهة، افتح **لوحة التحكم → مركز السيولة** وقارن أرصدة الصناديق بآخر قيمة معروفة لديك. |
+| **إن اختلف** | **أبقِ الخدمة متوقفة** ولا تعدّل شيئاً في القاعدة. احتفظ بمخرجات الأمر كما هي. `ERROR … permission denied`/`password authentication failed` ← المتغيّر لم يُفرَّغ فاتصل بالدور `wamda_restore` (لا يستطيع دخول `wamda_db`) — أعد الخطوة ٤ كما هي. `recompute-balances` يُبلغ اختلافاً ← النسخة نفسها لا تطابق نفسها: جرّب النسخة التي قبلها. |
+
+**لماذا `BACKUP_ADMIN_DATABASE_URL=` (فارغ) لا `env -u`:** على السيرفر المتغيّر `BACKUP_ADMIN_DATABASE_URL` (الدور `wamda_restore`) مضبوط في `.env`،
+وهو ما يستخدمه `restore-test` الأسبوعي لإنشاء القاعدة المؤقتة. أمر `restore --target-db` يستخدمه أيضاً لأن `_admin_connection_params()` تقرأ
+`backup_admin_database_url or database_url` — و`wamda_restore` **لا يستطيع الاتصال بـ`wamda_db`** عمداً. القيمة الفارغة تتغلّب على ملف `.env`
+(متغيّرات البيئة أولى من الملف) فيسقط الحساب إلى `DATABASE_URL` (الدور `wamda_app`، مالك القاعدة). أما `env -u` فيحذف المتغيّر من البيئة فقط،
+فيبقى `.env` يضبطه (جُرِّب محلياً: `env -u` لا يغيّر النتيجة، والإفراغ يغيّرها). **لا تُفرِّغ المتغيّر في `.env` نفسه** — يتعطّل `restore-test`.
