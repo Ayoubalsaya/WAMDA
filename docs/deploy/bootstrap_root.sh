@@ -423,36 +423,46 @@ phase_report() {
 }
 
 # ───────────────────────── ٩) chromium-plan ─────────────────────────
-# قائمة حزم apt التي سيثبّتها `playwright install-deps chromium` (يُشغَّل بـ--dry-run بصفة wamda: لا يغيّر شيئاً).
+# `playwright install-deps --dry-run chromium` بصفة wamda: لا يغيّر شيئاً. على لينكس يحاكي apt-get ويخرج بـ1 إن نقصت حزم
+# (ويطبع «Missing system dependencies (N):» ثم الأسماء، سطراً لكل حزمة)، وبـ0 إن لم ينقص شيء — فالرمز ≠0 ليس خطأً هنا.
 # تتطلب venv فيه playwright (بعد clone + pip install). تطبع القائمة وبصمتها ثم تتوقف.
+pw_dry_run() {
+  PW_DRY_RC=0
+  PW_DRY_OUT="$(as_wamda "$VENV/bin/playwright" install-deps --dry-run chromium 2>&1)" || PW_DRY_RC=$?
+}
+
+# يطبع أسماء الحزم الناقصة (واحدة بكل سطر، مرتَّبة؛ فارغ = لا نقص). يفشل إن كان الناتج غير مفهوم.
 chromium_pkg_list() {
-  local out
-  out="$(as_wamda "$VENV/bin/playwright" install-deps --dry-run chromium 2>&1)" || { printf '%s\n' "$out" >&2; return 1; }
-  # أي سطر فيه "apt-get install": كل ما بعد كلمة install ولا يبدأ بـ- هو اسم حزمة
-  printf '%s\n' "$out" | awk '
-    /apt-get[[:space:]]+install/ {
-      s = 0
-      for (i = 1; i <= NF; i++) if ($i == "install") { s = i + 1; break }
-      for (i = s; s > 0 && i <= NF; i++) if ($i !~ /^-/ && $i != "\\") print $i
-    }' | sort -u
+  pw_dry_run
+  [ "$PW_DRY_RC" -ne 0 ] || return 0
+  grep -q '^Missing system dependencies' <<<"$PW_DRY_OUT" || { printf '%s\n' "$PW_DRY_OUT" >&2; return 1; }
+  awk '/^Missing system dependencies/ {on=1; next}
+       on && /^[[:space:]]+[a-z0-9][a-z0-9+.:-]*[[:space:]]*$/ {gsub(/[[:space:]]/, ""); print}' <<<"$PW_DRY_OUT" | sort -u
 }
 
 phase_chromium_plan() {
   [ -x "$VENV/bin/playwright" ] || die "لا $VENV/bin/playwright — نفّذ clone + venv + pip install أولاً"
   say "playwright install-deps --dry-run chromium (الناتج الخام)"
-  as_wamda "$VENV/bin/playwright" install-deps --dry-run chromium 2>&1 || die "فشل dry-run"
-  local pkgs n new p
-  pkgs="$(chromium_pkg_list)"
-  [ -n "$pkgs" ] || die "تعذّر استخراج أسماء الحزم من ناتج dry-run — راجع الناتج الخام أعلاه"
+  pw_dry_run
+  printf '%s\n' "$PW_DRY_OUT"
+  echo "(رمز الخروج: $PW_DRY_RC — 1 = حزم ناقصة، 0 = لا نقص)"
+  local pkgs n new p declared
+  pkgs="$(chromium_pkg_list)" || die "ناتج dry-run غير مفهوم (انظر أعلاه)"
   say "الحزم التي سيثبّتها التثبيت الفعلي"
   n=0; new=0
-  while IFS= read -r p; do
-    n=$((n + 1))
-    if dpkg -s "$p" >/dev/null 2>&1; then printf '  = %s (مثبّتة)\n' "$p"; else printf '  + %s (جديدة)\n' "$p"; new=$((new + 1)); fi
-  done <<<"$pkgs"
+  if [ -n "$pkgs" ]; then
+    while IFS= read -r p; do
+      n=$((n + 1))
+      if dpkg -s "$p" >/dev/null 2>&1; then printf '  = %s (مثبّتة)\n' "$p"; else printf '  + %s (جديدة)\n' "$p"; new=$((new + 1)); fi
+    done <<<"$pkgs"
+  else
+    echo "  (لا حزم ناقصة)"
+  fi
+  declared="$(sed -n 's/^Missing system dependencies (\([0-9]*\)).*/\1/p' <<<"$PW_DRY_OUT")"
+  [ -z "$declared" ] || [ "$declared" = "$n" ] || die "عدد الحزم المستخرَج ($n) لا يطابق المعلَن ($declared) — المحلّل لا يُوثَق به"
   echo
   echo "  المجموع: $n حزمة، الجديدة منها: $new"
-  echo "  بصمة القائمة (sha256): $(printf '%s\n' "$pkgs" | sha256sum | awk '{print $1}')"
+  echo "  بصمة القائمة (sha256): $(printf '%s' "$pkgs" | sha256sum | awk '{print $1}')"
   cat <<EOF
 
 توقّف هنا. إن وافقت على القائمة نفّذ (البصمة أعلاه تضمن تثبيت هذه القائمة بعينها لا غيرها):
@@ -468,14 +478,20 @@ phase_chromium_install() {
   [ -x "$VENV/bin/playwright" ] || die "لا $VENV/bin/playwright"
   [ -d "$APP_DIR/app" ] || die "لا $APP_DIR/app — اختبار التوليد يحتاج الكود"
   local pkgs hash
-  pkgs="$(chromium_pkg_list)"
-  [ -n "$pkgs" ] || die "قائمة فارغة"
-  hash="$(printf '%s\n' "$pkgs" | sha256sum | awk '{print $1}')"
+  pkgs="$(chromium_pkg_list)" || die "ناتج dry-run غير مفهوم"
+  hash="$(printf '%s' "$pkgs" | sha256sum | awk '{print $1}')"
   [ "$hash" = "$2" ] || die "القائمة تغيّرت منذ الموافقة (الحالية $hash ≠ المعتمدة $2) — أعد chromium-plan"
 
-  say "تثبيت $(printf '%s\n' "$pkgs" | wc -l) حزمة (apt)"
-  # shellcheck disable=SC2086
-  apt_get install --no-install-recommends $pkgs
+  if [ -n "$pkgs" ]; then
+    say "تثبيت $(printf '%s\n' "$pkgs" | grep -c .) حزمة (apt)"
+    # shellcheck disable=SC2086
+    apt_get install --no-install-recommends $pkgs
+    say "تحقق: لا حزم ناقصة بعد التثبيت"
+    pw_dry_run
+    [ "$PW_DRY_RC" -eq 0 ] || { printf '%s\n' "$PW_DRY_OUT" >&2; die "ما زالت حزم ناقصة بعد التثبيت"; }
+  else
+    say "لا حزم نظام ناقصة — يُتخطّى apt"
+  fi
 
   say "تنزيل Chromium (بصفة $WAMDA_USER → $WAMDA_HOME/.cache/ms-playwright)"
   as_wamda "$VENV/bin/playwright" install chromium
