@@ -37,7 +37,9 @@ def invite_url(raw_token: str) -> str:
     """`PUBLIC_BASE_URL` — يختلف بين المحلي والنطاق الفرعي في الإنتاج (طلب
     مالك صريح). الرمز بعد `#` (جزء العميل، لا يُرسَل للخادم في أي طلب GET
     للصفحة نفسها) لا في مسار قابل للتسجيل."""
-    return f"{settings.public_base_url}/static/app/portal.html#invite={raw_token}"
+    from app.public_url import base_url  # يرفع PublicBaseUrlNotConfiguredError في الإنتاج بلا نطاق HTTPS (المسارات تحرسه قبل الإنشاء)
+
+    return f"{base_url()}/static/app/portal.html#invite={raw_token}"
 
 
 def _live_invite_query(client_id: int):

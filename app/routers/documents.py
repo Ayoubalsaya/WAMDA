@@ -24,6 +24,7 @@ from app.documents.qr import qr_data_uri
 from app.documents.render import render_pdf, render_png
 from app.documents.xlsx import XLSX_MEDIA_TYPE, report_to_xlsx, statement_to_xlsx
 from app.engine.clock import system_clock
+from app.public_url import require_public_base_url
 from app.security.deps import require_password_changed, require_role
 from app.security.permissions import Action
 
@@ -51,59 +52,66 @@ _EXCEL_REPORT_KEYS = frozenset({
 })
 
 
-def _verify_qr(entry_no: str) -> str:
+def _verify_qr(base_url: str, entry_no: str) -> str:
     """رابط تحقق يفتح بحث الموظف الذكي (المرحلة ٩) على رقم القيد نفسه —
     لا نقطة نهاية تحقق عامة منفصلة (تحتاج تصميم أمان خاص بها، خارج نطاق
     هذه المرحلة)؛ الفحص الحقيقي هنا: مسح الرمز يفتح نتيجة بحث تطابق القيد
     فعلاً، لا صورة زخرفية."""
-    return f"{settings.public_base_url}/?q={entry_no}"
+    return f"{base_url}/?q={entry_no}"
 
 
 @router.get("/receipt/{entry_id}.pdf")
 def receipt_pdf(
     entry_id: int, size: str = Query(default="a4", pattern="^(a4|thermal)$"), db: OrmSession = Depends(get_db),
+    base_url: str = Depends(require_public_base_url),
 ) -> Response:
     now = system_clock()
     ctx = receipt_doc.build_receipt_context(db, entry_id=entry_id, doc_size=size, now=now, work_timezone=settings.work_timezone)
-    ctx["qr_data_uri"] = qr_data_uri(_verify_qr(ctx["doc_subtitle"].split(" — ")[0]))
+    ctx["qr_data_uri"] = qr_data_uri(_verify_qr(base_url, ctx["doc_subtitle"].split(" — ")[0]))
     html = render_template("receipt.html", **ctx)
     pdf_bytes = render_pdf(html)
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 
 @router.get("/receipt/{entry_id}.png")
-def receipt_png(entry_id: int, db: OrmSession = Depends(get_db)) -> Response:
+def receipt_png(
+    entry_id: int, db: OrmSession = Depends(get_db), base_url: str = Depends(require_public_base_url),
+) -> Response:
     now = system_clock()
     ctx = receipt_doc.build_receipt_context(db, entry_id=entry_id, doc_size="png", now=now, work_timezone=settings.work_timezone)
-    ctx["qr_data_uri"] = qr_data_uri(_verify_qr(ctx["doc_subtitle"].split(" — ")[0]))
+    ctx["qr_data_uri"] = qr_data_uri(_verify_qr(base_url, ctx["doc_subtitle"].split(" — ")[0]))
     html = render_template("receipt.html", **ctx)
     png_bytes = render_png(html, width=720)
     return Response(content=png_bytes, media_type="image/png")
 
 
-def _balance_card_html(db: OrmSession, client_id: int, *, for_pdf: bool = False):
+def _balance_card_html(db: OrmSession, client_id: int, base_url: str, *, for_pdf: bool = False):
     now = system_clock()
     ctx = balance_card_doc.build_balance_card_context(db, client_id=client_id, now=now, work_timezone=settings.work_timezone)
-    ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
+    ctx["qr_data_uri"] = qr_data_uri(f"{base_url}/portal")
     ctx["for_pdf"] = for_pdf
     return render_template("balance_card.html", **ctx)
 
 
 @router.get("/balance-card/{client_id}.png", dependencies=[Depends(require_role(Action.POST_ENTRY))])
-def balance_card_png(client_id: int, db: OrmSession = Depends(get_db)) -> Response:
+def balance_card_png(
+    client_id: int, db: OrmSession = Depends(get_db), base_url: str = Depends(require_public_base_url),
+) -> Response:
     # §٩ المرحلة ١٢: بطاقة رصيد عميل (تُشارَك عبر واتساب) — نفس حاجز
     # POST_ENTRY لبقية بيانات العميل المالية
     png_bytes = render_png(
-        _balance_card_html(db, client_id),
+        _balance_card_html(db, client_id, base_url),
         width=balance_card_doc.WHATSAPP_CARD_SIZE, height=balance_card_doc.WHATSAPP_CARD_SIZE,
     )
     return Response(content=png_bytes, media_type="image/png")
 
 
 @router.get("/balance-card/{client_id}.pdf", dependencies=[Depends(require_role(Action.POST_ENTRY))])
-def balance_card_pdf(client_id: int, db: OrmSession = Depends(get_db)) -> Response:
+def balance_card_pdf(
+    client_id: int, db: OrmSession = Depends(get_db), base_url: str = Depends(require_public_base_url),
+) -> Response:
     """§٨: بطاقة رصيد عميل — صيغة PDF بجانب PNG (نفس القالب)."""
-    pdf_bytes = render_pdf(_balance_card_html(db, client_id, for_pdf=True))
+    pdf_bytes = render_pdf(_balance_card_html(db, client_id, base_url, for_pdf=True))
     return Response(content=pdf_bytes, media_type="application/pdf")
 
 

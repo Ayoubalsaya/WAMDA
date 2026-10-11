@@ -22,6 +22,7 @@ from app.database import get_db
 from app.documents import balance_card as balance_card_doc
 from app.documents.jinja import render_template
 from app.documents.qr import qr_data_uri
+from app.public_url import require_public_base_url
 from app.documents.render import render_png
 from app.engine.clock import system_clock
 from app.models import Client, Currency, Location
@@ -211,6 +212,7 @@ def portal_statement(
 @router.get("/balance-card.png")
 def portal_balance_card(
     db: OrmSession = Depends(get_db), current_client: Client = Depends(require_portal_access),
+    base_url: str = Depends(require_public_base_url),
 ) -> Response:
     """بطاقة رصيد العميل نفسه — **لا معرّف عميل في المسار أو الاستعلام
     إطلاقاً** (نفس بنية `/portal/balances`/`/portal/statement` بالضبط،
@@ -223,7 +225,7 @@ def portal_balance_card(
     ctx = balance_card_doc.build_balance_card_context(
         db, client_id=current_client.id, now=now, work_timezone=settings.work_timezone,
     )
-    ctx["qr_data_uri"] = qr_data_uri(f"{settings.public_base_url}/portal")
+    ctx["qr_data_uri"] = qr_data_uri(f"{base_url}/portal")
     html = render_template("balance_card.html", **ctx)
     png_bytes = render_png(html, width=balance_card_doc.WHATSAPP_CARD_SIZE, height=balance_card_doc.WHATSAPP_CARD_SIZE)
     return Response(content=png_bytes, media_type="image/png")

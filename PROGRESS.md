@@ -4501,3 +4501,13 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`/srv/wamda/venv` + `pip install -r requirements.txt`:** ٣٧ حزمة مثبَّتة بدقة (+pip)، `pip check`: لا اعتماديات مكسورة، **لا أدوات اختبار** (pytest/httpx/pypdf/psutil غائبة). psycopg بالتنفيذ `binary`.
 - **فحص على لينكس بلا قاعدة ولا `.env`** (DATABASE_URL وهمي): ١١٧ وحدة من `app` تُستورد بلا فشل، `qr_data_uri` يولّد PNG فعلياً (أي أن إضافة Pillow كانت ضرورية)، `ZoneInfo("Africa/Tripoli")` يعمل، `alembic 1.13.3`.
 - **لا `.env` بعد** — الخطوة التالية بقرار المالك: `.env` (0600) ← `alembic upgrade head` ← `seed` ← `create-admin`، ثم `chromium-plan` (يحتاج venv: متوفر الآن).
+
+### تحديث ٢٠٢٦-١٠-١٢ (٣) — `.env` الإنتاج على السيرفر + حارس `PUBLIC_BASE_URL` (توقّف قبل الترحيل)
+
+- **`/srv/wamda/app/.env` أُنشئ** (`make_env.sh`، بصفة `wamda`): `0600 wamda:wamda`، مُتجاهَل في git (`*.env`). **المفتاحان `BACKUP_ENCRYPTION_KEY` و`TOTP_ENCRYPTION_KEY` وُلِّدا على السيرفر (Fernet، ٤٤ حرفاً، مختلفان) وكُتبا في الملف مباشرة دون طباعة** (ولا في أي مخرجات؛ فُحص ملف المخرجات المحلي: لا مفتاح فيه). **المالك يقرأ المفتاحين بنفسه من `/srv/wamda/app/.env` ويحفظ نسخة خارج السيرفر وخارج git والنسخ السحابية.**
+- **القيم:** `APP_ENV=production` · `WORK_TIMEZONE=Africa/Tripoli` · `DATABASE_URL` (`wamda_app`) · `BACKUP_ADMIN_DATABASE_URL` (`wamda_restore`، قاعدة `postgres`) · حدود الدخول `5/5/900` · `TRUST_PROXY_HEADERS=true` · مهلتا الخمول 30/15. **تحميل الإعدادات في وضع الإنتاج ينجح** (قيود الإقلاع تمرّ: مفتاح 2FA وحدود الدخول).
+- **فارغان عمداً:** `PUBLIC_BASE_URL` (حتى يُحدَّد النطاق) و`BACKUP_OFFSITE_DIR` (قرار rclone معلَّق؛ `backup` يفشل بـexit≠0 في الإنتاج بدونه عمداً).
+- **حارس `PUBLIC_BASE_URL` (كود جديد، ملتزَم محلياً، لم يُدفَع/لم يُسحَب للسيرفر بعد):** `app/public_url.py` — في الإنتاج يُشترط نطاق `https://` (لا IP ولا localhost ولا HTTP ولا مسار)، وإلا **503 برسالة عربية قبل أي عمل** على: إيصال PDF/PNG، بطاقة رصيد (موظف PDF/PNG وبوابة PNG)، ومسارات الدعوة الثلاثة (`enable`/`invite`/`reset` — فلا دعوة تُنشأ ثم يُفقَد رابطها). مستندات بلا QR لا تتأثر. محلياً يبقى الافتراضي. **اختبارات جديدة (١٨)** + ٢٥١ اختباراً قائماً في الملفات المتعلقة (documents/portal/invite/permission/csrf) نجحت.
+- ⚠ **الكود على السيرفر (`5a8819c`) لا يحوي الحارس بعد** — لا خدمة تعمل عليه بعد، فلا أثر؛ يُسحَب (`git pull`) قبل أول تشغيل. بدونه كان `PUBLIC_BASE_URL=` الفارغ سيولّد QR بمسار نسبي مكسور.
+- **القاعدة:** الخدمة `127.0.0.1` فقط ولا نظام مفتوح للإنترنت قبل HTTPS؛ الوصول بنفق SSH (`RUNBOOK.md` §١١).
+- **غداً:** `git pull` على السيرفر ← `alembic upgrade head` ← `seed` ← `create-admin`. ثم `chromium-plan`.

@@ -20,6 +20,7 @@ from app.database import get_db
 from app.documents.formatting import format_rate
 from app.engine import credit
 from app.engine.clock import system_clock
+from app.public_url import require_public_base_url
 from app.models import (
     Account,
     AccountBalance,
@@ -372,7 +373,7 @@ def get_client_portal_status(client_id: int, db: OrmSession = Depends(get_db)) -
 
 @router.post(
     "/clients/{client_id}/portal/enable", response_model=ClientPortalInviteCreatedResponse,
-    dependencies=[Depends(verify_csrf)],
+    dependencies=[Depends(verify_csrf), Depends(require_public_base_url)],
 )
 def enable_client_portal(
     client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
@@ -393,7 +394,7 @@ def enable_client_portal(
 
 @router.post(
     "/clients/{client_id}/portal/invite", response_model=ClientPortalInviteCreatedResponse,
-    dependencies=[Depends(verify_csrf)],
+    dependencies=[Depends(verify_csrf), Depends(require_public_base_url)],
 )
 def invite_client_portal(
     client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
@@ -416,7 +417,7 @@ def invite_client_portal(
 
 @router.post(
     "/clients/{client_id}/portal/reset", response_model=ClientPortalInviteCreatedResponse,
-    dependencies=[Depends(verify_csrf)],
+    dependencies=[Depends(verify_csrf), Depends(require_public_base_url)],
 )
 def reset_client_portal(
     client_id: int, db: OrmSession = Depends(get_db), current_user: User = Depends(require_role(Action.MANAGE_USERS)),
