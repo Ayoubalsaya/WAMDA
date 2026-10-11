@@ -1,33 +1,45 @@
-fastapi>=0.142,<0.143
-starlette>=1.3.1,<2  # يُصرَّح به صراحةً: fastapi لا يفرض حدّاً أدنى كافياً؛ <1.3.1 فيه ثغرات (pip-audit، StaticFiles/Range ومعالجة النماذج)
-uvicorn[standard]>=0.32,<0.33
-sqlalchemy>=2.0,<2.1
-alembic>=1.13,<1.14
-pydantic>=2.9,<3.0
-pydantic-settings>=2.6,<3.0
-psycopg[binary]>=3.2,<3.3
-python-dotenv>=1.0,<2.0
-cryptography>=50.0,<51  # النسخ الاحتياطي: تشفير Fernet (app/cli/backup.py) — كانت تأتي عرَضاً عبر paramiko وحدها فتغيب على سيرفر نظيف
+# ومضة — مكتبات التشغيل (الإنتاج) فقط. كل إصدار مثبَّت بدقة (==) من البيئة المحلية المُختبَرة (مجموعة الاختبارات كاملة).
+# أدوات الاختبار في requirements-dev.txt (يبدأ بـ -r هذا الملف). لا تُثبَّت على السيرفر.
+# الاعتماديات المتعدية مثبَّتة أيضاً (تكرارية التركيب)؛ حُسبت من metadata البيئة المحلية بمعايير لينكس/بايثون 3.12.
+# للتحديث: غيّر الإصدار في بيئة التطوير، شغّل المجموعة كاملة، ثم أعد توليد القائمة — لا تُعدَّل الأرقام هنا يدوياً بلا اختبار.
 
-# المرحلة ٣ — اختبارات محرك القيود
-pytest>=9.1,<10
+# ── مباشِرة ──
+fastapi==0.142.2
+starlette==1.7.0  # يُصرَّح به صراحةً: fastapi لا يفرض حدّاً أدنى كافياً؛ <1.3.1 فيه ثغرات (pip-audit، StaticFiles/Range ومعالجة النماذج)
+uvicorn==0.32.1  # بلا [standard] عمداً: لا uvloop (غير مُختبَر محلياً على ويندوز) — الحلقة asyncio كما اختُبر التطبيق
+httptools==0.8.0  # محلل HTTP السريع الذي يختاره uvicorn تلقائياً (كان ضمن [standard])
+sqlalchemy==2.0.52
+alembic==1.13.3
+pydantic==2.13.4
+pydantic-settings==2.15.0
+psycopg[binary]==3.2.13
+python-dotenv==1.2.2
+cryptography==50.0.1  # النسخ الاحتياطي: تشفير Fernet (app/cli/backup.py) + تشفير totp_secret
+bcrypt==4.3.0
+pyotp==2.10.0
+playwright==1.62.0  # محرك توليد PDF/PNG (app/documents/render.py) — يلزمه `playwright install chromium` + اعتماديات النظام
+jinja2==3.1.6
+qrcode==8.2  # qr_data_uri: qrcode.make(...).save(format="PNG") — يتطلب Pillow (مغطّى أدناه)
+pillow==12.3.0  # لازم فعلياً لـqrcode (بلا Pillow يسقط qrcode إلى PyPNG الذي لا يقبل format=) — كان غائباً عن الملف القديم
+openpyxl==3.1.5  # تصدير Excel للتقارير والكشوف (§٨)
+tzdata==2026.3  # ZoneInfo(work_timezone) بلا اعتماد على tzdata النظام
 
-# المرحلة ٤ — المصادقة والصلاحيات
-bcrypt>=4.2,<5.0
-pyotp>=2.9,<3.0
-httpx>=0.27,<0.28  # لاختبارات FastAPI TestClient فقط
-
-# المرحلة ١٠ — المخرجات (إيصالات/كشوفات/تقارير PDF·PNG)
-# WeasyPrint جُرِّب أولاً ورُفض: يحتاج GTK3/Pango على مستوى نظام التشغيل
-# (فشل فعلياً هنا بعدم توافق بنية 32/64-بت على ويندوز، ولا ضمان أبسط على
-# خادم لينكس النشر). استُبدل بـPlaywright (مثبَّت أصلاً منذ المرحلة ٥
-# للتحقق الآلي، يعمل الآن أيضاً كمحرك توليد PDF/PNG عبر page.pdf() —
-# بلا أي اعتماد نظام إضافي على أي منصة، ونتيجته مطابقة تماماً لما يُعرض
-# فعلياً في المتصفح لأنه نفس محرك العرض بالضبط).
-playwright>=1.62,<1.63
-jinja2>=3.1,<3.2
-qrcode>=8.2,<8.3
-openpyxl>=3.1,<3.2  # المرحلة ١٣ — تصدير Excel للتقارير والكشوف (§٨)
-pypdf>=6.19,<7  # اختبارات فقط — استخراج نص PDF حقيقي للتحقق من غياب cost_rate عن الملف المولَّد نفسه
-pytest-timeout>=2.3,<3  # اختبارات فقط — حدّ 300ث لكل اختبار (pytest.ini) فيفشل العالق باسمه بدل تجميد المجموعة
-psutil>=6,<8  # اختبارات فقط — إنهاء شجرة عمليات الخادم المؤقت وفحص العمليات اليتيمة نهاية الجلسة
+# ── متعدّية (تُثبَّت للتكرارية) ──
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.14.2
+cffi==2.1.1
+click==8.4.2
+et-xmlfile==2.0.0
+greenlet==3.5.5
+h11==0.16.0
+idna==3.18
+mako==1.4.1
+markupsafe==3.0.3
+opentelemetry-api==1.45.0
+psycopg-binary==3.2.13
+pycparser==3.0
+pydantic-core==2.46.4
+pyee==13.0.1
+typing-extensions==4.16.0
+typing-inspection==0.4.4

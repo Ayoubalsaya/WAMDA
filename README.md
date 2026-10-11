@@ -49,7 +49,7 @@ Base64 داخل كل مستند مباشرة — لا CDN، لا اعتماد ع
 ## التشغيل محلياً
 
 ```
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # التطوير والاختبار (يضمّ requirements.txt). الإنتاج: requirements.txt وحده
 playwright install chromium   # مرة واحدة — محرك توليد المستندات
 python -m app.cli seed
 uvicorn app.main:app          # بلا --reload عمداً — انظر أدناه

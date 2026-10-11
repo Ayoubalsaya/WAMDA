@@ -54,8 +54,8 @@
 2. **Chromium لمحرك المستندات**: `app/documents/render.py` يشغّل Playwright/Chromium داخل عملية
    الخادم؛ على لينكس يلزم `playwright install --with-deps chromium` (اعتماديات نظام) — **بند خطر**،
    يُختبر بتوليد PDF وPNG فعلياً بعد التركيب.
-3. الكود: `/srv/wamda/app` + `venv` مخصّص + `pip install -r requirements.txt`
-   (يشمل أدوات الاختبار؛ نقترح فصل `requirements-dev.txt` لاحقاً).
+3. الكود: `/srv/wamda/app` (git clone بمفتاح deploy، بالمستخدم `wamda`) + `/srv/wamda/venv` + `pip install -r requirements.txt`
+   (مكتبات التشغيل فقط **بإصدارات مثبَّتة بدقة `==`**؛ أدوات الاختبار في `requirements-dev.txt` ولا تُثبَّت على السيرفر — فُصلا ٢٠٢٦-١٠-١١).
 4. الواجهة: **قرار: تُبنى محلياً (`npm run build`) وتُشحن `app/static/app`** — لا Node ولا npm على السيرفر.
 5. `.env` الإنتاج (0600): `APP_ENV=production`، `TRUST_PROXY_HEADERS=true`،
    `LOGIN_RATE_LIMIT_MAX<=5`، `PORTAL_LOGIN_RATE_LIMIT_MAX<=5`، `LOGIN_RATE_LIMIT_WINDOW_SECONDS>=900`

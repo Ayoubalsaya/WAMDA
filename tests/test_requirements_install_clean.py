@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import textwrap
@@ -47,6 +48,19 @@ _CHECK = textwrap.dedent('''
             importlib.import_module(top)
         except Exception as exc:  # noqa: BLE001
             failures.append(f"third-party {top}: {type(exc).__name__}: {exc}")
+    # سلوك لا استيراد فقط: QR كما يولّده التطبيق (يحتاج Pillow فعلياً)، وZoneInfo لمنطقة العمل
+    try:
+        from app.documents.qr import qr_data_uri
+        uri = qr_data_uri("wamda-clean-install")
+        if not uri.startswith("data:image/png;base64,") or len(uri) < 200:
+            failures.append("qr_data_uri: ناتج غير متوقع")
+    except Exception as exc:  # noqa: BLE001
+        failures.append(f"qr_data_uri: {type(exc).__name__}: {exc}")
+    try:
+        from zoneinfo import ZoneInfo
+        ZoneInfo("Africa/Tripoli")
+    except Exception as exc:  # noqa: BLE001
+        failures.append(f"ZoneInfo: {type(exc).__name__}: {exc}")
     print("THIRD_PARTY", sorted(third_party))
     if failures:
         print(chr(10).join(failures))
@@ -68,3 +82,43 @@ def test_requirements_alone_install_and_import_every_app_module(tmp_path):
     check = subprocess.run([str(py), "-c", _CHECK], cwd=ROOT, capture_output=True, text=True, env=env)
     assert check.returncode == 0, check.stdout[-3000:] + check.stderr[-3000:]
     assert "cryptography" in check.stdout, "الفحص لم يرَ الاستيراد الكسول لـcryptography"
+
+    # الإنتاج لا يحتاج أدوات الاختبار: لا شيء منها في البيئة النظيفة التي ثُبّت فيها requirements.txt وحده
+    frozen = subprocess.run([str(py), "-m", "pip", "list", "--format=freeze", "--disable-pip-version-check"],
+                            capture_output=True, text=True, check=True).stdout
+    installed = {line.split("==")[0].lower().replace("_", "-") for line in frozen.splitlines() if "==" in line}
+    leaked = sorted(_dev_only_names() & installed)
+    assert not leaked, f"أدوات اختبار ثُبّتت مع requirements.txt وحده: {leaked}"
+
+
+def _names(path: Path) -> set[str]:
+    out = set()
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line or line.startswith("-"):
+            continue
+        out.add(re.split(r"[=<>!~\[;\s]", line, maxsplit=1)[0].lower().replace("_", "-"))
+    return out
+
+
+def _dev_only_names() -> set[str]:
+    return _names(ROOT / "requirements-dev.txt") - _names(ROOT / "requirements.txt")
+
+
+def test_requirements_txt_is_runtime_only_and_exactly_pinned():
+    lines = [raw.split("#", 1)[0].strip() for raw in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines()]
+    specs = [l for l in lines if l]
+    assert specs, "requirements.txt فارغ"
+    assert not [l for l in specs if l.startswith("-")], "requirements.txt لا يضمّ ملفاً آخر (لا -r)"
+    loose = [l for l in specs if "==" not in l or re.search(r"[<>~!]=?|\*", l.split("==", 1)[1])]
+    assert not loose, f"إصدارات غير مثبَّتة بدقة (==): {loose}"
+    names = _names(ROOT / "requirements.txt")
+    forbidden = {"pytest", "pytest-timeout", "httpx", "pypdf", "psutil", "pytest-asyncio", "coverage"}
+    assert not (forbidden & names), f"أدوات اختبار داخل requirements.txt: {sorted(forbidden & names)}"
+
+
+def test_requirements_dev_extends_runtime_and_adds_test_tools():
+    first = [l.strip() for l in (ROOT / "requirements-dev.txt").read_text(encoding="utf-8").splitlines()
+             if l.strip() and not l.strip().startswith("#")][0]
+    assert first == "-r requirements.txt"
+    assert {"pytest", "pytest-timeout", "httpx", "pypdf", "psutil"} <= _dev_only_names()

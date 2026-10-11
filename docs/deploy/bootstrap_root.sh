@@ -12,6 +12,8 @@
 #   ٦) deploykey       مفتاح deploy لـwamda — يطبع العام فقط + خطوات إضافته في GitHub (قراءة فقط)
 #   ٧) verify-deploykey بعد إضافة المفتاح في GitHub: اتصال + ls-remote + التأكد أنه للقراءة فقط
 #   ٨) report          عرض الحالة (قراءة فقط)
+#   ٩) chromium-plan   (بعد clone + venv) playwright install-deps --dry-run chromium: يعرض الحزم وبصمة القائمة ثم يتوقف
+#  ١٠) chromium-install --list-sha256 <بصمة>  تثبيت القائمة المعتمدة + تنزيل Chromium + اختبار PDF/PNG فعلي
 #
 # لا nginx ولا certbot (النطاق الفرعي لم يُحدَّد). لا مساس بـsshd/ufw/fail2ban.
 #
@@ -24,6 +26,8 @@
 #   ssh root@HOST 'bash -s -- deploykey'        < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- verify-deploykey' < docs/deploy/bootstrap_root.sh
 #   ssh root@HOST 'bash -s -- report'           < docs/deploy/bootstrap_root.sh
+#   ssh root@HOST 'bash -s -- chromium-plan'    < docs/deploy/bootstrap_root.sh
+#   ssh root@HOST 'bash -s -- chromium-install --list-sha256 <HASH>' < docs/deploy/bootstrap_root.sh
 #
 # الضمانات:
 #   · كلمتا مرور wamda_app وwamda_restore تُولَّدان على السيرفر (openssl)، وتُحفظان في /srv/wamda/secrets/
@@ -49,6 +53,8 @@ RESTORE_PW_FILE=$SECRETS_DIR/restore_password
 SUDOERS_FILE=/etc/sudoers.d/wamda-systemctl
 DEPLOY_KEY=$WAMDA_HOME/.ssh/id_ed25519_deploy
 REPO_PATH='Ayoubalsaya/WAMDA.git'
+APP_DIR=$WAMDA_HOME/app
+VENV=$WAMDA_HOME/venv
 # بصمة ed25519 المنشورة لـgithub.com (docs.github.com ← GitHub's SSH key fingerprints) — راجعها عند المراجعة
 GITHUB_ED25519_FP='SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
 LOG=/var/log/wamda-bootstrap.log
@@ -416,6 +422,88 @@ phase_report() {
   ufw status | head -10 || true
 }
 
+# ───────────────────────── ٩) chromium-plan ─────────────────────────
+# قائمة حزم apt التي سيثبّتها `playwright install-deps chromium` (يُشغَّل بـ--dry-run بصفة wamda: لا يغيّر شيئاً).
+# تتطلب venv فيه playwright (بعد clone + pip install). تطبع القائمة وبصمتها ثم تتوقف.
+chromium_pkg_list() {
+  local out
+  out="$(as_wamda "$VENV/bin/playwright" install-deps --dry-run chromium 2>&1)" || { printf '%s\n' "$out" >&2; return 1; }
+  # أي سطر فيه "apt-get install": كل ما بعد كلمة install ولا يبدأ بـ- هو اسم حزمة
+  printf '%s\n' "$out" | awk '
+    /apt-get[[:space:]]+install/ {
+      s = 0
+      for (i = 1; i <= NF; i++) if ($i == "install") { s = i + 1; break }
+      for (i = s; s > 0 && i <= NF; i++) if ($i !~ /^-/ && $i != "\\") print $i
+    }' | sort -u
+}
+
+phase_chromium_plan() {
+  [ -x "$VENV/bin/playwright" ] || die "لا $VENV/bin/playwright — نفّذ clone + venv + pip install أولاً"
+  say "playwright install-deps --dry-run chromium (الناتج الخام)"
+  as_wamda "$VENV/bin/playwright" install-deps --dry-run chromium 2>&1 || die "فشل dry-run"
+  local pkgs n new p
+  pkgs="$(chromium_pkg_list)"
+  [ -n "$pkgs" ] || die "تعذّر استخراج أسماء الحزم من ناتج dry-run — راجع الناتج الخام أعلاه"
+  say "الحزم التي سيثبّتها التثبيت الفعلي"
+  n=0; new=0
+  while IFS= read -r p; do
+    n=$((n + 1))
+    if dpkg -s "$p" >/dev/null 2>&1; then printf '  = %s (مثبّتة)\n' "$p"; else printf '  + %s (جديدة)\n' "$p"; new=$((new + 1)); fi
+  done <<<"$pkgs"
+  echo
+  echo "  المجموع: $n حزمة، الجديدة منها: $new"
+  echo "  بصمة القائمة (sha256): $(printf '%s\n' "$pkgs" | sha256sum | awk '{print $1}')"
+  cat <<EOF
+
+توقّف هنا. إن وافقت على القائمة نفّذ (البصمة أعلاه تضمن تثبيت هذه القائمة بعينها لا غيرها):
+  ssh root@HOST 'bash -s -- chromium-install --list-sha256 <البصمة>' < docs/deploy/bootstrap_root.sh
+EOF
+}
+
+# ───────────────────────── ١٠) chromium-install ─────────────────────────
+# يثبّت حزم القائمة المعتمدة (root، apt-get install --no-install-recommends — مطابق لما يفعله install-deps) ثم
+# يُنزِّل Chromium بصفة wamda ثم يشغّل اختبار توليد PDF وPNG فعلياً عبر app.documents.render (المسار الإنتاجي نفسه).
+phase_chromium_install() {
+  [ "${1:-}" = "--list-sha256" ] && [ -n "${2:-}" ] || die "يتطلب: chromium-install --list-sha256 <بصمة من chromium-plan>"
+  [ -x "$VENV/bin/playwright" ] || die "لا $VENV/bin/playwright"
+  [ -d "$APP_DIR/app" ] || die "لا $APP_DIR/app — اختبار التوليد يحتاج الكود"
+  local pkgs hash
+  pkgs="$(chromium_pkg_list)"
+  [ -n "$pkgs" ] || die "قائمة فارغة"
+  hash="$(printf '%s\n' "$pkgs" | sha256sum | awk '{print $1}')"
+  [ "$hash" = "$2" ] || die "القائمة تغيّرت منذ الموافقة (الحالية $hash ≠ المعتمدة $2) — أعد chromium-plan"
+
+  say "تثبيت $(printf '%s\n' "$pkgs" | wc -l) حزمة (apt)"
+  # shellcheck disable=SC2086
+  apt_get install --no-install-recommends $pkgs
+
+  say "تنزيل Chromium (بصفة $WAMDA_USER → $WAMDA_HOME/.cache/ms-playwright)"
+  as_wamda "$VENV/bin/playwright" install chromium
+
+  say "اختبار توليد PDF وPNG عبر app.documents.render"
+  local code
+  code='
+import sys
+from app.documents import render
+html = ("<html dir=\"rtl\"><head><meta charset=\"utf-8\"><style>@page{size:A4}body{font-family:sans-serif}</style></head>"
+        "<body><h1>ومضة — اختبار توليد المستند</h1><p>١٢٣٤٥ — 12345</p></body></html>")
+render.start()
+try:
+    pdf = render.render_pdf(html)
+    png = render.render_png(html, width=400)
+finally:
+    render.stop()
+assert pdf[:5] == b"%PDF-" and len(pdf) > 1500, ("pdf", len(pdf))
+assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) > 1500, ("png", len(png))
+print("RENDER_OK pdf=%d png=%d" % (len(pdf), len(png)))
+'
+  local out
+  out="$(runuser -u "$WAMDA_USER" -- env HOME="$WAMDA_HOME" DATABASE_URL=postgresql+psycopg://x:x@127.0.0.1:5432/x \
+      bash -c 'cd "$1" && exec "$2" -c "$3"' _ "$APP_DIR" "$VENV/bin/python" "$code" 2>&1)" \
+    || { printf '%s\n' "$out" | tail -25 >&2; die "فشل اختبار التوليد (الناتج أعلاه)"; }
+  echo "  ✔ $(printf '%s\n' "$out" | tail -1)"
+}
+
 main() {
   exec </dev/null        # stdin هو السكربت نفسه
   trap '' HUP            # يُورَّث لـapt وtee
@@ -435,7 +523,9 @@ main() {
     deploykey)        phase_deploykey ;;
     verify-deploykey) phase_verify_deploykey ;;
     report)           phase_report ;;
-    *) die "مرحلة غير معروفة: '$phase' (packages|user|postgres|dbrole|sudoers|deploykey|verify-deploykey|report)" ;;
+    chromium-plan)    phase_chromium_plan ;;
+    chromium-install) phase_chromium_install "$@" ;;
+    *) die "مرحلة غير معروفة: '$phase' (packages|user|postgres|dbrole|sudoers|deploykey|verify-deploykey|report|chromium-plan|chromium-install)" ;;
   esac
 }
 
