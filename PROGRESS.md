@@ -4408,3 +4408,14 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`upgrade` ✅ (بلا reboot):** `apt update && full-upgrade` بلا أخطاء (`E:` = ٠). النواة العاملة `6.8.0-139`، والمثبَّتة الجديدة `6.8.0-146` (initrd مولَّد، `/boot` ١٥٪). `reboot-required` موجود (`linux-image-6.8.0-146-generic`، `linux-base`). خدمات مؤجَّلة إعادة تشغيلها: `systemd-logind`، `unattended-upgrades`، `dbus` — تُحسم بالـreboot.
 - `systemctl is-system-running` = `degraded` (بسبب `cloud-init` و`networkd-wait-online` الفاشلتين المعروفتين، لا جديد).
 - **التالي:** reboot (بموافقة المالك) ← اختبار المفتاح ← `report` + اختبار رفض كلمة المرور (للتأكد أن `bootcmd` لم يُبطل `sshlock`) ← `firewall` ← `autoupdate` ← `swap` ← `report`.
+
+### تحديث ٢٠٢٦-١٠-١١ (٥) — reboot ناجح، و`bootcmd` لم يُبطل `sshlock` ✅
+
+- **reboot نُفِّذ بموافقة المالك:** عاد السيرفر بالمفتاح (up ٥ دقائق، نواة `6.8.0-146-generic`، لا `reboot-required`). لا فقدان شبكة.
+- **`report` بعد الإقلاع + فحوص إضافية:**
+  - **`bootcmd` أعاد فعلاً كتابة `PermitRootLogin yes`** في `/etc/ssh/sshd_config` (السطر 42) — كما توقَّعنا — **لكن الإعداد الفعّال لم يتغيّر:** `sshd -T -C user=root,…` ← `passwordauthentication no` · `kbdinteractiveauthentication no` · `permitrootlogin without-password` · `pubkeyauthentication yes` (ملف `00-wamda-hardening.conf` يغلب لأن `Include` في أعلى الملف). `50-cloud-init.conf` ما زال `PasswordAuthentication yes` ولا أثر له.
+  - **اختبار الرفض مجدداً:** `ssh -o BatchMode=yes -o PubkeyAuthentication=no …` ← `Permission denied (publickey).`
+  - `fail2ban` فعّال بعد الإقلاع · المنافذ المستمعة: `22` فقط (+ DNS محلي) · `ubuntu` ما زال `nologin` ولا `sudoers.d` سوى README.
+  - الوحدة الفاشلة الوحيدة: `cloud-init.service` (المعروفة). اختفت `networkd-wait-online` من الفاشلة هذه المرة.
+  - `unattended-upgrades` لم يُضبط بعد (المرحلة التالية) — الأصل ما زال يحوي `${distro_codename}` غير الأمني.
+- **التالي:** `firewall` ← `autoupdate` ← `swap` ← `report`.
