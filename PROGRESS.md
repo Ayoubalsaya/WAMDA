@@ -4430,3 +4430,10 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
   - `cloud-init.service` ما زال فاشلاً عند كل إقلاع و`bootcmd` يعيد كتابة `PermitRootLogin yes` في `sshd_config` (لا أثر فعلي بفضل `00-`). خيار التعطيل الكلي مؤجَّل (يتطلب اختبار netplan وحده).
   - `80/443` مفتوحان في الجدار ولا خدمة خلفهما حتى مرحلة nginx.
 - **التالي حسب `DEPLOY_PLAN.md` §٧:** مستخدم `wamda` + قاعدة/دور (`bootstrap_root.sh` — لم يُكتب بعد، يُعرض كاملاً ويُراجَع مستقلاً) ← كود + venv + Chromium + اختبار PDF ← `.env` + ترحيل + seed ← systemd + nginx + TLS.
+
+### تحديث ٢٠٢٦-١٠-١١ (٧) — فحص صحة السيرفر + `bootstrap_root.sh` (مكتوب، لم يُشغَّل)
+
+- **فحص صحة بأمر قراءة واحد:** `ufw` فعّال (22/80/443) · `fail2ban` فعّال (التقط ٣ محاولات فاشلة) · `swapon`: `/swapfile` ٢GB · `sshd -T` لـroot: key-only · up ١٥ دقيقة · الوحدة الفاشلة الوحيدة `cloud-init.service` (المعروفة).
+- **سبب Exit code 255 في آخر `report`:** ليس فشل `report` — هو الأمر الأخير في الاستدعاء نفسه (`ssh -o PubkeyAuthentication=no root@… true`) وهو اختبار الرفض، ورمز خروج `ssh` عند `Permission denied` هو 255 بالتصميم. (`report` نفسه خرج 0، وكل الفحوص قبله نجحت.)
+- **`docs/deploy/bootstrap_root.sh`:** مراحل `packages` ← `user` ← `postgres` (PGDG، الإصدار ١٨، localhost فقط) ← `dbrole` ← `sudoers` ← `deploykey` ← `verify-deploykey` ← `report`، وكل مرحلة تنتهي بتحقق يوقف السكربت عند أول فشل (بما فيه اختبارات رفض: الدور لا ينشئ أدوار/قواعد ولا يتصل بـpostgres/template1، وwamda لا sudo عام). **لا nginx ولا certbot.** ينتظر مراجعة المالك المستقلة قبل أي تشغيل.
+- قرارات تصميم تحتاج عين المراجع: لغة العنقود `C.UTF-8` (قابلة للتغيير بـ`PG_LOCALE` قبل المرحلة ٣ وتُثبَّت عند الإنشاء) · `wamda` بـ`/bin/bash` وكلمة مرور مقفلة وبلا مفتاح SSH (التناقض بين «بلا shell» و«العمل اليومي عبر SSH» في الخطة محسوم مؤقتاً بعدم السماح بأي دخول) · بصمة github.com مثبَّتة في السكربت من القيمة المنشورة.
