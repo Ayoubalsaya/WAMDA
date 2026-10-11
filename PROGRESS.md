@@ -4469,3 +4469,11 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
   - `app/routers/dashboard.py:423` — `groups.sort(key=lambda g: g.partner_name_ar)`
 - الخيارات: ترتيب في SQL (`ORDER BY name_ar`) بدل بايثون حيث أمكن، أو `locale`/`PyICU` collator في بايثون. مجموعة الاختبارات كاملة نجحت (921) على ICU `ar` فلا اختبار يعتمد على الترتيب الحالي.
 - الرموز (`Account.code`/`Location.code`/`Currency.code`) تُرتَّب بالجهتين؛ فروق ICU/نقاط الترميز فيها قد تظهر مع رموز مختلطة الحالة (لا ثابتة الآن: أحرف كبيرة وأرقام).
+
+### تحديث ٢٠٢٦-١٠-١١ (١٠) — `bootstrap_root.sh`: postgres ✅ · dbrole ✅ · sudoers ✅ · deploykey ✅ (بانتظار إضافة المفتاح في GitHub)
+
+- **`postgres` ✅ (بعد إصلاح الحارس `41af05d`):** PostgreSQL **18.6** من PGDG، عنقود `18/main` online، `pg_dump` 18، UTF8، `listen_addresses=localhost`، 5432 على loopback فقط، `pg_hba` بلا `host` مفتوح. قالب `template1`: `C.UTF-8`. منطقة العنقود `Europe/Berlin` (لا تهم).
+- **`dbrole` ✅ (كل الفحوص ٢٧):** `wamda_app` بلا أي صلاحية إدارية (يرفض إنشاء دور/قاعدة والاتصال بـpostgres/template1، ويقدر على إنشاء/حذف جدول في `wamda_db`)؛ `wamda_db` ICU `ar` (`C.UTF-8|i|ar`) و`ORDER BY` يعطي **إبراهيم، أحمد، احمد، باسم، ثامر** فعلياً على السيرفر، ومنطقة الجلسة `UTC`؛ `wamda_restore` (`CREATEDB` فقط) ينشئ قاعدة ويحذفها ولا يتصل بـ`wamda_db` ولا ينشئ أدواراً، **وجولة `pg_dump`←`pg_restore` بأعلام restore-test نجحت بلا ERROR**. كلمتا المرور في `/srv/wamda/secrets/{db_password,restore_password}` (0600 wamda) ولم تُطبعا. (الجولة على قاعدة فارغة؛ تُعاد على بيانات حقيقية عند أول `restore-test`.)
+- **`sudoers` ✅:** `systemctl start|stop|restart wamda` و`systemctl --no-pager status wamda` فقط؛ الصيغة بلا `--no-pager` مرفوضة، و`status` لوحدة أخرى مرفوض، ولا sudo عام، و`wamda` عضو `systemd-journal` ويقرأ السجلات بلا sudo.
+- **`deploykey` ✅:** مفتاح `ed25519` لـ`wamda`؛ بصمة github.com المثبَّتة في السكربت **تطابق فعلياً** القيمة التي يعرضها GitHub (`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`). **بصمة المفتاح العام للـdeploy:** `SHA256:JdPd9mO05ZYHexJyg6suPrZ1IEniAFgkcZYRtbmsP4M`.
+- **التالي:** المالك يضيف المفتاح في GitHub (Deploy key، **بلا** Allow write access) ← `verify-deploykey` ← `report`.
