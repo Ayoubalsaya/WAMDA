@@ -4419,3 +4419,14 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
   - الوحدة الفاشلة الوحيدة: `cloud-init.service` (المعروفة). اختفت `networkd-wait-online` من الفاشلة هذه المرة.
   - `unattended-upgrades` لم يُضبط بعد (المرحلة التالية) — الأصل ما زال يحوي `${distro_codename}` غير الأمني.
 - **التالي:** `firewall` ← `autoupdate` ← `swap` ← `report`.
+
+### تحديث ٢٠٢٦-١٠-١١ (٦) — التحصين مكتمل: firewall · autoupdate · swap · report ✅
+
+- **`firewall` ✅:** `ufw` فعّال (يبدأ مع النظام): `deny incoming` / `allow outgoing`، و`22` و`80` و`443` (v4 وv6) فقط. تأكَّد أن SSH بالمفتاح يعمل بعد التفعيل مباشرة. المنافذ المستمعة للخارج: `22` فقط (80/443 مفتوحة في الجدار بلا خدمة بعد).
+- **`autoupdate` ✅:** الملف `52wamda-unattended` — الأصول المسموحة الآن **أمنية فقط** (`noble-security` + ESM apps/infra security)؛ زال `${distro_codename}` العام الذي كان في الإعداد الافتراضي. `Automatic-Reboot=false`، `Remove-Unused-Dependencies=false`. تجربة جافة: «No packages found that can be upgraded unattended».
+- **`swap` ✅:** `/swapfile` ٢GB (0600 root) + وحدة `swapfile.swap` مفعَّلة + `vm.swappiness=10`؛ `fstab` لم يُمسّ. ⚠ **استمراره بعد reboot لم يُختبَر بعد** (الوحدة مفعَّلة فقط) — يُتحقَّق منه عند أي إعادة تشغيل لاحقة بـ`swapon --show`.
+- **`report` النهائي:** `sshd -T`: `passwordauthentication no` · `kbdinteractiveauthentication no` · `permitrootlogin without-password` · `pubkeyauthentication yes` · `fail2ban` فعّال (التقط محاولة فاشلة فورية) · لا `reboot-required` · اختبار الرفض: `Permission denied (publickey).`
+- **ما لم يُغطَّ بالتحصين / متبقٍّ:**
+  - `cloud-init.service` ما زال فاشلاً عند كل إقلاع و`bootcmd` يعيد كتابة `PermitRootLogin yes` في `sshd_config` (لا أثر فعلي بفضل `00-`). خيار التعطيل الكلي مؤجَّل (يتطلب اختبار netplan وحده).
+  - `80/443` مفتوحان في الجدار ولا خدمة خلفهما حتى مرحلة nginx.
+- **التالي حسب `DEPLOY_PLAN.md` §٧:** مستخدم `wamda` + قاعدة/دور (`bootstrap_root.sh` — لم يُكتب بعد، يُعرض كاملاً ويُراجَع مستقلاً) ← كود + venv + Chromium + اختبار PDF ← `.env` + ترحيل + seed ← systemd + nginx + TLS.
