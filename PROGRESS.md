@@ -4522,3 +4522,10 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`chromium-plan`:** اكتُشف أن `playwright install-deps --dry-run` على لينكس **يخرج بـ1 عند وجود حزم ناقصة** ويطبع `Missing system dependencies (N):` + الأسماء (لا سطر `apt-get install`)، فأُصلح المحلّل في `bootstrap_root.sh` (يتحقق أن العدد المستخرَج = المعلَن ويرفض غير ذلك؛ ويتحقق بعد التثبيت أن لا نقص). النتيجة: **٢٩ حزمة كلها جديدة**، بصمة القائمة `bdec1f97c825027dca872508eb55eb64957de8d37cddaa4875c528cfb01ff6e1`. **لم يُثبَّت شيء** بانتظار مراجعة المالك.
 - **RUNBOOK §١١:** النفق صار `-L 18000:127.0.0.1:8000` (الإنتاج دائماً `http://127.0.0.1:18000`، والتطوير `8000`)؛ وصُحِّح تحقّق التمييز: `/docs` يُرجع 404 في الإنتاج و200 في التطوير (كنتُ كتبتُ خطأً أن `/openapi.json` معطَّل في الإنتاج — هو مُتاح في الاثنين).
 - **مقترَح (لم يُنفَّذ):** علامة بيئة في الواجهة تميّز الإنتاج من التطوير — انظر رسالة الجلسة.
+
+### تحديث ٢٠٢٦-١٠-١٢ (٥) — Chromium مثبَّت على السيرفر وتوليد PDF/PNG يعمل فعلياً ✅
+
+- **`chromium-install --list-sha256 bdec1f97…ff6e1`** (بموافقة المالك على القائمة كاملة: ٢٩ حزمة): ثُبِّتت الحزم (apt، `--no-install-recommends`) وتحقق السكربت بعدها أن `--dry-run` لا يُبلغ نقصاً (رمز ٠). نُزِّل Chromium بصفة `wamda` إلى `/srv/wamda/.cache/ms-playwright` (Chrome for Testing 151.0.7922.34 + Headless Shell + FFmpeg).
+- **اختبار التوليد عبر `app.documents.render` (المسار الإنتاجي نفسه، بصفة `wamda`):** `RENDER_OK pdf=42665 png=6589` — PDF يبدأ بـ`%PDF-` وPNG ببصمته الصحيحة. أي أن **«بند الخطر» في الخطة (§٢-٢: Chromium داخل الخدمة) تحقّق**، دون مشكلة sandbox (Playwright يطلق Chromium بلا sandbox افتراضياً).
+- **ما لم يُختبَر بعد:** Chromium داخل وحدة systemd بحدودها (`ProtectSystem`/`MemoryMax`/`MemoryDenyWriteExecute` — قد يتعارض، انظر DEPLOY_PLAN §٣) — يُجرَّب عند كتابة `wamda.service`.
+- **التالي:** `create-admin` (المالك) ← `wamda.service` + مؤقّتات ← nginx/TLS بعد تحديد النطاق.
