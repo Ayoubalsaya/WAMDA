@@ -4477,3 +4477,10 @@ verify يكشف الاسم الأول فقط · accept ناجح يُفعِّل �
 - **`sudoers` ✅:** `systemctl start|stop|restart wamda` و`systemctl --no-pager status wamda` فقط؛ الصيغة بلا `--no-pager` مرفوضة، و`status` لوحدة أخرى مرفوض، ولا sudo عام، و`wamda` عضو `systemd-journal` ويقرأ السجلات بلا sudo.
 - **`deploykey` ✅:** مفتاح `ed25519` لـ`wamda`؛ بصمة github.com المثبَّتة في السكربت **تطابق فعلياً** القيمة التي يعرضها GitHub (`SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`). **بصمة المفتاح العام للـdeploy:** `SHA256:JdPd9mO05ZYHexJyg6suPrZ1IEniAFgkcZYRtbmsP4M`.
 - **التالي:** المالك يضيف المفتاح في GitHub (Deploy key، **بلا** Allow write access) ← `verify-deploykey` ← `report`.
+
+### تحديث ٢٠٢٦-١٠-١١ (١١) — `bootstrap_root.sh` مكتمل ✅ (verify-deploykey · report · دخول wamda)
+
+- **`verify-deploykey` ✅:** `Hi Ayoubalsaya/WAMDA! … successfully authenticated` · `git ls-remote` يعمل · **GitHub رفض `receive-pack`** = المفتاح للقراءة فقط فعلاً.
+- **`report` ✅:** `wamda` (uid 1001، مجموعات `wamda` + `systemd-journal` فقط) · `/srv/wamda` 750 و`backups`/`secrets`/`.ssh` 700 · sudo: الأوامر الأربعة فقط · PostgreSQL 18 `online` على `127.0.0.1` و`::1` فقط · `wamda_app` (كل الأعلام f) و`wamda_restore` (CREATEDB فقط) · `wamda_db`: `C.UTF-8|i|ar`، منطقة `UTC` · ufw دون تغيير (22/80/443).
+- **دخول `wamda` بمفتاح المالك ✅ (جُرِّب فعلاً):** `ssh wamda@144.91.81.150` يعمل بلا كلمة مرور، يقرأ السجلات بلا sudo، ويقرأ سرّه من `secrets/`.
+- **التالي حسب `DEPLOY_PLAN.md` §٧ (٤):** الكود في `/srv/wamda/app` (git clone بمفتاح deploy) + `venv` + `pip install -r requirements.txt` + `playwright install --with-deps chromium` (أو `install-deps` بـroot) + اختبار PDF/PNG فعلي. ثم `.env` + `alembic upgrade head` + `seed` + `create-admin`.
