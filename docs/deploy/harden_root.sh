@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 # تحصين سيرفر ومضة الجديد (DEPLOY_PLAN.md §٠) — يُشغَّل كـ root.
-# ⚠ لا يُشغَّل قبل مراجعة مستقلة. كل مرحلة أمر منفصل، ولا تُقدَّم مرحلة على سابقتها:
+# ⚠ كل مرحلة أمر منفصل، وتُنفَّذ بهذا الترتيب (قرار المالك ٢٠٢٦-١٠-١١: التخمين قائم ≈١٤٥٠ محاولة/يوم):
 #
-#   upgrade      ١) apt full-upgrade. لا يعيد التشغيل أبداً؛ يطبع إن كان لازماً.
-#   firewall     ٢) ufw: deny incoming · allow outgoing · allow SSH ثم 80 و443 ثم enable
-#   fail2ban     ٣) حمّام sshd في jail.d/ جديد (لا تعديل لملف موجود)
-#   autoupdate   ٤) تحديثات أمنية فقط، بلا إعادة تشغيل تلقائي
-#   sshlock      ٥) إغلاق كلمة المرور — آخر خطوة، يتطلب --confirmed-second-session
-#   swap         (مستقلة، اقتراح) ملف swap بحجم ٢GB كاحتياط لـChromium — ملفات جديدة فقط
-#   report       ٦) عرض الحالة النهائية للتسجيل في PROGRESS.md (قراءة فقط)
+#   ١) sshlock      إغلاق كلمة المرور — يتطلب --confirmed-second-session (جلسة ثانية بالمفتاح مفتوحة)
+#   ٢) fail2ban     حمّام sshd في jail.d/ جديد (لا تعديل لملف موجود)
+#   ٣) upgrade      apt full-upgrade. لا يعيد التشغيل أبداً؛ يطبع إن كان لازماً (reboot بموافقة المالك)
+#   ٤) firewall     ufw: deny incoming · allow outgoing · allow SSH ثم 80 و443 ثم enable
+#   ٥) autoupdate   تحديثات أمنية فقط، بلا إعادة تشغيل تلقائي
+#   ٦) swap         ملف swap بحجم ٢GB كاحتياط لـChromium — ملفات جديدة فقط
+#   ٧) report       عرض الحالة النهائية للتسجيل في PROGRESS.md (قراءة فقط)
 #
 # التشغيل من جهازك (السكربت يصل عبر stdin، لا نسخ ملف للسيرفر):
+#   ssh root@HOST 'bash -s -- sshlock --confirmed-second-session' < docs/deploy/harden_root.sh
+#   ssh root@HOST 'bash -s -- fail2ban'   < docs/deploy/harden_root.sh   # ADMIN_IP=x.x.x.x اختياري (يبقى فارغاً)
 #   ssh root@HOST 'bash -s -- upgrade'    < docs/deploy/harden_root.sh
 #   ssh root@HOST 'bash -s -- firewall'   < docs/deploy/harden_root.sh
-#   ssh root@HOST 'ADMIN_IP=x.x.x.x bash -s -- fail2ban' < docs/deploy/harden_root.sh   # ADMIN_IP اختياري
 #   ssh root@HOST 'bash -s -- autoupdate' < docs/deploy/harden_root.sh
-#   ssh root@HOST 'bash -s -- sshlock --confirmed-second-session' < docs/deploy/harden_root.sh
+#   ssh root@HOST 'bash -s -- swap'       < docs/deploy/harden_root.sh
 #   ssh root@HOST 'bash -s -- report'     < docs/deploy/harden_root.sh
 #
 # الضمانات:
@@ -223,12 +224,14 @@ phase_report() {
 
 main() {
   exec </dev/null        # stdin هو السكربت نفسه: لا تدع apt/ufw تستهلكه
-  trap '' HUP            # انقطاع الاتصال لا يقتل apt في منتصف التثبيت
+  # SIGHUP المتجاهَل يُورَّث للعمليات الفرعية (apt وtee) — لذا يسبق أي تشغيل لها.
+  # وtee بـ warn-nopipe لا يموت إن انقطع الأنبوب فلا يصل SIGPIPE إلى apt.
+  trap '' HUP
   [ "$(id -u)" -eq 0 ] || die "يجب التشغيل كـ root"
   local phase="${1:-}"
   [ "$#" -gt 0 ] && shift
   export LC_ALL=C DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l
-  exec > >(tee -a "$LOG") 2>&1
+  exec > >(tee --output-error=warn-nopipe -a "$LOG") 2>&1
   say "harden_root.sh :: $phase"
   case "$phase" in
     upgrade)    phase_upgrade ;;
