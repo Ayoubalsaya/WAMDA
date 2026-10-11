@@ -263,7 +263,7 @@ SQL
   chk_not "الاتصال بقاعدة template1 مرفوض" app_psql -d template1 -c 'SELECT 1'
 
   say "تحقق — ترتيب عربي (ICU) ومنطقة زمنية"
-  chk "مزوّد الترتيب icu واللغة ar" test "$(pg_scalar "SELECT datlocprovider || ':' || datlocale FROM pg_database WHERE datname='$DB_NAME'")" = "i:ar"
+  chk "مزوّد الترتيب icu واللغة ar" test "$(pg_scalar "SELECT datlocprovider::text || ':' || datlocale FROM pg_database WHERE datname='$DB_NAME'")" = "i:ar"
   chk "ORDER BY: إبراهيم، أحمد، احمد، باسم، ثامر (ترتيب أبجدي عربي)" \
       test "$(app_psql -d "$DB_NAME" -c "SELECT string_agg(n, ' ' ORDER BY n) FROM (VALUES ('إبراهيم'),('أحمد'),('احمد'),('باسم'),('ثامر')) v(n)")" = "إبراهيم أحمد احمد باسم ثامر"
   echo "  datcollate | provider | datlocale: $(pg_scalar "SELECT datcollate, datlocprovider, datlocale FROM pg_database WHERE datname='$DB_NAME'")"
