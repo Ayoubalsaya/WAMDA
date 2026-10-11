@@ -32,3 +32,6 @@ shots_remit/
 shots_lines/
 shots_comm/
 shots_wiz/
+
+# مخرجات فحص السيرفر (تُكتب على جهاز المالك فقط)
+docs/deploy/out/

@@ -11,7 +11,7 @@
 #   ssh <المستخدم>@<السيرفر> 'bash -s' < docs/deploy/inspect_readonly.sh > inspect_YYYYMMDD.txt
 # (الملف الناتج يُكتب على جهازك أنت لا على السيرفر)
 #
-# تنبيه: سطور cron قد تحوي أسماء ملفات/أوامر؛ راجع الناتج قبل مشاركته.
+# تنبيه: سطور cron قد تحوي أسماء ملفات/أوامر؛ الأسرار تُخفى بـ*** (دالة redact) لكن راجع الناتج قبل مشاركته.
 
 set -uo pipefail   # بلا -e عمداً: فشل أمر فحص لا يوقف بقية الفحص
 export LC_ALL=C
@@ -19,6 +19,15 @@ export LC_ALL=C
 sec() { printf '\n===== %s =====\n' "$1"; }
 try() { "$@" 2>&1 || echo "(غير متاح أو يحتاج صلاحية: $1)"; }
 have() { command -v "$1" >/dev/null 2>&1; }
+
+# إخفاء الأسرار من أي نص يُطبع (محتوى cron وproxy_pass): قيمة بعد password/passwd/pwd/
+# PGPASSWORD/token/secret/key (بـ= أو : أو كوسيط بعد --flag)، وكلمة المرور في scheme://user:pass@host.
+redact() {
+  sed -E \
+    -e 's#([A-Za-z][A-Za-z0-9+.-]*://[^:/@[:space:]]*):[^[:space:]/]+@#\1:***@#g' \
+    -e 's#((password|passwd|pwd|token|secret|key)[A-Za-z0-9_]*[[:space:]]*(=|:)[[:space:]]*)("[^"]*"|\x27[^\x27]*\x27|[^[:space:];&|"]+)#\1***#Ig' \
+    -e 's#(--?(password|passwd|pwd|token|secret|key)[[:space:]]+)[^[:space:]-][^[:space:]]*#\1***#Ig'
+}
 
 sec "الهوية الحالية (من أنا؟)"
 try id
@@ -81,13 +90,13 @@ if have systemctl; then systemctl list-timers --all --no-pager 2>&1; fi
 
 sec "cron"
 echo "--- crontab المستخدم الحالي"
-crontab -l 2>&1 || true
+crontab -l 2>&1 | redact
 echo "--- /etc/crontab"
-if [ -r /etc/crontab ]; then grep -vE '^\s*#|^\s*$' /etc/crontab; else echo "(غير مقروء)"; fi
+if [ -r /etc/crontab ]; then grep -vE '^\s*#|^\s*$' /etc/crontab | redact; else echo "(غير مقروء)"; fi
 echo "--- /etc/cron.d"
 for f in /etc/cron.d/*; do
   [ -r "$f" ] || continue
-  echo "# $f"; grep -vE '^\s*#|^\s*$' "$f"
+  echo "# $f"; grep -vE '^\s*#|^\s*$' "$f" | redact
 done 2>/dev/null
 echo "--- ملفات cron.daily/hourly/weekly (الأسماء فقط)"
 ls /etc/cron.hourly /etc/cron.daily /etc/cron.weekly /etc/cron.monthly 2>&1
@@ -96,7 +105,7 @@ sec "nginx — server_name / listen / root فقط (لا محتوى آخر)"
 if [ -d /etc/nginx ]; then
   ls -la /etc/nginx/sites-enabled /etc/nginx/conf.d 2>&1
   echo "---"
-  grep -RHnE '^\s*(server_name|listen|root|proxy_pass)\b' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>&1 | head -80
+  grep -RHnE '^\s*(server_name|listen|root|proxy_pass)\b' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>&1 | redact | head -80
 else
   echo "/etc/nginx غير موجود"
 fi
