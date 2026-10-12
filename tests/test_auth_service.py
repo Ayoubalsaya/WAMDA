@@ -43,7 +43,7 @@ def test_login_step1_locked_account_rejected(db):
     from app.security import lockout
 
     user = _make_staff_user(db)
-    for _ in range(5):
+    for _ in range(lockout.MAX_FAILED_ATTEMPTS):
         lockout.record_failed_attempt(db, user, NOW)
     with pytest.raises(lockout.AccountLockedError):
         auth_service.login_step1(db, username=user.username, password="Sup3rSecret!1", now=NOW)

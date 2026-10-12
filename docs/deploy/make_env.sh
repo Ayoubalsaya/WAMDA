@@ -40,9 +40,9 @@ umask 077
   printf 'BACKUP_ADMIN_DATABASE_URL=postgresql+psycopg://wamda_restore:%s@127.0.0.1:5432/postgres\n' "$RESTORE_PW"
   printf '%s\n' ''
   printf '%s\n' '# حدّ الدخول الصارم (الخادم يرفض الإقلاع بأضعف من هذا في الإنتاج)'
-  printf '%s\n' 'LOGIN_RATE_LIMIT_MAX=5'
+  printf '%s\n' 'LOGIN_RATE_LIMIT_MAX=8'
   printf '%s\n' 'PORTAL_LOGIN_RATE_LIMIT_MAX=5'
-  printf '%s\n' 'LOGIN_RATE_LIMIT_WINDOW_SECONDS=900'
+  printf '%s\n' 'LOGIN_RATE_LIMIT_WINDOW_SECONDS=300'
   printf '%s\n' '# صحيح فقط خلف nginx يضبط X-Real-IP/X-Forwarded-For. قبل nginx الخدمة على 127.0.0.1 ولا يصلها إلا نفق SSH.'
   printf '%s\n' 'TRUST_PROXY_HEADERS=true'
   printf '%s\n' ''

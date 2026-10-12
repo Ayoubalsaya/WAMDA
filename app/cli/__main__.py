@@ -56,6 +56,12 @@ def _cmd_reset_2fa() -> None:
     run()
 
 
+def _cmd_unlock_user() -> None:
+    from app.cli.unlock_user import run
+
+    run()
+
+
 def _cmd_reset_admin_password() -> None:
     from app.cli.reset_admin_password import run
 
@@ -119,6 +125,7 @@ def main() -> None:
     )
     sub.add_parser("create-admin", help="إنشاء أول مدير (تفاعلي) — يرفض إن وُجد مدير بالفعل")
     sub.add_parser("reset-2fa", help="إعادة ضبط المصادقة الثنائية لمستخدم (فقدان الجهاز) من السيرفر — كلمة المرور لا تتغيّر")
+    sub.add_parser("unlock-user", help="فك قفل حساب بعد محاولات فاشلة فوراً (لا يمسّ كلمة المرور ولا 2FA)")
     sub.add_parser("reset-admin-password", help="إعادة تعيين كلمة مرور مدير من السيرفر — طوارئ")
     sub.add_parser(
         "purge-demo-data",
@@ -166,6 +173,8 @@ def main() -> None:
         _cmd_create_admin()
     elif args.command == "reset-2fa":
         _cmd_reset_2fa()
+    elif args.command == "unlock-user":
+        _cmd_unlock_user()
     elif args.command == "reset-admin-password":
         _cmd_reset_admin_password()
     elif args.command == "purge-demo-data":

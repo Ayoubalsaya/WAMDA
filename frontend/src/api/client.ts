@@ -17,10 +17,13 @@ export interface FieldError {
 export class ApiError extends Error {
   status: number
   fieldErrors: FieldError[]
-  constructor(status: number, message: string, fieldErrors: FieldError[] = []) {
+  // ثوانٍ حتى يُسمح بالمحاولة التالية (ترويسة Retry-After عند إيقاف الدخول المؤقت ٤٢٩/٤٢٣)، وإلا null
+  retryAfterSeconds: number | null
+  constructor(status: number, message: string, fieldErrors: FieldError[] = [], retryAfterSeconds: number | null = null) {
     super(message)
     this.status = status
     this.fieldErrors = fieldErrors
+    this.retryAfterSeconds = retryAfterSeconds
   }
 }
 
@@ -40,6 +43,11 @@ function fieldErrorsOf(data: unknown): FieldError[] {
   const errors = (data as { errors?: unknown } | undefined)?.errors
   if (!Array.isArray(errors)) return []
   return errors.filter((e): e is FieldError => !!e && typeof e === 'object' && typeof (e as FieldError).message === 'string')
+}
+
+function retryAfterOf(res: Response): number | null {
+  const n = Number.parseInt(res.headers.get('Retry-After') ?? '', 10)
+  return Number.isFinite(n) && n > 0 ? n : null
 }
 
 function readCsrfCookie(): string | null {
@@ -86,7 +94,7 @@ async function request<T>(
     if (res.status === 401 && !/^\/(auth|portal)\/(login|me|logout)/.test(path)) {
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
     }
-    throw new ApiError(res.status, humanMessage(res.status, data), fieldErrorsOf(data))
+    throw new ApiError(res.status, humanMessage(res.status, data), fieldErrorsOf(data), retryAfterOf(res))
   }
   return data as T
 }

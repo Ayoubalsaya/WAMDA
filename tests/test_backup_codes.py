@@ -163,8 +163,12 @@ def test_wrong_backup_codes_count_towards_the_same_lockout(db, client):
     user = _user(db)
     codes = _first_setup(client, user)[0]["backup_codes"]
     client.cookies.clear()
-    for _ in range(5):
+    from app.security import deps, lockout
+
+    deps._login_rate_limiter.reset()  # حدّ العنوان (٨) يساوي حدّ القفل: نختبر القفل نفسه لا حدّ المعدل
+    for _ in range(lockout.MAX_FAILED_ATTEMPTS):
         assert _backup_login(client, user, "ZZZZZ-ZZZZZ").status_code == 401
+    deps._login_rate_limiter.reset()
     db.refresh(user)
     assert user.locked_until is not None
     locked = _backup_login(client, user, codes[0])  # رمز صحيح لكن الحساب مقفل

@@ -6,8 +6,10 @@ from pydantic import model_validator
 # الحدّ الصارم الإلزامي حين APP_ENV=production (طلب مالك صريح، ٢٠٢٦-١٠-٠٢):
 # قيمة أضعف من هذا في الإنتاج ترفض الإقلاع كلياً — لا تصحيح صامت. محلياً
 # (APP_ENV!=production) القيم حرة كما هي بلا أي قيد.
-PRODUCTION_MAX_LOGIN_RATE_LIMIT = 5
-PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS = 900  # ١٥ دقيقة
+# عُدِّل بقرار المالك ٢٠٢٦-١٠-١٢ (من ٥ خلال ١٥ دقيقة): ٨ محاولات خلال ٥ دقائق — يظهر العدد المتبقّي والعدّاد التنازلي في الواجهة.
+# `lockout.MAX_FAILED_ATTEMPTS` يساوي هذا الحدّ عمداً (الرسالة «بقيت N محاولات» مصدرها عدّاد العنوان).
+PRODUCTION_MAX_LOGIN_RATE_LIMIT = 8
+PRODUCTION_MIN_RATE_LIMIT_WINDOW_SECONDS = 300  # ٥ دقائق
 
 
 class Settings(BaseSettings):
@@ -61,7 +63,7 @@ class Settings(BaseSettings):
     # §٩ المرحلة ١٢ — تحديد معدل مسارات الدخول (لكل عنوان IP، نافذة منزلقة).
     # الموظف: عنوان ثابت غالباً → حدّ أضيق. العميل: هاتف بشبكة متغيّرة →
     # حدّ أوسع. يُطبَّق على تسجيل الدخول فقط، لا أي طلب قراءة.
-    login_rate_limit_max: int = 10
+    login_rate_limit_max: int = 8
     portal_login_rate_limit_max: int = 30
     login_rate_limit_window_seconds: int = 300
     # الثقة بترويسات الوكيل (`X-Real-IP`/`X-Forwarded-For`) لتحديد عنوان

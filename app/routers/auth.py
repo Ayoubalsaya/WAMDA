@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -28,7 +29,10 @@ from app.schemas.auth import (
 )
 from app.security import audit, auth_service, backup_codes, csrf, lockout, passwords, sessions
 from app.security.permissions import Action, has_permission
-from app.security.deps import SESSION_COOKIE_NAME, enforce_login_rate_limit, get_current_user, verify_csrf
+from app.security.deps import (
+    SESSION_COOKIE_NAME, enforce_login_rate_limit, get_current_user, login_attempts_left, verify_csrf,
+)
+from app.security.login_messages import format_attempts_left_ar, format_wait_ar
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -55,6 +59,20 @@ def _client_ip(request: Request) -> Optional[str]:
     return request.client.host
 
 
+def _with_attempts_left(request: Request, message: str) -> str:
+    """«… غير صحيحة — بقيت 3 محاولات قبل الإيقاف المؤقت». الرقم من عدّاد العنوان (لا يكشف وجود الاسم)."""
+    return f"{message} — {format_attempts_left_ar(login_attempts_left(request))}"
+
+
+def _locked_response(exc: lockout.AccountLockedError, now) -> HTTPException:
+    """٤٢٣ بمدّة الانتظار في الرسالة وفي `Retry-After` (الواجهة تعرض عدّاداً تنازلياً منها)."""
+    wait = max(1, math.ceil((exc.locked_until - now).total_seconds()))
+    return HTTPException(
+        status.HTTP_423_LOCKED, f"الحساب مقفل مؤقتاً بعد محاولات فاشلة — حاول بعد {format_wait_ar(wait)}",
+        headers={"Retry-After": str(wait)},
+    )
+
+
 def _ensure_csrf_cookie(request: Request, response: Response) -> None:
     if request.cookies.get(csrf.CSRF_COOKIE_NAME) is None:
         response.set_cookie(
@@ -76,11 +94,11 @@ def login(
         user = auth_service.login_step1(db, username=payload.username, password=payload.password, now=now)
     except auth_service.InvalidCredentialsError as exc:
         db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _with_attempts_left(request, str(exc))) from exc
     except lockout.AccountLockedError as exc:
         # ٢٠٢٦-١٠-٠٣: كان يصل ٥٠٠ خاماً (الاستثناء غير مُعالَج في الموجّه) — حساب مقفل = ٤٢٣ برسالة عربية
         db.commit()
-        raise HTTPException(status.HTTP_423_LOCKED, "الحساب مقفل مؤقتاً بعد محاولات فاشلة — حاول لاحقاً") from exc
+        raise _locked_response(exc, now) from exc
 
     if user.totp_secret is None:
         # لا سرّ مُثبَّت بعد — إمّا أول ظهور لهذا الاستدعاء (نعرض التحدي)
@@ -99,7 +117,7 @@ def login(
             )
         except auth_service.InvalidTwoFactorCodeError as exc:
             db.commit()
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, _with_attempts_left(request, str(exc))) from exc
     else:
         if not payload.totp_code and not payload.backup_code:
             db.commit()
@@ -113,7 +131,7 @@ def login(
                 result = auth_service.login_step2_backup(db, user=user, code=payload.backup_code, now=now, ip=ip, ua=ua)
         except auth_service.InvalidTwoFactorCodeError as exc:
             db.commit()
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, _with_attempts_left(request, str(exc))) from exc
 
     db.commit()
     _set_session_cookie(response, result.raw_token)
@@ -145,7 +163,7 @@ def regenerate_backup_codes(
     if not passwords.verify_password(payload.password, current_user.password_hash):
         lockout.record_failed_attempt(db, current_user, now)
         db.commit()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "كلمة المرور غير صحيحة")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, _with_attempts_left(request, "كلمة المرور غير صحيحة"))
     codes = backup_codes.generate(db, user_id=current_user.id, now=now)
     audit.log_write(
         db, actor_type=SessionSubjectType.USER, actor_id=current_user.id, action="BACKUP_CODES_GENERATED", entity="users",

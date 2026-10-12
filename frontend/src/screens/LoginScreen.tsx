@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { ApiError } from '../api/client'
 import type { LoginResponse } from '../api/types'
+import { formatCountdown, useCountdown } from '../hooks/useCountdown'
 import { LogoMark } from '../components/LogoMark'
 import { BackupCodesPanel } from '../components/BackupCodesPanel'
 import './LoginScreen.css'
@@ -12,6 +13,17 @@ interface LoginScreenProps {
 }
 
 type Step = 'credentials' | 'totp_required' | 'totp_setup_required'
+
+function PauseNotice({ kind, secondsLeft }: { kind: 'rate' | 'account'; secondsLeft: number }) {
+  return (
+    <div className="alert alert-critical" role="alert">
+      <div>{kind === 'account' ? 'الحساب مقفل مؤقتاً بعد محاولات فاشلة.' : 'أُوقف الدخول مؤقتاً بعد محاولات كثيرة.'}</div>
+      <div>
+        يمكنك المحاولة بعد <strong className="num" dir="ltr">{formatCountdown(secondsLeft)}</strong> (دقائق:ثوانٍ)
+      </div>
+    </div>
+  )
+}
 
 export function LoginScreen({ login, refresh }: LoginScreenProps) {
   const [username, setUsername] = useState('')
@@ -27,10 +39,27 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
   const [backupCode, setBackupCode] = useState('')
   const [issuedCodes, setIssuedCodes] = useState<string[] | null>(null)
 
+  // إيقاف مؤقت من الخادم (٤٢٩ حدّ المعدل أو ٤٢٣ قفل الحساب): عدّاد تنازلي حيّ، والإرسال معطَّل حتى ينتهي
+  const [pausedUntil, setPausedUntil] = useState<number | null>(null)
+  const [pausedKind, setPausedKind] = useState<'rate' | 'account'>('rate')
+  const pausedLeft = useCountdown(pausedUntil)
+  const paused = pausedUntil !== null && pausedLeft > 0
+
   const totpValid = /^\d{6}$/.test(totpCode)
+
+  function fail(err: unknown, fallback: string) {
+    if (err instanceof ApiError && err.retryAfterSeconds !== null && (err.status === 429 || err.status === 423)) {
+      setPausedKind(err.status === 423 ? 'account' : 'rate')
+      setPausedUntil(Date.now() + err.retryAfterSeconds * 1000)
+      setError(null)
+      return
+    }
+    setError(err instanceof ApiError ? err.message : fallback)
+  }
 
   async function submitCredentials(e: React.FormEvent) {
     e.preventDefault()
+    if (paused) return
     setError(null)
     setBusy(true)
     try {
@@ -42,7 +71,7 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
         setStep('totp_setup_required')
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'تعذّر تسجيل الدخول')
+      fail(err, 'تعذّر تسجيل الدخول')
     } finally {
       setBusy(false)
     }
@@ -50,6 +79,7 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
 
   async function submitTotp(e: React.FormEvent) {
     e.preventDefault()
+    if (paused) return
     if (useBackup && step === 'totp_required') {
       if (!backupCode.trim()) return
       setError(null)
@@ -57,7 +87,7 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
       try {
         await login(username, password, undefined, undefined, backupCode.trim())
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'الرمز الاحتياطي غير صحيح')
+        fail(err, 'الرمز الاحتياطي غير صحيح')
       } finally {
         setBusy(false)
       }
@@ -75,7 +105,7 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
         await login(username, password, totpCode)
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'رمز التحقق غير صحيح')
+      fail(err, 'رمز التحقق غير صحيح')
     } finally {
       setBusy(false)
     }
@@ -124,8 +154,9 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
               <label className="field-label" htmlFor="password">كلمة المرور</label>
               <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
+            {paused && <PauseNotice kind={pausedKind} secondsLeft={pausedLeft} />}
             {error && <div className="alert alert-critical">{error}</div>}
-            <button type="submit" className="btn btn-primary btn-lg" disabled={busy} style={{ width: '100%' }}>
+            <button type="submit" className="btn btn-primary btn-lg" disabled={busy || paused} style={{ width: '100%' }}>
               دخول
             </button>
             <p className="login-forgot">نسيت كلمة المرور؟ اطلب من المدير إعادة تعيينها.</p>
@@ -174,10 +205,11 @@ export function LoginScreen({ login, refresh }: LoginScreenProps) {
                 />
               </div>
             )}
+            {paused && <PauseNotice kind={pausedKind} secondsLeft={pausedLeft} />}
             {error && <div className="alert alert-critical">{error}</div>}
             <button
               type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }}
-              disabled={busy || (useBackup && step === 'totp_required' ? !backupCode.trim() : !totpValid)}
+              disabled={busy || paused || (useBackup && step === 'totp_required' ? !backupCode.trim() : !totpValid)}
             >
               تأكيد
             </button>

@@ -70,6 +70,12 @@ def _enforce(limiter: RateLimiter, request: Request) -> None:
         ) from exc
 
 
+def login_attempts_left(request: Request) -> int:
+    """المحاولات المتبقية لعنوان هذا الطلب قبل الإيقاف المؤقت (بعد احتساب الطلب الحالي). مصدرها عدّاد العنوان وحده —
+    لا حالة حساب بعينه — فلا يختلف الرقم بين اسم مستخدم موجود وغير موجود."""
+    return _login_rate_limiter.remaining(_rate_limit_key(request), now=system_clock().timestamp())
+
+
 def enforce_login_rate_limit(request: Request) -> None:
     """تبعية على `POST /auth/login` فقط."""
     _enforce(_login_rate_limiter, request)

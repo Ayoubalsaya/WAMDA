@@ -58,7 +58,7 @@
    (مكتبات التشغيل فقط **بإصدارات مثبَّتة بدقة `==`**؛ أدوات الاختبار في `requirements-dev.txt` ولا تُثبَّت على السيرفر — فُصلا ٢٠٢٦-١٠-١١).
 4. الواجهة: **قرار: تُبنى محلياً (`npm run build`) وتُشحن `app/static/app`** — لا Node ولا npm على السيرفر.
 5. `.env` الإنتاج (0600): `APP_ENV=production`، `TRUST_PROXY_HEADERS=true`،
-   `LOGIN_RATE_LIMIT_MAX<=5`، `PORTAL_LOGIN_RATE_LIMIT_MAX<=5`، `LOGIN_RATE_LIMIT_WINDOW_SECONDS>=900`
+   `LOGIN_RATE_LIMIT_MAX<=8`، `PORTAL_LOGIN_RATE_LIMIT_MAX<=8`، `LOGIN_RATE_LIMIT_WINDOW_SECONDS>=300` (٨ محاولات/٥ دقائق، قرار ٢٠٢٦-١٠-١٢)
    (وإلا يرفض الإقلاع)، `BACKUP_OFFSITE_DIR`، `BACKUP_ENCRYPTION_KEY`، **`TOTP_ENCRYPTION_KEY` (إلزامي في الإنتاج — يرفض الإقلاع بدونه)**، `DATABASE_URL` (`wamda_app`)، **`BACKUP_ADMIN_DATABASE_URL` (`wamda_restore`، قاعدة `postgres`)** — وهو ما يستخدمه `restore-test` لإنشاء القاعدة المؤقتة؛ و`restore --target-db` اليدوي إلى `wamda_db` يتطلب تفريغه من بيئة الأمر (فيعود إلى `DATABASE_URL`)،
    ومهلتا الخمول (`STAFF_IDLE_TIMEOUT_MINUTES=30`، `PORTAL_IDLE_TIMEOUT_MINUTES=15` افتراضياً).
    المفتاحان `BACKUP_ENCRYPTION_KEY` و`TOTP_ENCRYPTION_KEY` **يحفظهما المالك بنفسه — لا في git ولا مع النسخ السحابية**.

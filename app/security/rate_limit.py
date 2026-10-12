@@ -17,13 +17,16 @@
 from __future__ import annotations
 
 import threading
+import math
 from collections import defaultdict
+
+from app.security.login_messages import format_wait_ar
 
 
 class RateLimitedError(Exception):
     def __init__(self, retry_after_seconds: int):
         self.retry_after_seconds = retry_after_seconds
-        super().__init__(f"طلبات كثيرة — حاول بعد {retry_after_seconds} ثانية")
+        super().__init__(f"طلبات كثيرة — حاول بعد {format_wait_ar(retry_after_seconds)}")
 
 
 class RateLimiter:
@@ -36,15 +39,25 @@ class RateLimiter:
         self._lock = threading.Lock()
 
     def hit(self, key: str, *, now: float) -> None:
-        """يسجّل محاولة ويرفع `RateLimitedError` إن تجاوز المفتاح الحدّ."""
+        """يسجّل محاولة ويرفع `RateLimitedError` إن بلغ المفتاح الحدّ.
+
+        المحاولة المرفوضة **لا تُسجَّل**: وإلا مدّد الضغطُ المتكرر أثناء الإيقاف مدّتَه، ولم يعد العدّ التنازلي
+        المعروض للمستخدم صحيحاً (ينتهي عند خروج أقدم محاولة مسجَّلة من النافذة)."""
         cutoff = now - self.window_seconds
         with self._lock:
             recent = [t for t in self._hits[key] if t > cutoff]
+            if len(recent) >= self.max_hits:
+                self._hits[key] = recent
+                raise RateLimitedError(retry_after_seconds=max(1, math.ceil(recent[0] + self.window_seconds - now)))
             recent.append(now)
             self._hits[key] = recent
-            if len(recent) > self.max_hits:
-                oldest = recent[0]
-                raise RateLimitedError(retry_after_seconds=max(1, int(oldest + self.window_seconds - now)))
+
+    def remaining(self, key: str, *, now: float) -> int:
+        """المحاولات المتبقية للمفتاح داخل النافذة الحالية (بعد احتساب آخر `hit`)."""
+        cutoff = now - self.window_seconds
+        with self._lock:
+            used = sum(1 for t in self._hits.get(key, ()) if t > cutoff)
+        return max(0, self.max_hits - used)
 
     def reset(self) -> None:
         """يُستدعى بين الاختبارات (تجهيزة conftest) — الحالة على مستوى الوحدة."""

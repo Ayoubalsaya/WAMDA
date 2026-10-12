@@ -1,5 +1,5 @@
 """اختبارات وحدة للمصادقة نفسها: كلمات المرور · TOTP · الرموز · CSRF ·
-القفل بعد ٥ محاولات · مصفوفة الصلاحيات بندًا بندًا (§٧-١٣)."""
+القفل بعد ٨ محاولات · مصفوفة الصلاحيات بندًا بندًا (§٧-١٣)."""
 
 from __future__ import annotations
 
@@ -39,14 +39,14 @@ def test_csrf_verify():
     assert csrf.verify_csrf_token(token, None) is False
 
 
-# ── القفل بعد ٥ محاولات فاشلة، ١٥ دقيقة ─────────────────────────────────
-def test_lockout_after_five_failed_attempts(db):
+# ── القفل بعد ٨ محاولات فاشلة، ١٥ دقيقة ─────────────────────────────────
+def test_lockout_after_max_failed_attempts(db):
     user = f.make_user(db)
-    for _ in range(4):
+    for _ in range(lockout.MAX_FAILED_ATTEMPTS - 1):
         lockout.record_failed_attempt(db, user, NOW)
         lockout.check_not_locked(user, NOW)  # لم يُقفل بعد
 
-    lockout.record_failed_attempt(db, user, NOW)  # المحاولة الخامسة
+    lockout.record_failed_attempt(db, user, NOW)  # المحاولة الأخيرة
     assert user.locked_until == NOW + timedelta(minutes=15)
     assert user.failed_attempts == 0  # يُصفَّر عند القفل نفسه
 
@@ -63,7 +63,7 @@ def test_lockout_after_five_failed_attempts(db):
 
 def test_reset_failed_attempts_clears_lock(db):
     user = f.make_user(db)
-    for _ in range(5):
+    for _ in range(lockout.MAX_FAILED_ATTEMPTS):
         lockout.record_failed_attempt(db, user, NOW)
     assert user.locked_until is not None
 

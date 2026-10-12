@@ -60,7 +60,7 @@ def test_production_disables_openapi_and_prefixes_cookie_names():
         "APP_ENV": "production",
         "DATABASE_URL": "postgresql+psycopg://x:x@127.0.0.1:5432/x",
         "TOTP_ENCRYPTION_KEY": base64.urlsafe_b64encode(b"wamda-env-marker-test-key".ljust(32, b"_")).decode(),
-        "LOGIN_RATE_LIMIT_MAX": "5", "PORTAL_LOGIN_RATE_LIMIT_MAX": "5", "LOGIN_RATE_LIMIT_WINDOW_SECONDS": "900",
+        "LOGIN_RATE_LIMIT_MAX": "8", "PORTAL_LOGIN_RATE_LIMIT_MAX": "5", "LOGIN_RATE_LIMIT_WINDOW_SECONDS": "300",
         "PYTHONIOENCODING": "utf-8",
     }
     out = subprocess.run([sys.executable, "-c", _PROD_PROBE], cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
