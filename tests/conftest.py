@@ -74,6 +74,38 @@ WORK_TZ = settings.work_timezone
 FIXED_NOW = datetime(2026, 6, 15, 10, 0, 0, tzinfo=timezone.utc)
 
 
+# ── قفل الجلسة (٢٠٢٦-١٠-١٢) ────────────────────────────────────────────────────────────────────
+# تشغيلان معاً لـpytest على `wamda_test` يتعارضان (أقفال صفوف، `_ensure_schema`، اختبارات الالتزام الحقيقي) ويعلقان بلا رسالة.
+# القفل الحصري يؤخذ عند بدء الجلسة قبل الجمع/أي عمل على القاعدة، فيفشل الثاني فوراً برسالة واضحة. انظر tests/session_lock.py.
+_SESSION_LOCK = None
+
+
+def pytest_sessionstart(session):
+    global _SESSION_LOCK
+    if session.config.option.collectonly:
+        return  # الجمع فقط لا يمسّ القاعدة
+    from tests.session_lock import SessionLock
+
+    lock = SessionLock(TEST_DATABASE_URL, label=f"wamda-tests pid={os.getpid()}")
+    if not lock.acquire():
+        holder = lock.holder()
+        lock.release()
+        pytest.exit(
+            f"رفض: تشغيل اختبارات آخر قيد العمل على {lock.dbname}"
+            + (f" ({holder})" if holder else "")
+            + " — انتظر انتهاءه أو أوقفه ثم أعد التشغيل. لا يُشغَّل pytest مرتين معاً على قاعدة الاختبار نفسها.",
+            returncode=3,
+        )
+    _SESSION_LOCK = lock
+
+
+def pytest_sessionfinish(session, exitstatus):
+    global _SESSION_LOCK
+    if _SESSION_LOCK is not None:
+        _SESSION_LOCK.release()
+        _SESSION_LOCK = None
+
+
 @pytest.fixture(scope="session")
 def engine():
     eng = create_engine(settings.database_url)
