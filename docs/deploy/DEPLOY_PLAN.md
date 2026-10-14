@@ -86,12 +86,23 @@
 **قرار المالك (باقٍ):** النسخ خارج السيرفر يعمل ويُختبَر **باستعادة حقيقية** (`restore-test` على النسخة التي وصلت للوجهة الخارجية) **قبل أي رصيد حقيقي** — شرط بوابة لا يُتجاوز.
 التحقق اليدوي الشهري من وصول الملفات للسحابة يبقى إلزامياً (README). خيارات الوجهة (rclone) وكلفتها في `PROGRESS.md` («خيارات النسخ السحابي»).
 
-## ٥. nginx + TLS
-`server_tokens off;` · `proxy_pass http://127.0.0.1:<P>` · `proxy_set_header X-Real-IP $remote_addr;`
-`X-Forwarded-For $proxy_add_x_forwarded_for;` · `Host`/`X-Forwarded-Proto` · إعادة توجيه 80→443 ·
-شهادة Let's Encrypt بتجديد تلقائي · `client_max_body_size` معتدل · `proxy_read_timeout` ≥ 60ث
-(مهلة توليد PDF في التطبيق 60ث) · لا تخزين مؤقت (التطبيق يرسل `no-store`). HSTS يرسله التطبيق.
-خطوة nginx/HTTPS بسكربت `root` منفصل يُراجَع مستقلاً (تحتاج النطاق الفرعي — مؤجَّل).
+## ٥. nginx + TLS + Cloudflare (قرار المالك ٢٠٢٦-١٠-١٥ — مكتوب، لم يُشغَّل)
+**العنوان:** `https://app.wamda.work`، سجل `A` عبر Proxy (السحابة البرتقالية) إلى `144.91.81.150`، **SSL = Full (strict)**.
+**المسار:** المتصفح ← Cloudflare ← nginx `:443` ← uvicorn `127.0.0.1:8000`. (تفاصيل التشغيل: `RUNBOOK.md` §١٤؛ السكربتات: `edge_root.sh` · `install_origin_cert.sh` · `set_public_base_url.sh`.)
+
+- **nginx:** موقع واحد لـ`app.wamda.work`؛ `server_tokens off` · `proxy_pass http://127.0.0.1:8000` · `Host`/`X-Real-IP $remote_addr`/`X-Forwarded-For $remote_addr`/`X-Forwarded-Proto` ·
+  ترويسات Cloudflare لا تُمرَّر للتطبيق · `default_server` يُسقط (444/رفض مصافحة) كل ما ليس الاسم · 80→301 إلى `https://app.wamda.work` · `client_max_body_size 2m` ·
+  `proxy_read_timeout 90s` (Cloudflare يقطع عند 100ث).
+- **TLS:** شهادة **Cloudflare Origin** (١٥ سنة، لـ`app.wamda.work` فقط) تُثبَّت بـ`install_origin_cert.sh` التفاعلي؛ **المفتاح الخاص لا يمرّ بأي أداة أو محادثة** (يُلصق في طرفي المالك بلا صدى، 0600 root).
+  لا certbot ولا Let's Encrypt. تنتهي بعد ١٥ سنة؛ التجديد بتشغيل السكربت بـ`--replace` (يُسجَّل تذكير في PROGRESS).
+- **الجدار الناري:** 80/443 من نطاقات Cloudflare فقط (القائمة الرسمية `ips-v4`/`ips-v6`، قواعد بتعليق `cloudflare`، تُزامَن بـ`wamda-update-cloudflare-ips` أسبوعياً)؛ 22 دون تغيير.
+  دفاع ثانٍ في nginx: `geo $realip_remote_addr` ⇒ أي نظير غير Cloudflare يُسقَط (444) حتى لو أخطأ ufw.
+- **عنوان العميل:** `set_real_ip_from` (نطاقات Cloudflare) + `real_ip_header CF-Connecting-IP`؛ التطبيق (`TRUST_PROXY_HEADERS=true`) يقرأ `X-Real-IP`. إثبات: `edge_root.sh verify` (مستمع مؤقت بالمواقع نفسها) + `tests/test_edge_config.py`.
+- **التخزين المؤقت:** nginx يفرض `no-store` على كل شيء إلا `/static/app/assets/*` (`public, max-age=31536000, immutable`) ويُخفي ترويسات التخزين القادمة من التطبيق؛
+  وقاعدة Cache Rule في Cloudflare (Bypass لكل ما عدا `/static/app/assets/`) كطبقة ثانية. لا `Cache Everything`.
+- **التطبيق:** `PUBLIC_BASE_URL=https://app.wamda.work` (حارس QR/الدعوات يمرّ)؛ HSTS يرسله التطبيق (سنة + النطاقات الفرعية).
+- **السجل:** `/var/log/nginx/wamda-access.log` بلا سلسلة الاستعلام (روابط دعوة/رموز)، يعرض العنوان الحقيقي و`peer=` Cloudflare.
+- **لا حساب Cloudflare:** لا رموز API ولا اتصال بالحساب؛ كل ما في اللوحة يفعله المالك يدوياً.
 
 ## ٦. المراقبة والتشغيل
 - فشل أي مؤقّت ⇒ `OnFailure=` يُنبّه — **قرار المالك: بريد إلكتروني + لوحة التحكم** (عنوان البريد وخادم الإرسال يُحدَّدان لاحقاً).

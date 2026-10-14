@@ -291,7 +291,7 @@ sudo systemctl --no-pager status wamda
 
 ## ١١. الوصول للنظام قبل النطاق/HTTPS — نفق SSH فقط (٢٠٢٦-١٠-١٢)
 
-> **قاعدة:** الخدمة تستمع على `127.0.0.1` فقط ولا يُفتح النظام للإنترنت قبل HTTPS (لا منفذ للخدمة في ufw). للوصول قبل ذلك:
+> **قاعدة:** الخدمة تستمع على `127.0.0.1` فقط ولا يُفتح النظام للإنترنت قبل HTTPS (لا منفذ للخدمة في ufw). للوصول قبل ذلك (وللطوارئ بعد §١٤، فالنفق لا يعتمد على Cloudflare ولا nginx):
 > نفق SSH من جهازك — لا غيره.
 
 من PowerShell على جهازك (يبقى مفتوحاً ما دمت تعمل؛ `Ctrl+C` يُغلقه):
@@ -372,3 +372,85 @@ ssh -t wamda@144.91.81.150 "cd /srv/wamda/app && /srv/wamda/venv/bin/python -m a
 | **أتوقع أن أرى** | `فُكّ قفل '<الاسم>' (كلمة المرور و2FA لم يتغيّرا).` |
 | **إن اختلف** | `لا مستخدم باسم …` ← اسم خاطئ (الأسماء حسّاسة للحالة). |
 
+
+## ١٤. العنوان العام: `https://app.wamda.work` عبر Cloudflare + nginx (٢٠٢٦-١٠-١٥ — مكتوب، لم يُشغَّل)
+
+> **المسار:** المتصفح ← Cloudflare (Proxy، SSL = **Full (strict)**) ← nginx `:443` (شهادة Cloudflare Origin) ← uvicorn `127.0.0.1:8000`.
+> **لا يصل أحد للنظام إلا عبر Cloudflare:** ufw يسمح بـ80/443 من نطاقات Cloudflare فقط، وnginx نفسه يُسقط (444) أي نظير ليس منها.
+> السكربتات: `docs/deploy/install_origin_cert.sh` (تفاعلي — أنت) · `docs/deploy/edge_root.sh` (`plan|install|verify|lockdown|timer`) ·
+> `docs/deploy/set_public_base_url.sh` (بصفة `wamda`). كل سكربت يُراجَع قبل تشغيله. **لا سكربت يتصل بحساب Cloudflare أو يطلب منه رمزاً.**
+
+### الترتيب
+
+| # | أين | الخطوة |
+|---|---|---|
+| ١ | لوحة Cloudflare | إنشاء شهادة Origin (انظر أدناه) — **لا تُغيِّر وضع SSL بعد** |
+| ٢ | جهازك | `scp docs/deploy/install_origin_cert.sh root@144.91.81.150:/root/` ثم `ssh -t root@144.91.81.150 'bash /root/install_origin_cert.sh'` وألصق الشهادة ثم المفتاح عند الطلب |
+| ٣ | جهازك | `ssh root@144.91.81.150 'bash -s -- plan' < docs/deploy/edge_root.sh` (قراءة فقط) ثم `... 'bash -s -- install' < docs/deploy/edge_root.sh` |
+| ٤ | لوحة Cloudflare | SSL/TLS ← Overview ← **Full (strict)**؛ وبقية الإعدادات أدناه |
+| ٥ | جهازك | افتح `https://app.wamda.work` (يظهر شريط الإنتاج الأحمر). ثم `... 'bash -s -- verify' < docs/deploy/edge_root.sh` |
+| ٦ | جهازك | `ssh wamda@144.91.81.150 'bash -s -- https://app.wamda.work' < docs/deploy/set_public_base_url.sh` |
+| ٧ | جهازك | بعد نجاح ٥ و٦ و«تجربة المتصفح»: `... 'bash -s -- lockdown' < docs/deploy/edge_root.sh` ثم `verify` مرة أخرى |
+| ٨ | جهازك | `... 'bash -s -- timer' < docs/deploy/edge_root.sh` (تحديث أسبوعي لنطاقات Cloudflare) |
+
+> `install` يُبقي 80/443 مفتوحَين للعموم عمداً حتى تتأكد أن الموقع يعمل عبر Cloudflare؛ `lockdown` يغلقهما. 22 لا يُمسّ في أي مرحلة.
+> (`wamda` بلا صلاحية root: الخطوة ٦ تحتاج فقط `sudo systemctl restart wamda` الموجود في sudoers.)
+
+### الخطوة ١ — إنشاء شهادة Origin في لوحة Cloudflare
+1. اختر النطاق `wamda.work` ← **SSL/TLS** ← **Origin Server** ← **Create Certificate**.
+2. **Generate private key and CSR with Cloudflare** (الافتراضي) · نوع المفتاح: RSA (2048) أو ECDSA — كلاهما مقبول.
+3. **Hostnames:** `app.wamda.work` فقط (احذف `*.wamda.work` و`wamda.work` الظاهرَين افتراضياً؛ شهادة أضيق = أثر أقل لو تسرّب المفتاح).
+4. **Certificate Validity:** `15 years` ← **Create**.
+5. تظهر **Origin Certificate** و**Private Key**. **المفتاح يُعرض مرة واحدة فقط.** لا تنسخهما إلى أي ملف ولا محادثة؛ تبقى النافذة مفتوحة وتُلصقهما مباشرةً في الطرفي حين يطلبهما السكربت (الشهادة أولاً ثم المفتاح — المفتاح لا يظهر على الشاشة أثناء اللصق). بعد النجاح أغلق النافذة.
+6. **Key Format:** اتركه **PEM** (الافتراضي).
+
+### الخطوة ٤ — إعدادات Cloudflare بعد التثبيت
+- **SSL/TLS ← Overview:** `Full (strict)`. (لا `Flexible` أبداً: المصدر على HTTP فتدور حلقة التحويل وتُكشف الجلسات بين Cloudflare وسيرفرك.)
+- **SSL/TLS ← Edge Certificates:** `Always Use HTTPS` = On · `Minimum TLS Version` = 1.2 · `Automatic HTTPS Rewrites` = On.
+- **Caching ← Configuration:** `Caching Level` = Standard · `Browser Cache TTL` = **Respect Existing Headers**.
+- **Caching ← Cache Rules** (طبقة أمان إضافية فوق ترويسات nginx): *If* `Hostname equals app.wamda.work` **and** `URI Path does not start with /static/app/assets/` *→* **Bypass cache**.
+- **لا تُنشئ قاعدة `Cache Everything` لهذا النطاق أبداً.**
+- **Speed ← Optimization:** عطّل `Rocket Loader` و`Auto Minify` و`Mirage`/`Polish` (تعدّل JS/HTML فتكسر CSP). **Scrape Shield:** عطّل `Email Address Obfuscation`.
+- **Security:** اترك `Bot Fight Mode` Off في البداية (قد يعترض استدعاءات الـAPI من الواجهة)؛ فعّله لاحقاً بعد المراقبة إن أردت.
+- اختياري لاحقاً: **Authenticated Origin Pulls** (طبقة ثالثة فوق ufw + حارس nginx).
+
+### التحقق (من جهازك)
+```powershell
+curl.exe -sI https://app.wamda.work/health          # 200، Cache-Control: no-store، cf-cache-status: DYNAMIC أو BYPASS
+curl.exe -s  https://app.wamda.work/health          # {"status":"ok","commit":"…"}
+curl.exe -s  https://app.wamda.work/environment     # {"environment":"production","csrf_cookie_name":"wamda_prod_csrf"}
+curl.exe -s -o NUL -w "%{http_code}\n" https://app.wamda.work/docs      # 404
+curl.exe -sk --max-time 8 https://144.91.81.150/    # بعد lockdown: لا رد (انتهاء مهلة/إعادة تعيين) — لا وصول بالـIP
+```
+- أصل مبني: `curl.exe -sI https://app.wamda.work/static/app/assets/<ملف>.js` ← `cache-control: public, max-age=31536000, immutable` و`cf-cache-status: MISS` ثم `HIT`.
+- `index.html` و`portal.html` و`/auth/*` وكل مستند: دائماً `no-store`، و`cf-cache-status` ليس `HIT` أبداً. **إن ظهر `HIT` على غير `assets/` فتوقّف وأبلغ** (بيانات مالية قد تُخزَّن).
+
+### «لكل مستخدم عنوانه» — لماذا وكيف نتأكد
+خلف Cloudflare تصل كل الطلبات من عناوين Cloudflare. بلا معالجة، حدّ الدخول (٨ محاولات/٥ دقائق **لكل عنوان**) يصير مشتركاً بين الجميع فيحجب الكل بخطأ واحد.
+- nginx: `set_real_ip_from` لنطاقات Cloudflare + `real_ip_header CF-Connecting-IP` (لا يُؤخذ إلا من نظير Cloudflare)، فيصير `$remote_addr` هو العميل؛
+  ثم `X-Real-IP $remote_addr` (تُعاد كتابتها دائماً، فلا يزوّرها العميل) ← التطبيق (`TRUST_PROXY_HEADERS=true` يقرأ `X-Real-IP`).
+- **الإثبات:** `edge_root.sh verify` يفتح مستمعاً مؤقتاً `127.0.0.1:18081` بالمواقع والترويسات نفسها ويُرسل طلبات دخول فاشلة بـ`CF-Connecting-IP` مختلف:
+  يُحجب العميل A عند الطلب (الحدّ+١)، ويبقى العميل B غير متأثر (401)، ولا يفكّ تزويرُ `X-Real-IP` حجبَ A. أي فشل يوقف السكربت.
+  (طلبات الاختبار من نطاق التوثيق `192.0.2.0/24` و`198.51.100.0/24`؛ تُسجَّل كمحاولات فاشلة لمستخدم وهمي `__edge_check__`.)
+- يدوياً بعد دخولك الفعلي: `tail /var/log/nginx/wamda-access.log` (root) يعرض `<عنوانك الحقيقي> peer=<عنوان Cloudflare>`. عنوانك: `curl.exe -s https://ifconfig.me`. (السجل لا يحوي سلسلة الاستعلام.)
+
+### تحديث نطاقات Cloudflare
+- يُحدَّث أسبوعياً بالمؤقّت (مرحلة `timer`)؛ يدوياً: `ssh root@144.91.81.150 /usr/local/sbin/wamda-update-cloudflare-ips`.
+- القائمة تُجلَب من `https://www.cloudflare.com/ips-v4` و`ips-v6` وتُتحقَّق صارماً (CIDR، العدد، رفض النطاقات الواسعة) قبل أي تغيير؛ فشل `nginx -t` ⇒ تراجع تلقائي.
+- **إن لم تُحدَّث القائمة** (فشل متكرر) وأضافت Cloudflare نطاقاً جديداً: طلبات منه تُسقَط (444 + ufw) فتظهر أخطاء 52x متقطّعة. الفحص: `systemctl status wamda-cloudflare-ips.service` و`systemctl list-timers wamda-cloudflare-ips.timer`.
+
+### أخطاء شائعة
+| العَرَض | السبب والحل |
+|---|---|
+| **521** (Web server is down) | nginx لا يعمل أو ufw يحجب Cloudflare: `systemctl status nginx` · `ufw status numbered` (قواعد `# cloudflare`) · أعد `install` |
+| **525/526** | الشهادة غير صالحة/لا تطابق النطاق: أعد `install_origin_cert.sh --replace` ثم `systemctl reload nginx` |
+| **522/524** | التطبيق لا يستجيب: `sudo systemctl status wamda` · `curl http://127.0.0.1:8000/health` على السيرفر |
+| **ERR_TOO_MANY_REDIRECTS** | وضع SSL = Flexible: غيّره إلى Full (strict) |
+| الجميع يُحجَبون معاً بعد محاولات شخص واحد | real_ip لا يعمل: شغّل `verify`؛ قارن `peer=` بالعنوان الأول في سجل الوصول |
+| الواجهة بلا شريط «الإنتاج» | الواجهة لم تُشحن/لم تُعَد الخدمة (§١٢) |
+
+### التراجع
+- **فتح 80/443 مؤقتاً للعموم** (للتشخيص): `ufw allow 80/tcp && ufw allow 443/tcp` ثم أعد `lockdown` بعد الانتهاء.
+- **الوصول الطارئ دائماً:** نفق SSH (§١١) على `127.0.0.1:18000` — لا يعتمد على Cloudflare ولا nginx.
+- **إيقاف الحافة:** `systemctl disable --now nginx` (التطبيق يبقى على `127.0.0.1:8000` ونفق SSH يعمل).
+- **`PUBLIC_BASE_URL`:** النسخة السابقة من `.env` في `/srv/wamda/secrets/env.bak-publicurl`. **لا تُغيّر النطاق لاحقاً** بعد طباعة إيصالات حقيقية (QR المطبوعة تشير إليه).
