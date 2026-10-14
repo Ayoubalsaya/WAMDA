@@ -22,6 +22,16 @@ ALLOWLIST = {
 }
 ALLOWED_PREFIXES = ("tests/", "scripts/")
 
+# استثناء ضيّق بنص السطر الكامل (لا بالملف): سطر رسالة تعليمات للمالك في سكربت تثبيت الشهادة يذكر ترويستَي PEM
+# بين «» ليعرف أين يبدأ لصقه. ليس مفتاحاً ولا يحمل بايتاً منه. أي سطر آخر في الملف نفسه — ومنه سطر ترويسة مجرَّد
+# أو مفتاح فعلي — يبقى مرفوضاً؛ وتغيّر نص هذا السطر يُسقط الاستثناء فيُراجَع.
+ALLOWED_LINES = {
+    (
+        "docs/deploy/install_origin_cert.sh",
+        "٢) الصق **المفتاح الخاص** (Private Key) كاملاً من «-----BEGIN PRIVATE KEY-----» إلى «-----END PRIVATE KEY-----»",
+    ),
+}
+
 # أنماط سرّ حقيقي (لا عناصر نائبة)
 _PATTERNS = [
     # سلسلة اتصال بكلمة مرور حرفية — يستثني الاستيفاء ({...}) والنوائب
@@ -61,6 +71,8 @@ def test_no_real_secret_literal_in_tracked_files():
         for pat in _PATTERNS:
             for m in pat.finditer(text):
                 line_no = text[: m.start()].count("\n") + 1
+                if (rel, text.splitlines()[line_no - 1].strip()) in ALLOWED_LINES:
+                    continue
                 offenders.append(f"{rel}:{line_no}: {m.group(0)[:60]}")
     assert not offenders, "سرّ محتمل مكتوب في ملف متتبَّع:\n" + "\n".join(offenders)
 
