@@ -413,10 +413,12 @@ phase_verify() {
   if grep -q ":${TEST_PORT}$" <<<"$listen"; then die "مستمع الاختبار $TEST_PORT موجود قبل البدء"; fi
 
   say "الشهادة المخدومة"
-  local sub; sub="$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null | openssl x509 -noout -subject -enddate 2>/dev/null || true)"
-  [ -n "$sub" ] || die "لا شهادة على 127.0.0.1:443"
-  printf '%s\n' "$sub" | sed 's/^/    /'
-  grep -q "$DOMAIN" <<<"$sub" && ok "الشهادة للنطاق $DOMAIN" || die "الشهادة المخدومة لا تخص $DOMAIN"
+  # شهادة Cloudflare Origin: CN عام والنطاق في SAN، فالمطابقة بـ-checkhost لا بنص subject.
+  local served; served="$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null | openssl x509 2>/dev/null || true)"
+  [ -n "$served" ] || die "لا شهادة على 127.0.0.1:443"
+  printf '%s\n' "$served" | openssl x509 -noout -subject -enddate | sed 's/^/    /'
+  printf '%s\n' "$served" | openssl x509 -noout -checkhost "$DOMAIN" 2>/dev/null | grep -q 'does match' \
+    && ok "الشهادة للنطاق $DOMAIN" || die "الشهادة المخدومة لا تخص $DOMAIN"
 
   say "الحارس: نظير ليس من Cloudflare يُسقَط (444)"
   local rc=0
@@ -464,7 +466,13 @@ phase_verify() {
 
   rm -f "$NGINX_TEST"; nginx -t >/dev/null && systemctl reload nginx
   trap - EXIT
-  listen="$(ss -H -tln | awk '{print $4}')"
+  # systemctl reload يعود قبل أن يغلق nginx المقبس القديم؛ نمهل حتى ١٠ ثوانٍ لا قراءة واحدة.
+  local n
+  for n in 1 2 3 4 5 6 7 8 9 10; do
+    listen="$(ss -H -tln | awk '{print $4}')"
+    grep -q ":${TEST_PORT}$" <<<"$listen" || break
+    sleep 1
+  done
   if grep -q ":${TEST_PORT}$" <<<"$listen"; then die "مستمع الاختبار ما زال قائماً"; fi
   ok "مستمع الاختبار أُزيل"
 
