@@ -53,7 +53,7 @@ read_pem() {
   : > "$out"
   if [ "$silent" = 1 ]; then stty -echo; trap 'stty echo 2>/dev/null; cleanup' EXIT; fi
   while IFS= read -r line; do
-    line="${line%$''}"                           # لصق من ويندوز
+    line="${line%$'\r'}"                           # لصق من ويندوز
     [ -n "${line// /}" ] || continue
     if [ "$started" = 0 ]; then
       [[ "$line" =~ $begin ]] || { rc=2; break; }
