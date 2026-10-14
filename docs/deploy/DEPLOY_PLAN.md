@@ -95,7 +95,7 @@
   `proxy_read_timeout 90s` (Cloudflare يقطع عند 100ث).
 - **TLS:** شهادة **Cloudflare Origin** (١٥ سنة، لـ`app.wamda.work` فقط) تُثبَّت بـ`install_origin_cert.sh` التفاعلي؛ **المفتاح الخاص لا يمرّ بأي أداة أو محادثة** (يُلصق في طرفي المالك بلا صدى، 0600 root).
   لا certbot ولا Let's Encrypt. تنتهي بعد ١٥ سنة؛ التجديد بتشغيل السكربت بـ`--replace` (يُسجَّل تذكير في PROGRESS).
-- **الجدار الناري:** 80/443 من نطاقات Cloudflare فقط (القائمة الرسمية `ips-v4`/`ips-v6`، قواعد بتعليق `cloudflare`، تُزامَن بـ`wamda-update-cloudflare-ips` أسبوعياً)؛ 22 دون تغيير.
+- **الجدار الناري:** 80/443 من نطاقات Cloudflare فقط (القائمة الرسمية `ips-v4`/`ips-v6`، قواعد بتعليق `cloudflare`، تُزامَن بـ`wamda-update-cloudflare-ips` أسبوعياً؛ يرفض قائمة <12 v4 أو <5 v6 أو تُسقط >3 نطاقات عن المطبَّق، وفشله يظهر في لوحة التحكم عبر `OnFailure=`)؛ 22 دون تغيير. `lockdown` لا يحذف شيئاً قبل نجاح `https://app.wamda.work/health` من السيرفر نفسه بالالتزام المُشغَّل.
   دفاع ثانٍ في nginx: `geo $realip_remote_addr` ⇒ أي نظير غير Cloudflare يُسقَط (444) حتى لو أخطأ ufw.
 - **عنوان العميل:** `set_real_ip_from` (نطاقات Cloudflare) + `real_ip_header CF-Connecting-IP`؛ التطبيق (`TRUST_PROXY_HEADERS=true`) يقرأ `X-Real-IP`. إثبات: `edge_root.sh verify` (مستمع مؤقت بالمواقع نفسها) + `tests/test_edge_config.py`.
 - **التخزين المؤقت:** nginx يفرض `no-store` على كل شيء إلا `/static/app/assets/*` (`public, max-age=31536000, immutable`) ويُخفي ترويسات التخزين القادمة من التطبيق؛

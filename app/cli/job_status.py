@@ -19,6 +19,7 @@ JOB_LABELS_AR: dict[str, str] = {
     "integrity": "فحص السلامة اليومي",
     "backup-fresh": "فحص وصول النسخ الاحتياطية",
     "restore-test": "اختبار الاستعادة الأسبوعي",
+    "cloudflare-ips": "تحديث نطاقات Cloudflare (nginx/الجدار الناري)",
 }
 SETTING_PREFIX = "job_status:"
 

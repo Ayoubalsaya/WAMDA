@@ -390,7 +390,7 @@ ssh -t wamda@144.91.81.150 "cd /srv/wamda/app && /srv/wamda/venv/bin/python -m a
 | ٤ | لوحة Cloudflare | SSL/TLS ← Overview ← **Full (strict)**؛ وبقية الإعدادات أدناه |
 | ٥ | جهازك | افتح `https://app.wamda.work` (يظهر شريط الإنتاج الأحمر). ثم `... 'bash -s -- verify' < docs/deploy/edge_root.sh` |
 | ٦ | جهازك | `ssh wamda@144.91.81.150 'bash -s -- https://app.wamda.work' < docs/deploy/set_public_base_url.sh` |
-| ٧ | جهازك | بعد نجاح ٥ و٦ و«تجربة المتصفح»: `... 'bash -s -- lockdown' < docs/deploy/edge_root.sh` ثم `verify` مرة أخرى |
+| ٧ | جهازك | بعد نجاح ٥ و٦ و«تجربة المتصفح»: `... 'bash -s -- lockdown' < docs/deploy/edge_root.sh` ثم `verify` مرة أخرى. **`lockdown` لا يحذف شيئاً ما لم ينجح `curl https://app.wamda.work/health` من السيرفر نفسه (عبر Cloudflare ← nginx ← التطبيق، بوجود ترويسة `cf-ray`) ويعيد الالتزام المُشغَّل نفسه** |
 | ٨ | جهازك | `... 'bash -s -- timer' < docs/deploy/edge_root.sh` (تحديث أسبوعي لنطاقات Cloudflare) |
 
 > `install` يُبقي 80/443 مفتوحَين للعموم عمداً حتى تتأكد أن الموقع يعمل عبر Cloudflare؛ `lockdown` يغلقهما. 22 لا يُمسّ في أي مرحلة.
@@ -436,7 +436,8 @@ curl.exe -sk --max-time 8 https://144.91.81.150/    # بعد lockdown: لا رد
 
 ### تحديث نطاقات Cloudflare
 - يُحدَّث أسبوعياً بالمؤقّت (مرحلة `timer`)؛ يدوياً: `ssh root@144.91.81.150 /usr/local/sbin/wamda-update-cloudflare-ips`.
-- القائمة تُجلَب من `https://www.cloudflare.com/ips-v4` و`ips-v6` وتُتحقَّق صارماً (CIDR، العدد، رفض النطاقات الواسعة) قبل أي تغيير؛ فشل `nginx -t` ⇒ تراجع تلقائي.
+- القائمة تُجلَب من `https://www.cloudflare.com/ips-v4` و`ips-v6` وتُتحقَّق صارماً قبل أي تغيير: CIDR صالح، لا نطاق أوسع من /12 (v4) و/20 (v6)، **≥12 نطاق v4 و≥5 v6** (الفعلي ١٥/٧)، **ولا تُسقط أكثر من ٣ نطاقات عمّا هو مطبَّق حالياً في nginx** (قائمة مبتورة تُرفض). أي رفض ⇒ خروج ≠٠ بلا أي تغيير؛ فشل `nginx -t` ⇒ تراجع تلقائي.
+- **الفشل يظهر في لوحة التحكم:** الوحدة `OnFailure=wamda-job-failed@cloudflare-ips` ⇒ تنبيه critical «تحديث نطاقات Cloudflare» (`job_failed_cloudflare-ips`) يزول بأول تحديث ناجح. إن رفض المحدِّث قائمة مشروعة (Cloudflare غيّرت أكثر من ٣ نطاقات دفعة واحدة): افحص `curl -s https://www.cloudflare.com/ips-v4` بنفسك ثم نفّذ الحذف المتعمَّد بحذف `/etc/nginx/conf.d/00-wamda-cloudflare.conf` (مرجع المقارنة) وشغّل المحدِّث يدوياً.
 - **إن لم تُحدَّث القائمة** (فشل متكرر) وأضافت Cloudflare نطاقاً جديداً: طلبات منه تُسقَط (444 + ufw) فتظهر أخطاء 52x متقطّعة. الفحص: `systemctl status wamda-cloudflare-ips.service` و`systemctl list-timers wamda-cloudflare-ips.timer`.
 
 ### أخطاء شائعة

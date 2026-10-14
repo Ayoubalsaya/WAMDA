@@ -59,10 +59,13 @@ def run_py(code: str, *args: str, stdin: str | None = None) -> subprocess.Comple
     return subprocess.run([sys.executable, "-I", "-c", code, *args], capture_output=True, text=True, input=stdin, timeout=30)
 
 
-def gen(tmp_path: Path, v4: str, v6: str):
+def gen(tmp_path: Path, v4: str, v6: str, old: str = ""):
+    """`old`: النطاقات المطبَّقة حالياً (محتوى oldcidrs كما يستخرجه المحدِّث من ملف nginx الحالي)."""
     (tmp_path / "v4").write_text(v4, encoding="ascii")
     (tmp_path / "v6").write_text(v6, encoding="ascii")
-    r = run_py(heredoc("WAMDA_PYGEN"), str(tmp_path / "v4"), str(tmp_path / "v6"), str(tmp_path / "cf.conf"), str(tmp_path / "cidrs"))
+    (tmp_path / "old").write_text(old, encoding="ascii")
+    r = run_py(heredoc("WAMDA_PYGEN"), str(tmp_path / "v4"), str(tmp_path / "v6"), str(tmp_path / "cf.conf"), str(tmp_path / "cidrs"),
+               str(tmp_path / "old"))
     return r
 
 
@@ -88,6 +91,10 @@ def test_generator_emits_real_ip_and_guard(tmp_path):
     (CF_V4 + " 1.2.3.4/20", CF_V6, "بتات مضيف"),
     (CF_V4 + " not-an-ip", CF_V6, "نص عشوائي"),
     ("173.245.48.0/20 103.21.244.0/22", CF_V6, "قائمة قصيرة مريبة (أخطأت الصفحة/صفحة خطأ)"),
+    (" ".join(CF_V4.split()[:11]), CF_V6, "11 نطاق v4: أقل من الحد الأدنى 12"),
+    (CF_V4, " ".join(CF_V6.split()[:4]), "4 نطاقات v6: أقل من الحد الأدنى 5"),
+    ("", CF_V6, "قائمة v4 فارغة"),
+    (CF_V4, "", "قائمة v6 فارغة"),
     (CF_V4, "::/0", "v6 يعني الجميع"),
     (CF_V4, "2400:cb00::/32", "v6 قليلة"),
     (CF_V4 + " 2400:cb00::/32", CF_V6, "v6 داخل ملف v4"),
@@ -97,6 +104,60 @@ def test_generator_rejects_suspicious_lists_without_writing(tmp_path, v4, v6, wh
     r = gen(tmp_path, v4, v6)
     assert r.returncode != 0, why
     assert not (tmp_path / "cf.conf").exists(), why
+
+
+def test_generator_accepts_exact_minimums(tmp_path):
+    r = gen(tmp_path, " ".join(CF_V4.split()[:12]), " ".join(CF_V6.split()[:5]))
+    assert r.returncode == 0, r.stderr
+    assert len((tmp_path / "cidrs").read_text().split()) == 17
+
+
+EXTRA = "1.0.0.0/22 1.0.4.0/22 1.0.8.0/22 1.0.12.0/22"     # نطاقات «مطبَّقة سابقاً» ليست في القائمة الجديدة
+
+
+def test_generator_allows_dropping_up_to_three_applied_ranges(tmp_path):
+    old = " ".join(CF_V4.split() + CF_V6.split() + EXTRA.split()[:3])
+    r = gen(tmp_path, CF_V4, CF_V6, old=old)
+    assert r.returncode == 0, r.stderr
+    conf = (tmp_path / "cf.conf").read_text(encoding="utf-8")
+    assert "1.0.0.0/22" not in conf                      # المُسقَط يختفي فعلاً
+
+
+def test_generator_rejects_dropping_more_than_three_applied_ranges_without_writing(tmp_path):
+    old = " ".join(CF_V4.split() + CF_V6.split() + EXTRA.split())          # 4 مُسقَطة
+    r = gen(tmp_path, CF_V4, CF_V6, old=old)
+    assert r.returncode != 0
+    assert "تُسقط 4" in r.stderr or "4" in r.stderr
+    assert not (tmp_path / "cf.conf").exists() and not (tmp_path / "cidrs").exists()
+
+
+def test_generator_first_install_has_no_comparison(tmp_path):
+    assert gen(tmp_path, CF_V4, CF_V6, old="").returncode == 0
+
+
+def test_updater_passes_applied_list_to_generator():
+    upd = heredoc("WAMDA_UPDATER")
+    assert "grep -oE '^set_real_ip_from [^;]+' \"$NGINX_CF\"" in upd
+    assert '"$TMP/cidrs" "$TMP/oldcidrs"' in upd
+    assert "MAX_DROPPED = 3" in upd
+    assert "load(sys.argv[1], 4, 12, 12, 80)" in upd and "load(sys.argv[2], 6, 20, 5, 40)" in upd
+
+
+# ── وحدة المحدِّث ← لوحة التحكم ──────────────────────────────────────────
+
+
+def test_updater_service_failure_reaches_dashboard():
+    from app.cli.job_status import JOB_LABELS_AR
+
+    svc = heredoc("WAMDA_CF_SERVICE")
+    m = re.search(r"^OnFailure=wamda-job-failed@([^.\s]+)\.service$", svc, re.M)
+    assert m, "OnFailure غائب"
+    job = m.group(1)
+    assert job in JOB_LABELS_AR, f"{job} ليس اسم مهمة معروفاً لـjob-status — التنبيه لن يظهر"
+    assert "%n" not in m.group(0)
+    assert f"job-status {job} --ok" in svc                # نجاحٌ لاحق يمسح التنبيه
+    assert "SyslogIdentifier=wamda-cloudflare-ips" in svc
+
 
 
 # ── محلِّلات ufw ─────────────────────────────────────────────────────────
@@ -244,6 +305,21 @@ def test_cert_script_never_prints_or_traces_the_key():
     assert not re.search(r'(echo|printf|cat)[^\n|>]*"?\$(TMP_)?KEY', code)          # لا طباعة مسار/محتوى المفتاح كمتغيّر
     assert 'openssl pkey -in "$TMP_KEY" -pubout' in code and "-noout" in code
     assert 'chmod 0600 "$TMP_KEY"' in code
+
+
+def test_lockdown_proves_public_path_before_deleting_anything():
+    body = re.search(r"^phase_lockdown\(\) \{\n(.*?)\n\}\n", EDGE, re.S | re.M).group(1)
+    first_delete = body.index("ufw --force delete")
+    check = body.index("https://$DOMAIN/health")
+    assert check < first_delete, "فحص المسار العام يجب أن يسبق أي حذف"
+    # الفحص يمرّ فعلاً عبر Cloudflare ويقارن الالتزام المُشغَّل
+    assert "cf-ray" in body and '"$via_commit" = "$direct_commit"' in body
+    # وصف الفحص القديم المضلِّل («عبر nginx» وهو يسأل التطبيق مباشرة) زال
+    assert "عبر nginx يعمل محلياً" not in body
+    # كل فشل قبل الحذف يوقف السكربت برسالة «لن أغلق شيئاً»
+    pre = body[:first_delete]
+    assert pre.count("لن أغلق شيئاً") >= 3
+
 
 
 def test_edge_script_does_not_touch_ssh_rule_or_cloudflare_account():

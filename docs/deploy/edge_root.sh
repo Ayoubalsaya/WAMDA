@@ -64,6 +64,7 @@ write_updater() {
 # يجلب نطاقات IP الرسمية لـCloudflare ويحدّث: (١) nginx real_ip + حارس «من Cloudflare فقط»، (٢) قواعد ufw (80,443).
 #   wamda-update-cloudflare-ips [--no-reload] [--no-firewall]
 # فشل التحقق من القائمة = خروج ≠٠ بلا أي تغيير. فشل `nginx -t` = تراجع تلقائي إلى الملف السابق.
+# حدود القبول: ≥١٢ نطاق IPv4 و≥٥ IPv6 (الفعلي ١٥/٧)، ولا تُسقط أكثر من ٣ نطاقات عمّا هو مطبَّق حالياً في nginx.
 set -euo pipefail
 NGINX_CF=/etc/nginx/conf.d/00-wamda-cloudflare.conf
 NO_RELOAD=0; NO_FW=0
@@ -75,7 +76,13 @@ fetch() { curl -fsS --proto '=https' --tlsv1.2 --max-time 30 --retry 2 "https://
 fetch ips-v4
 fetch ips-v6
 
-python3 - "$TMP/ips-v4" "$TMP/ips-v6" "$TMP/cf.conf" "$TMP/cidrs" <<'WAMDA_PYGEN'
+# النطاقات المطبَّقة حالياً (للمقارنة): تُقرأ من ملف nginx الحالي؛ لا ملف = تثبيت أول = لا مقارنة
+: > "$TMP/oldcidrs"
+if [ -e "$NGINX_CF" ]; then
+  grep -oE '^set_real_ip_from [^;]+' "$NGINX_CF" | awk '{print $2}' > "$TMP/oldcidrs" || true
+fi
+
+python3 - "$TMP/ips-v4" "$TMP/ips-v6" "$TMP/cf.conf" "$TMP/cidrs" "$TMP/oldcidrs" <<'WAMDA_PYGEN'
 import ipaddress, sys, datetime
 
 def load(path, ver, min_prefix, min_count, max_count):
@@ -92,9 +99,15 @@ def load(path, ver, min_prefix, min_count, max_count):
         raise SystemExit(f"IPv{ver}: عدد النطاقات {len(nets)} خارج المتوقع [{min_count},{max_count}]")
     return nets
 
-v4 = load(sys.argv[1], 4, 12, 8, 80)
-v6 = load(sys.argv[2], 6, 20, 3, 40)
+MAX_DROPPED = 3                      # أكثر من هذا مقارنةً بالمطبَّق = قائمة مبتورة مشبوهة → رفض
+
+v4 = load(sys.argv[1], 4, 12, 12, 80)
+v6 = load(sys.argv[2], 6, 20, 5, 40)
 allnets = [str(n) for n in v4 + v6]
+old = set(open(sys.argv[5], encoding="ascii").read().split()) if len(sys.argv) > 5 else set()
+dropped = sorted(old - set(allnets))
+if len(dropped) > MAX_DROPPED:
+    raise SystemExit(f"القائمة الجديدة تُسقط {len(dropped)} نطاقاً مطبَّقاً حالياً (الأقصى {MAX_DROPPED}): {', '.join(dropped)} — رُفضت")
 stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 out = [f"# مولَّد بـwamda-update-cloudflare-ips ({stamp}) — لا يُعدَّل يدوياً. المصدر: https://www.cloudflare.com/ips-v4 و ips-v6",
        "# real_ip: عنوان العميل الحقيقي من CF-Connecting-IP **فقط** حين يكون النظير المباشر من نطاقات Cloudflare."]
@@ -296,11 +309,18 @@ write_timer_units() {
 Description=Wamda: refresh Cloudflare IP ranges (nginx real_ip + ufw)
 After=network-online.target
 Wants=network-online.target
+# الفشل يظهر تنبيهاً critical في لوحة التحكم (job_failed_cloudflare-ips) كبقية المهام؛ الاسم = مثيل القالب (%i في wamda-job-failed@)
+# لا `%n`: ذاك يعطي «wamda-cloudflare-ips.service» فيرفضه `job-status` (الاسم يجب أن يكون في JOB_LABELS_AR) ولا يظهر تنبيه.
+OnFailure=wamda-job-failed@cloudflare-ips.service
 
 [Service]
 Type=oneshot
+# يعمل كـroot (يعدّل ufw وnginx)؛ تسجيل النجاح (يمسح التنبيه) بصفة wamda كبقية المهام.
 ExecStart=/usr/local/sbin/wamda-update-cloudflare-ips
-# فشل التحديث لا يكسر شيئاً (القائمة السابقة تبقى)، لكن يجب أن يُلاحَظ: مراجعة `systemctl status` في RUNBOOK §١٤.
+ExecStartPost=/usr/sbin/runuser -u wamda -- /srv/wamda/venv/bin/python -m app.cli job-status cloudflare-ips --ok
+WorkingDirectory=/srv/wamda/app
+TimeoutStartSec=120
+SyslogIdentifier=wamda-cloudflare-ips
 WAMDA_CF_SERVICE
   cat > /etc/systemd/system/wamda-cloudflare-ips.timer <<'WAMDA_CF_TIMER'
 [Unit]
@@ -463,7 +483,20 @@ phase_lockdown() {
   local cfo cf; cfo="$(ufw status)"; cf="$(grep -cE '# cloudflare *$' <<<"$cfo" || true)"
   [ "$cf" -ge 15 ] || die "قواعد Cloudflare في ufw ($cf) أقل من المتوقع — لن أحذف القواعد المفتوحة"
   ufw_has_ssh_rule || die "لا قاعدة 22/tcp (أو ufw غير مفعّل) — لن أمسّ الجدار الناري"
-  chk "التطبيق عبر nginx يعمل محلياً" curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health"
+  # لا يُغلق شيء قبل إثبات المسار الكامل الذي سيبقى الوحيد: Cloudflare ← nginx ← التطبيق (من السيرفر نفسه، بالاسم العام).
+  local direct_json direct_commit via_hdr via_json via_commit git_head
+  direct_json="$(curl -fsS --max-time 5 "http://127.0.0.1:$APP_PORT/health")" || die "التطبيق لا يستجيب مباشرةً على 127.0.0.1:$APP_PORT"
+  direct_commit="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("commit",""))' "$direct_json")"
+  [ -n "$direct_commit" ] || die "/health المباشر لا يعيد رقم الالتزام: $direct_json"
+  via_hdr="$(mktemp)"
+  via_json="$(curl -fsS --max-time 20 -H 'Cache-Control: no-cache' -D "$via_hdr" "https://$DOMAIN/health?lockdown=$RANDOM")"     || { rm -f "$via_hdr"; die "فشل https://$DOMAIN/health من السيرفر (Cloudflare ← nginx ← التطبيق) — لن أغلق شيئاً"; }
+  grep -qi '^cf-ray:' "$via_hdr" || { rm -f "$via_hdr"; die "الرد لم يمرّ عبر Cloudflare (لا ترويسة cf-ray) — السجل ليس Proxy؟ لن أغلق شيئاً"; }
+  rm -f "$via_hdr"
+  via_commit="$(python3 -c 'import json,sys; print(json.loads(sys.argv[1]).get("commit",""))' "$via_json" 2>/dev/null || true)"
+  [ -n "$via_commit" ] && [ "$via_commit" = "$direct_commit" ]     || die "رقم الالتزام عبر Cloudflare ('$via_commit') لا يطابق التطبيق المُشغَّل ('$direct_commit') — لن أغلق شيئاً"
+  ok "https://$DOMAIN/health عبر Cloudflare ← nginx ← التطبيق يعيد الالتزام المُشغَّل ($via_commit)"
+  git_head="$(git -C /srv/wamda/app rev-parse --short=7 HEAD 2>/dev/null || true)"
+  [ -z "$git_head" ] || [ "$git_head" = "$via_commit" ] || echo "  ⚠ مجلد الكود على HEAD=$git_head والمُشغَّل $via_commit (سُحب كود جديد دون إعادة تشغيل؟) — الفحص يخصّ المُشغَّل فعلاً"
   ufw status numbered > /tmp/.wamda-ufw.$$
   local nums
   nums="$(python3 - /tmp/.wamda-ufw.$$ <<'WAMDA_PYOPEN'
